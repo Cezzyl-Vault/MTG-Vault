@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MTG Sammlung (OCR + Scryfall)</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; background:#111; color:#eee; }
+    button { padding:10px; margin:5px; }
+    video, canvas { width:100%; max-width:400px; }
+    .card { border:1px solid #444; padding:10px; margin:5px 0; }
+    #status { margin-top:10px; color:#0f0; }
+  </style>
+</head>
+<body>
+
+<h1>MTG Sammlung (OCR + Auto-Erkennung)</h1>
+
+<button onclick="startCamera()">📷 Kamera starten</button>
+<button onclick="capture()">📸 Scannen</button>
+
+<p><b>Hinweis:</b> Kamera funktioniert nur über HTTPS oder localhost!</p>
+
+<br><br>
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas" style="display:none;"></canvas>
+
+<div id="status"></div>
+
+<h2>Sammlung</h2>
+<div id="collection"></div>
+
+<script>
+let video = document.getElementById('video');
+let canvas = document.getElementById('canvas');
+let ctx = canvas.getContext('2d');
+let statusDiv = document.getElementById('status');
+
+let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
+
+function save() {
+  localStorage.setItem('mtgCollection', JSON.stringify(collection));
+  render();
+}
+
+function render() {
+  let div = document.getElementById('collection');
+  div.innerHTML = '';
+  for (let name in collection) {
+    div.innerHTML += `<div class="card">${name} (x${collection[name]})</div>`;
+  }
+}
+
+async function startCamera() {
+  try {
+    let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = stream;
+    statusDiv.innerText = "Kamera läuft";
+  } catch (err) {
+    console.error(err);
+    statusDiv.innerText = "❌ Kamera funktioniert nicht. Nutze HTTPS oder localhost.";
+  }
+}
+
+async function capture() {
+  statusDiv.innerText = "Scanne...";
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+
+  let imageData = canvas.toDataURL('image/png');
+
+  const result = await Tesseract.recognize(imageData, 'eng', {
+    logger: m => statusDiv.innerText = m.status
+  });
+
+  let text = result.data.text;
+  let lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+  let guessedName = lines[0];
+
+  statusDiv.innerText = "Suche Karte: " + guessedName;
+
+  try {
+    let response = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guessedName)}`);
+    let data = await response.json();
+
+    if (data.object === "error") throw new Error();
+
+    let name = data.name;
+
+    if (!collection[name]) collection[name] = 0;
+    collection[name]++;
+
+    save();
+    statusDiv.innerText = "✅ Gefunden: " + name;
+
+  } catch {
+    let manual = prompt("Nicht eindeutig erkannt. Kartenname eingeben:", guessedName);
+    if (!manual) return;
+
+    if (!collection[manual]) collection[manual] = 0;
+    collection[manual]++;
+
+    save();
+    statusDiv.innerText = "⚠️ Manuell hinzugefügt: " + manual;
+  }
+}
+
+render();
+</script>
+
+</body>
+</html>
