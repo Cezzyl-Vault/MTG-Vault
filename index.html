@@ -56,7 +56,7 @@ video, canvas { width:100%; max-width:420px; }
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.21",
+  version: "0.22",
   scanInterval: 1200,
   motionThreshold: 50000,
   ocrConfidence: 40,
@@ -336,7 +336,9 @@ async function scanOnce(){
   
 /* ========================================= */
 
+  console.log("Script läuft");
 startCamera();
+  console.log("Starte Kamera");
 render();
 
  document.getElementById("versionFooter").innerText =
