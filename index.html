@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MTG-Vault</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 
 <style>
 body { font-family: Arial; background:#111; color:#eee; padding:10px; }
@@ -55,7 +56,7 @@ video, canvas { width:100%; max-width:420px; }
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.17",
+  version: "0.18",
   scanInterval: 1200,
   motionThreshold: 50000,
   ocrConfidence: 40,
@@ -217,18 +218,93 @@ function detectMotion(){
 }
 
 /* =========================================
-   🔹 MODULE: SCANNER
+   🔹 MODULE: SCANNER (OpenCV Perspektivkorrektur)
 ========================================= */
+
+function detectCardContour(src) {
+  let gray = new cv.Mat();
+  let blur = new cv.Mat();
+  let edges = new cv.Mat();
+
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray, blur, new cv.Size(5,5), 0);
+  cv.Canny(blur, edges, 50, 150);
+
+  let contours = new cv.MatVector();
+  let hierarchy = new cv.Mat();
+
+  cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  let maxArea = 0;
+  let bestContour = null;
+
+  for (let i = 0; i < contours.size(); i++) {
+    let cnt = contours.get(i);
+    let area = cv.contourArea(cnt);
+
+    if (area > maxArea) {
+      let peri = cv.arcLength(cnt, true);
+      let approx = new cv.Mat();
+      cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+
+      if (approx.rows === 4) {
+        maxArea = area;
+        bestContour = approx;
+      }
+    }
+  }
+
+  gray.delete(); blur.delete(); edges.delete();
+  contours.delete(); hierarchy.delete();
+
+  return bestContour;
+}
+
+function warpCard(src, contour) {
+  let pts = contour.data32S;
+
+  let srcTri = cv.matFromArray(4,1,cv.CV_32FC2,[
+    pts[0], pts[1],
+    pts[2], pts[3],
+    pts[4], pts[5],
+    pts[6], pts[7]
+  ]);
+
+  let width = 300;
+  let height = 420;
+
+  let dstTri = cv.matFromArray(4,1,cv.CV_32FC2,[
+    0,0,
+    width,0,
+    width,height,
+    0,height
+  ]);
+
+  let M = cv.getPerspectiveTransform(srcTri, dstTri);
+  let dst = new cv.Mat();
+
+  cv.warpPerspective(src, dst, M, new cv.Size(width, height));
+
+  srcTri.delete(); dstTri.delete(); M.delete();
+
+  return dst;
+}
+
 async function scanOnce(){
 
-  if(scanning) return;
+  if (scanning) return;
 
-  if(video.videoWidth === 0){
+  if (typeof cv === 'undefined') {
+    statusDiv.innerText = "⏳ OpenCV lädt...";
+    return;
+  }
+
+  if (video.videoWidth === 0) {
     statusDiv.innerText = "⏳ Kamera lädt...";
     return;
   }
 
-  if(!detectMotion()){
+  if (!detectMotion()) {
     statusDiv.innerText = "⏸ Keine Bewegung";
     return;
   }
@@ -238,79 +314,101 @@ async function scanOnce(){
   let canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video,0,0);
 
-  let candidates=[];
+  let ctx = canvas.getContext('2d');
+  ctx.drawImage(video,0,0);
 
-  for(let z of CONFIG.scanZones){
+  let src = cv.imread(canvas);
 
-    let part=document.createElement('canvas');
-    let h=canvas.height*0.18;
+  let contour = detectCardContour(src);
 
-    part.width=canvas.width;
-    part.height=h;
+  if (!contour) {
+    statusDiv.innerText = "⚠️ Keine Karte erkannt";
+    src.delete();
+    scanning = false;
+    return;
+  }
 
-    part.getContext('2d')
-      .drawImage(canvas,0,canvas.height*z,canvas.width,h,0,0,canvas.width,h);
+  let warped = warpCard(src, contour);
 
-    preprocess(part);
+  // convert zurück zu Canvas
+  let outCanvas = document.createElement('canvas');
+  cv.imshow(outCanvas, warped);
 
+  // OCR nur obere Zone
+  let part = document.createElement('canvas');
+  let h = outCanvas.height * 0.2;
+
+  part.width = outCanvas.width;
+  part.height = h;
+
+  part.getContext('2d').drawImage(outCanvas, 0, 0, outCanvas.width, h, 0, 0, outCanvas.width, h);
+
+  preprocess(part);
+
+  try {
     let res = await Tesseract.recognize(part.toDataURL(),'eng');
 
-    if(res.data.confidence < CONFIG.ocrConfidence) continue;
+    if (res.data.confidence < CONFIG.ocrConfidence) {
+      statusDiv.innerText = "⚠️ Unsicher";
+      scanning = false;
+      return;
+    }
 
-    candidates.push(...clean(res.data.text || ""));
+    let candidates = clean(res.data.text || "");
+    if (candidates.length === 0) {
+      scanning = false;
+      return;
+    }
+
+    let guess = bestMatch(candidates[0], candidates);
+
+    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
+    let d = await r.json();
+
+    if (d.object === 'error') {
+      statusDiv.innerText = "❌ Kein Treffer";
+      scanning = false;
+      return;
+    }
+
+    if (d.name === lastCard) {
+      scanning = false;
+      return;
+    }
+
+    lastCard = d.name;
+    setTimeout(()=>lastCard=null,3000);
+
+    let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
+
+    if (!collection[d.name]) {
+      collection[d.name] = {count:0,image:img};
+    }
+
+    collection[d.name].count++;
+    save();
+
+    statusDiv.innerText = "✅ " + d.name;
+
+    flash.classList.add('active');
+    setTimeout(()=>flash.classList.remove('active'),200);
+
+  } catch(e) {
+    console.error(e);
   }
 
-  candidates=[...new Set(candidates)];
+  src.delete();
+  warped.delete();
 
-  if(candidates.length===0){
-    statusDiv.innerText="⚠️ Kein Text";
-    scanning=false;
-    return;
-  }
-
-  let guess = bestMatch(candidates[0], candidates);
-
-  let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
-  let d = await r.json();
-
-  if(d.object==='error'){
-    statusDiv.innerText="❌ Kein Treffer";
-    scanning=false;
-    return;
-  }
-
-  if(d.name===lastCard){
-    scanning=false;
-    return;
-  }
-
-  lastCard = d.name;
-  setTimeout(()=>lastCard=null,3000);
-
-  let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
-
-  if(!collection[d.name]){
-    collection[d.name] = {count:0,image:img};
-  }
-
-  collection[d.name].count++;
-  save();
-
-  statusDiv.innerText="✅ "+d.name;
-
-  flash.classList.add('active');
-  setTimeout(()=>flash.classList.remove('active'),200);
-
-  scanning=false;
+  scanning = false;
 }
 
 async function loop(){
   await scanOnce();
   setTimeout(loop, CONFIG.scanInterval);
 }
-
+  
 /* ========================================= */
 
 startCamera();
