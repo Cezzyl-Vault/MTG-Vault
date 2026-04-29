@@ -26,10 +26,7 @@
       pointer-events: none;
     }
 
-    .status {
-      margin-bottom:5px;
-      color:#0f0;
-    }
+    .status { margin-bottom:5px; color:#0f0; }
 
     .flash {
       position:absolute;
@@ -66,7 +63,7 @@
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.5</footer>
+<footer>Version 0.6</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -126,6 +123,31 @@ function preprocess(canvas) {
   ctx.putImageData(img,0,0);
 }
 
+// 👉 einfache "Perspektivkorrektur" (Bounding Box der hellen Fläche)
+function detectCardArea(ctx, width, height) {
+  let img = ctx.getImageData(0,0,width,height).data;
+
+  let minX=width, maxX=0, minY=height, maxY=0;
+
+  for(let y=0;y<height;y+=10){
+    for(let x=0;x<width;x+=10){
+      let i=(y*width+x)*4;
+      let brightness=(img[i]+img[i+1]+img[i+2])/3;
+
+      if(brightness>120){
+        if(x<minX) minX=x;
+        if(x>maxX) maxX=x;
+        if(y<minY) minY=y;
+        if(y>maxY) maxY=y;
+      }
+    }
+  }
+
+  if(maxX-minX<50 || maxY-minY<50) return null;
+
+  return {x:minX, y:minY, w:maxX-minX, h:maxY-minY};
+}
+
 function clean(text){
   return text.replace(/[^a-zA-Z' ]/g,'')
     .split('\n')
@@ -143,21 +165,32 @@ async function scanOnce(){
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
+  let area = detectCardArea(ctx, canvas.width, canvas.height);
+
+  if(!area){ scanning=false; return; }
+
+  // 👉 Karte zuschneiden ("gerade ziehen light")
+  let tempCanvas=document.createElement('canvas');
+  tempCanvas.width=area.w;
+  tempCanvas.height=area.h;
+  let tctx=tempCanvas.getContext('2d');
+  tctx.drawImage(canvas, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
+
   let candidates=[];
 
   for (let i=0;i<3;i++){
-    let cropY = canvas.height*(0.1+i*0.03);
-    let cropH = canvas.height*0.15;
+    let cropY = tempCanvas.height*(0.1+i*0.03);
+    let cropH = tempCanvas.height*0.15;
 
-    let temp=document.createElement('canvas');
-    temp.width=canvas.width;
-    temp.height=cropH;
-    let tctx=temp.getContext('2d');
-    tctx.drawImage(canvas,0,cropY,canvas.width,cropH,0,0,canvas.width,cropH);
+    let part=document.createElement('canvas');
+    part.width=tempCanvas.width;
+    part.height=cropH;
+    let pctx=part.getContext('2d');
+    pctx.drawImage(tempCanvas,0,cropY,tempCanvas.width,cropH,0,0,tempCanvas.width,cropH);
 
-    preprocess(temp);
+    preprocess(part);
 
-    let res = await Tesseract.recognize(temp.toDataURL(),'eng');
+    let res = await Tesseract.recognize(part.toDataURL(),'eng');
     if (res.data.confidence < 50) continue;
 
     candidates.push(...clean(res.data.text));
