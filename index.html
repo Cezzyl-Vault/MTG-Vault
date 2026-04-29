@@ -62,7 +62,7 @@
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.10</footer>
+<footer>Version 0.11</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -160,8 +160,6 @@ async function scanOnce(){
   }
 
   scanning = true;
-
-  // failsafe
   setTimeout(()=>scanning=false,5000);
 
   let canvas = document.createElement('canvas');
@@ -170,9 +168,6 @@ async function scanOnce(){
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-  let candidates=[];
-
-  // nur 1 OCR-Pass (stabil + schnell)
   let cropY = canvas.height * 0.1;
   let cropH = canvas.height * 0.2;
 
@@ -184,16 +179,21 @@ async function scanOnce(){
 
   preprocess(part);
 
+  let candidates = [];
+
   try {
     let res = await Tesseract.recognize(part.toDataURL(),'eng');
 
-    if (res.data.confidence < 45) {
+    let text = res.data.text || "";
+    let confidence = res.data.confidence || 0;
+
+    if (confidence < 45) {
       statusDiv.innerText = "⚠️ Unsicher";
       scanning = false;
       return;
     }
 
-    candidates = clean(res.data.text);
+    candidates = clean(text);
 
     if (candidates.length === 0) {
       statusDiv.innerText = "⚠️ Kein Text";
@@ -201,34 +201,51 @@ async function scanOnce(){
       return;
     }
 
-    let guess = candidates[0];
-    statusDiv.innerText = "🔎 " + guess;
+    // 👉 SMART MATCHING: mehrere Kandidaten testen
+    let bestData = null;
+    let bestName = null;
 
-    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
-    let data = await r.json();
+    for (let c of candidates) {
+      let query = c.trim();
+      if (!query || query.length < 3) continue;
 
-    if (data.object !== "error") {
+      try {
+        let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(query)}`);
+        let data = await r.json();
 
-      if (data.name === lastCard) {
-        scanning = false;
-        return;
+        if (data.object !== "error") {
+          bestData = data;
+          bestName = data.name;
+          break;
+        }
+      } catch (e) {
+        continue;
       }
-
-      lastCard = data.name;
-
-      let image = data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small;
-
-      if (!collection[data.name]) collection[data.name] = {count:0,image:image};
-      collection[data.name].count++;
-
-      save();
-      statusDiv.innerText = "✅ " + data.name;
-
-      flash.classList.add('active');
-      setTimeout(()=>flash.classList.remove('active'),200);
-    } else {
-      statusDiv.innerText = "❌ Kein Treffer";
     }
+
+    if (!bestData) {
+      statusDiv.innerText = "❌ Kein Treffer";
+      scanning = false;
+      return;
+    }
+
+    if (bestName === lastCard) {
+      scanning = false;
+      return;
+    }
+
+    lastCard = bestName;
+
+    let image = bestData.image_uris?.small || bestData.card_faces?.[0]?.image_uris?.small;
+
+    if (!collection[bestName]) collection[bestName] = {count:0,image:image};
+    collection[bestName].count++;
+
+    save();
+    statusDiv.innerText = "✅ " + bestName;
+
+    flash.classList.add('active');
+    setTimeout(()=>flash.classList.remove('active'),200);
 
   } catch {
     statusDiv.innerText = "❌ Fehler";
