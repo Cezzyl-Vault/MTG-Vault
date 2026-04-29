@@ -3,111 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MTG-Vault</title>
+  <title>MTG-Vault DEBUG</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: Arial; background:#111; color:#eee; padding:10px; }
-    button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
-    button.activeBtn { border-color:lime; }
-    video { width:100%; max-width:400px; }
-    .tab { display:none; }
-    .active { display:block; }
-    .card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; align-items:center; }
-    .card img { width:60px; margin-right:10px; }
-
-    .camera-container { position: relative; display:inline-block; }
-    .scan-box {
-      position: absolute;
-      top: 5%;
-      left: 5%;
-      width: 90%;
-      height: 90%;
-      border: 2px solid rgba(0,255,0,0.5);
-      pointer-events: none;
-    }
-
-    .status { margin-bottom:5px; color:#0f0; }
-
-    .flash {
-      position:absolute;
-      top:0;left:0;right:0;bottom:0;
-      background:rgba(0,255,0,0.3);
-      opacity:0;
-      pointer-events:none;
-    }
-
-    .flash.active { opacity:1; }
-
-    footer { margin-top:20px; font-size:12px; opacity:0.6; }
+    video, canvas { width:100%; max-width:400px; margin-top:10px; }
+    #debug { font-size:12px; margin-top:10px; background:#222; padding:10px; }
   </style>
 </head>
+  <footer>Version 0.8</footer>
 <body>
 
-<h1>MTG-Vault</h1>
+<h1>MTG-Vault DEBUG</h1>
+<div id="status">Starte...</div>
 
-<button id="btnScan" onclick="showTab('scan')">📷 Scannen</button>
-<button id="btnCollection" onclick="showTab('collection')">🗂 Sammlung</button>
+<video id="video" autoplay playsinline></video>
+<canvas id="preview"></canvas>
 
-<div id="scan" class="tab active">
-  <div class="status" id="status">Initialisiere Kamera...</div>
-
-  <div class="camera-container">
-    <video id="video" autoplay playsinline></video>
-    <div class="scan-box"></div>
-    <div id="flash" class="flash"></div>
-  </div>
-</div>
-
-<div id="collection" class="tab">
-  <h2>Sammlung</h2>
-  <div id="collectionList"></div>
-</div>
-
-<footer>Version 0.7</footer>
+<div id="debug"></div>
 
 <script>
 let video = document.getElementById('video');
+let preview = document.getElementById('preview');
 let statusDiv = document.getElementById('status');
-let flash = document.getElementById('flash');
+let debugDiv = document.getElementById('debug');
 
-let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
 let scanning = false;
-let lastCard = null;
-
-function save() {
-  localStorage.setItem('mtgCollection', JSON.stringify(collection));
-  render();
-}
-
-function showTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(tab).classList.add('active');
-
-  document.getElementById('btnScan').classList.toggle('activeBtn', tab==='scan');
-  document.getElementById('btnCollection').classList.toggle('activeBtn', tab==='collection');
-
-  if (tab === 'scan') startCamera();
-  render();
-}
-
-function render() {
-  let div = document.getElementById('collectionList');
-  if (!div) return;
-  div.innerHTML = '';
-  for (let name in collection) {
-    let c = collection[name];
-    div.innerHTML += `<div class="card"><img src="${c.image}"><div><b>${name}</b><br>x${c.count}</div></div>`;
-  }
-}
 
 async function startCamera() {
   try {
     let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
-    statusDiv.innerText = "📷 Kamera aktiv – Karte in Rahmen halten";
+    statusDiv.innerText = "📷 Kamera läuft";
     loop();
   } catch {
-    statusDiv.innerText = "❌ Kamera nicht verfügbar (HTTPS nötig)";
+    statusDiv.innerText = "❌ Kamera Fehler";
   }
 }
 
@@ -123,31 +53,6 @@ function preprocess(canvas) {
   ctx.putImageData(img,0,0);
 }
 
-// 👉 einfache "Perspektivkorrektur" (Bounding Box der hellen Fläche)
-function detectCardArea(ctx, width, height) {
-  let img = ctx.getImageData(0,0,width,height).data;
-
-  let minX=width, maxX=0, minY=height, maxY=0;
-
-  for(let y=0;y<height;y+=10){
-    for(let x=0;x<width;x+=10){
-      let i=(y*width+x)*4;
-      let brightness=(img[i]+img[i+1]+img[i+2])/3;
-
-      if(brightness>120){
-        if(x<minX) minX=x;
-        if(x>maxX) maxX=x;
-        if(y<minY) minY=y;
-        if(y>maxY) maxY=y;
-      }
-    }
-  }
-
-  if(maxX-minX<50 || maxY-minY<50) return null;
-
-  return {x:minX, y:minY, w:maxX-minX, h:maxY-minY};
-}
-
 function clean(text){
   return text.replace(/[^a-zA-Z' ]/g,'')
     .split('\n')
@@ -157,6 +62,12 @@ function clean(text){
 
 async function scanOnce(){
   if (scanning) return;
+
+  if (video.videoWidth === 0) {
+    statusDiv.innerText = "⏳ Kamera lädt...";
+    return;
+  }
+
   scanning = true;
 
   let canvas = document.createElement('canvas');
@@ -165,92 +76,71 @@ async function scanOnce(){
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-let area = detectCardArea(ctx, canvas.width, canvas.height);
+  // 👉 Titelbereich
+  let cropY = canvas.height * 0.1;
+  let cropH = canvas.height * 0.2;
 
-let workingCanvas;
+  let part = document.createElement('canvas');
+  part.width = canvas.width;
+  part.height = cropH;
+  let pctx = part.getContext('2d');
+  pctx.drawImage(canvas,0,cropY,canvas.width,cropH,0,0,canvas.width,cropH);
 
-if(!area){
-  // 👉 Fallback: ganzes Bild verwenden
-  statusDiv.innerText = "⚠️ Keine Karte erkannt – Fallback aktiv";
-  workingCanvas = canvas;
-} else {
-  statusDiv.innerText = "📐 Karte erkannt";
+  preprocess(part);
 
-  workingCanvas = document.createElement('canvas');
-  workingCanvas.width = area.w;
-  workingCanvas.height = area.h;
+  // 👉 Vorschau anzeigen
+  preview.width = part.width;
+  preview.height = part.height;
+  preview.getContext('2d').drawImage(part,0,0);
 
-  let wctx = workingCanvas.getContext('2d');
-  wctx.drawImage(canvas, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
-}
+  statusDiv.innerText = "🔍 OCR läuft...";
 
-  // 👉 Karte zuschneiden ("gerade ziehen light")
-  let tempCanvas=document.createElement('canvas');
-  tempCanvas.width=area.w;
-  tempCanvas.height=area.h;
-  let tctx=tempCanvas.getContext('2d');
-  tctx.drawImage(canvas, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
-
-  let candidates=[];
-  
-for (let i=0;i<3;i++){
-  let cropY = workingCanvas.height*(0.1+i*0.03);
-    let cropH = tempCanvas.height*0.15;
-
-    let part=document.createElement('canvas');
-    part.width=tempCanvas.width;
-    part.height=cropH;
-    let pctx=part.getContext('2d');
-    pctx.drawImage(tempCanvas,0,cropY,tempCanvas.width,cropH,0,0,tempCanvas.width,cropH);
-
-    preprocess(part);
-
+  try {
     let res = await Tesseract.recognize(part.toDataURL(),'eng');
-    if (res.data.confidence < 50) continue;
 
-    candidates.push(...clean(res.data.text));
+    let text = res.data.text;
+    let confidence = res.data.confidence;
+
+    let cleaned = clean(text);
+
+    debugDiv.innerHTML = `
+      <b>Confidence:</b> ${confidence}<br>
+      <b>Raw Text:</b><br>${text}<br><br>
+      <b>Cleaned:</b><br>${cleaned.join('<br>')}
+    `;
+
+    if (cleaned.length === 0) {
+      statusDiv.innerText = "⚠️ Kein Text erkannt";
+      scanning = false;
+      return;
+    }
+
+    let guess = cleaned[0];
+
+    statusDiv.innerText = "🔎 Suche: " + guess;
+
+    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
+    let data = await r.json();
+
+    if (data.object !== "error") {
+      statusDiv.innerText = "✅ Treffer: " + data.name;
+    } else {
+      statusDiv.innerText = "❌ Kein Treffer";
+    }
+
+  } catch (e) {
+    statusDiv.innerText = "❌ OCR Fehler";
   }
 
-  let freq={};
-  candidates.forEach(c=>freq[c]=(freq[c]||0)+1);
-  let sorted=Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
-
-  for (let c of sorted){
-    try{
-      let r=await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
-      let data=await r.json();
-      if(data.object!=="error"){
-
-        if(data.name===lastCard){ scanning=false; return; }
-        lastCard=data.name;
-
-        let image=data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small;
-
-        if(!collection[data.name]) collection[data.name]={count:0,image:image};
-        collection[data.name].count++;
-
-        save();
-        statusDiv.innerText = "✅ Erkannt: " + data.name;
-
-        flash.classList.add('active');
-        setTimeout(()=>flash.classList.remove('active'),200);
-
-        scanning=false;
-        return;
-      }
-    }catch{}
-  }
-
-  scanning=false;
+  scanning = false;
 }
 
 async function loop(){
   await scanOnce();
-  setTimeout(loop,1500);
+  setTimeout(loop,2000);
 }
 
 startCamera();
-render();
 </script>
 
 </body>
