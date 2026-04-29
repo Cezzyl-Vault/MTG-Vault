@@ -77,7 +77,7 @@ footer { margin-top:20px; font-size:12px; opacity:0.6; }
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.12</footer>
+<footer>Version 0.13</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -96,9 +96,20 @@ function save() {
 }
 
 function removeCard(name) {
-  if (!collection[name]) return;
+  if (!collection[name]) {
+    // Fallback: versuche unsaubere Keys zu finden (Altbestand)
+    let keys = Object.keys(collection);
+    let match = keys.find(k => k.trim().toLowerCase() === name.trim().toLowerCase());
+    if (match) name = match;
+    else return;
+  }
+
   collection[name].count--;
-  if (collection[name].count <= 0) delete collection[name];
+
+  if (collection[name].count <= 0) {
+    delete collection[name];
+  }
+
   save();
 }
 
@@ -188,81 +199,87 @@ async function scanOnce(){
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-  let cropY = canvas.height * 0.1;
-  let cropH = canvas.height * 0.2;
+  let candidates = [];
 
-  let part = document.createElement('canvas');
-  part.width = canvas.width;
-  part.height = cropH;
+  // 🔥 HIGH ACCURACY: mehrere OCR-Zonen
+  let zones = [0.08, 0.1, 0.12];
 
-  let pctx = part.getContext('2d');
-  pctx.drawImage(canvas,0,cropY,canvas.width,cropH,0,0,canvas.width,cropH);
+  for (let z of zones) {
+    let cropY = canvas.height * z;
+    let cropH = canvas.height * 0.18;
 
-  preprocess(part);
+    let part = document.createElement('canvas');
+    part.width = canvas.width;
+    part.height = cropH;
 
-  try {
-    let res = await Tesseract.recognize(part.toDataURL(),'eng');
+    let pctx = part.getContext('2d');
+    pctx.drawImage(canvas,0,cropY,canvas.width,cropH,0,0,canvas.width,cropH);
 
-    if (res.data.confidence < 45) {
-      statusDiv.innerText = "⚠️ Unsicher";
-      scanning = false;
-      return;
+    preprocess(part);
+
+    try {
+      let res = await Tesseract.recognize(part.toDataURL(),'eng');
+
+      if (res.data.confidence < 40) continue;
+
+      let cleaned = clean(res.data.text || "");
+      candidates.push(...cleaned);
+
+    } catch(e) {
+      console.error(e);
     }
-
-    let candidates = clean(res.data.text || "");
-
-    if (candidates.length === 0) {
-      statusDiv.innerText = "⚠️ Kein Text";
-      scanning = false;
-      return;
-    }
-
-    let best = null;
-
-    for (let c of candidates) {
-      try {
-        let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
-        let d = await r.json();
-
-        if (d.object !== "error") {
-          best = d;
-          break;
-        }
-      } catch(e) {
-        console.error(e);
-      }
-    }
-
-    if (!best) {
-      statusDiv.innerText = `❌ Kein Treffer (${candidates[0]})`;
-      scanning = false;
-      return;
-    }
-
-    if (best.name === lastCard) {
-      scanning = false;
-      return;
-    }
-
-    lastCard = best.name;
-    setTimeout(()=> lastCard = null, 3000);
-
-    let img = best.image_uris?.small || best.card_faces?.[0]?.image_uris?.small;
-
-    if (!collection[best.name]) collection[best.name] = {count:0,image:img};
-    collection[best.name].count++;
-
-    save();
-
-    statusDiv.innerText = "✅ " + best.name;
-
-    flash.classList.add('active');
-    setTimeout(()=>flash.classList.remove('active'),200);
-
-  } catch(e) {
-    console.error(e);
-    statusDiv.innerText = "❌ Fehler";
   }
+
+  // dedupe
+  candidates = [...new Set(candidates)];
+
+  if (candidates.length === 0) {
+    statusDiv.innerText = "⚠️ Kein Text";
+    scanning = false;
+    return;
+  }
+
+  let best = null;
+
+  for (let c of candidates) {
+    try {
+      let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
+      let d = await r.json();
+
+      if (d.object !== "error") {
+        best = d;
+        break;
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  if (!best) {
+    statusDiv.innerText = `❌ Kein Treffer (${candidates[0]})`;
+    scanning = false;
+    return;
+  }
+
+  if (best.name === lastCard) {
+    scanning = false;
+    return;
+  }
+
+  lastCard = best.name;
+  setTimeout(()=> lastCard = null, 3000);
+
+  let img = best.image_uris?.small || best.card_faces?.[0]?.image_uris?.small;
+
+  if (!collection[best.name]) collection[best.name] = {count:0,image:img};
+  collection[best.name].count++;
+
+  save();
+
+  statusDiv.innerText = "✅ " + best.name;
+
+  flash.classList.add('active');
+  setTimeout(()=>flash.classList.remove('active'),200);
 
   scanning = false;
 }
