@@ -62,7 +62,7 @@
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.10</footer>
+<footer>Version 0.9</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -72,18 +72,6 @@ let flash = document.getElementById('flash');
 let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
 let scanning = false;
 let lastCard = null;
-
-function removeCard(name) {
-  if (!collection[name]) return;
-
-  if (collection[name].count > 1) {
-    collection[name].count--;
-  } else {
-    delete collection[name];
-  }
-
-  save();
-}
 
 function save() {
   localStorage.setItem('mtgCollection', JSON.stringify(collection));
@@ -105,19 +93,9 @@ function render() {
   let div = document.getElementById('collectionList');
   if (!div) return;
   div.innerHTML = '';
-
   for (let name in collection) {
     let c = collection[name];
-    div.innerHTML += `
-      <div class="card">
-        <img src="${c.image}">
-        <div style="flex:1">
-          <b>${name}</b><br>x${c.count}
-        </div>
-        <button onclick="removeCard('${name.replace(/'/g, "\'")}')">❌</button>
-      </div>`;
-  }
-}"><div><b>${name}</b><br>x${c.count}</div></div>`;
+    div.innerHTML += `<div class="card"><img src="${c.image}"><div><b>${name}</b><br>x${c.count}</div></div>`;
   }
 }
 
