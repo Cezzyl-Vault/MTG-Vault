@@ -56,7 +56,7 @@ video, canvas { width:100%; max-width:420px; }
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.19",
+  version: "0.20",
   scanInterval: 1200,
   motionThreshold: 50000,
   ocrConfidence: 40,
@@ -66,7 +66,13 @@ const CONFIG = {
 /* =========================================
    🔹 MODULE: STATE
 ========================================= */
-let worker = new Worker('ocrWorker.js');
+let worker;
+
+try {
+  worker = new Worker('./ocrWorker.js');
+} catch(e) {
+  console.error("Worker konnte nicht geladen werden", e);
+}
 
 let frameBuffer = [];
 const FRAME_BUFFER_SIZE = 3;
