@@ -3,49 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MTG Scanner Ultimate UX+</title>
+  <title>MTG-Vault</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: Arial; background:#111; color:#eee; padding:10px; }
-    button { padding:10px; margin:5px; }
-    video, canvas { width:100%; max-width:400px; }
+    button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
+    button.activeBtn { border-color:lime; }
+    video { width:100%; max-width:400px; }
     .tab { display:none; }
     .active { display:block; }
     .card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; align-items:center; }
     .card img { width:60px; margin-right:10px; }
-    #status { margin-top:10px; color:#0f0; }
 
     .camera-container { position: relative; display:inline-block; }
     .scan-box {
       position: absolute;
-      top: 10%;
+      top: 5%;
       left: 5%;
       width: 90%;
-      height: 20%;
-      border: 2px solid lime;
+      height: 90%;
+      border: 2px solid rgba(0,255,0,0.5);
       pointer-events: none;
     }
+
+    .status {
+      margin-bottom:5px;
+      color:#0f0;
+    }
+
+    .flash {
+      position:absolute;
+      top:0;left:0;right:0;bottom:0;
+      background:rgba(0,255,0,0.3);
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .flash.active { opacity:1; }
+
+    footer { margin-top:20px; font-size:12px; opacity:0.6; }
   </style>
 </head>
 <body>
 
-<h1>MTG Scanner Ultimate UX+ 🚀</h1>
+<h1>MTG-Vault</h1>
 
-<button onclick="showTab('scan')">📷 Scannen</button>
-<button onclick="showTab('collection')">🗂 Sammlung</button>
+<button id="btnScan" onclick="showTab('scan')">📷 Scannen</button>
+<button id="btnCollection" onclick="showTab('collection')">🗂 Sammlung</button>
 
 <div id="scan" class="tab active">
-  <button onclick="startCamera()">Kamera starten</button>
-  <button onclick="toggleLiveScan()">Live-Scan EIN/AUS</button>
-  <br><br>
+  <div class="status" id="status">Initialisiere Kamera...</div>
 
   <div class="camera-container">
     <video id="video" autoplay playsinline></video>
     <div class="scan-box"></div>
+    <div id="flash" class="flash"></div>
   </div>
-
-  <canvas id="canvas" style="display:none;"></canvas>
-  <div id="status"></div>
 </div>
 
 <div id="collection" class="tab">
@@ -53,16 +66,15 @@
   <div id="collectionList"></div>
 </div>
 
+<footer>Version 0.5</footer>
+
 <script>
 let video = document.getElementById('video');
-let canvas = document.getElementById('canvas');
-let ctx = canvas.getContext('2d');
 let statusDiv = document.getElementById('status');
+let flash = document.getElementById('flash');
 
 let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
-let live = false;
 let scanning = false;
-let lastScan = 0;
 let lastCard = null;
 
 function save() {
@@ -73,11 +85,17 @@ function save() {
 function showTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(tab).classList.add('active');
+
+  document.getElementById('btnScan').classList.toggle('activeBtn', tab==='scan');
+  document.getElementById('btnCollection').classList.toggle('activeBtn', tab==='collection');
+
+  if (tab === 'scan') startCamera();
   render();
 }
 
 function render() {
   let div = document.getElementById('collectionList');
+  if (!div) return;
   div.innerHTML = '';
   for (let name in collection) {
     let c = collection[name];
@@ -89,129 +107,101 @@ async function startCamera() {
   try {
     let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
-    statusDiv.innerText = "Kamera läuft";
+    statusDiv.innerText = "📷 Kamera aktiv – Karte in Rahmen halten";
+    loop();
   } catch {
-    statusDiv.innerText = "Kamera Fehler (HTTPS nötig)";
+    statusDiv.innerText = "❌ Kamera nicht verfügbar (HTTPS nötig)";
   }
 }
 
-function preprocess(canvasEl) {
-  let ctx = canvasEl.getContext('2d');
-  let img = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+function preprocess(canvas) {
+  let ctx = canvas.getContext('2d');
+  let img = ctx.getImageData(0,0,canvas.width,canvas.height);
   let d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    let avg = (d[i]+d[i+1]+d[i+2])/3;
-    let val = avg > 140 ? 255 : 0;
+  for (let i=0;i<d.length;i+=4){
+    let avg=(d[i]+d[i+1]+d[i+2])/3;
+    let val=avg>140?255:0;
     d[i]=d[i+1]=d[i+2]=val;
   }
   ctx.putImageData(img,0,0);
 }
 
-function clean(text) {
+function clean(text){
   return text.replace(/[^a-zA-Z' ]/g,'')
     .split('\n')
     .map(l=>l.trim())
     .filter(l=>l.length>2);
 }
 
-async function multiOCR() {
+async function scanOnce(){
+  if (scanning) return;
+  scanning = true;
+
+  let canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
+  let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-  let candidates = [];
+  let candidates=[];
 
-  for (let i=0;i<3;i++) {
+  for (let i=0;i<3;i++){
     let cropY = canvas.height*(0.1+i*0.03);
     let cropH = canvas.height*0.15;
-
-    let img = ctx.getImageData(0,cropY,canvas.width,cropH);
 
     let temp=document.createElement('canvas');
     temp.width=canvas.width;
     temp.height=cropH;
     let tctx=temp.getContext('2d');
-    tctx.putImageData(img,0,0);
+    tctx.drawImage(canvas,0,cropY,canvas.width,cropH,0,0,canvas.width,cropH);
 
     preprocess(temp);
 
     let res = await Tesseract.recognize(temp.toDataURL(),'eng');
-
     if (res.data.confidence < 50) continue;
 
-    let lines = clean(res.data.text);
-    candidates.push(...lines);
+    candidates.push(...clean(res.data.text));
   }
-
-  return candidates;
-}
-
-async function matchCandidates(candidates) {
-  for (let c of candidates) {
-    try {
-      let res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
-      let data = await res.json();
-      if (data.object !== "error") return data;
-    } catch {}
-  }
-  return null;
-}
-
-async function scanOnce() {
-  if (scanning) return;
-
-  let now = Date.now();
-  if (now - lastScan < 2000) return; // throttle
-
-  scanning = true;
-  lastScan = now;
-
-  statusDiv.innerText = "Scanne...";
-
-  let candidates = await multiOCR();
 
   let freq={};
   candidates.forEach(c=>freq[c]=(freq[c]||0)+1);
-  let sorted = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
+  let sorted=Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
 
-  let result = await matchCandidates(sorted);
+  for (let c of sorted){
+    try{
+      let r=await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
+      let data=await r.json();
+      if(data.object!=="error"){
 
-  if (result) {
-    let name=result.name;
+        if(data.name===lastCard){ scanning=false; return; }
+        lastCard=data.name;
 
-    // Scan-Stop Logik
-    if (name === lastCard) {
-      scanning = false;
-      return;
-    }
+        let image=data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small;
 
-    lastCard = name;
+        if(!collection[data.name]) collection[data.name]={count:0,image:image};
+        collection[data.name].count++;
 
-    let image=result.image_uris?.small || result.card_faces?.[0]?.image_uris?.small;
+        save();
+        statusDiv.innerText = "✅ Erkannt: " + data.name;
 
-    if (!collection[name]) collection[name]={count:0,image:image};
-    collection[name].count++;
+        flash.classList.add('active');
+        setTimeout(()=>flash.classList.remove('active'),200);
 
-    save();
-    statusDiv.innerText = "✅ " + name;
-  } else {
-    statusDiv.innerText = "❌ Kein Treffer";
+        scanning=false;
+        return;
+      }
+    }catch{}
   }
 
-  scanning = false;
+  scanning=false;
 }
 
-function toggleLiveScan() {
-  live = !live;
-  if (live) loop();
-}
-
-async function loop() {
-  if (!live) return;
+async function loop(){
   await scanOnce();
-  requestAnimationFrame(loop);
+  setTimeout(loop,1500);
 }
 
+startCamera();
 render();
 </script>
 
