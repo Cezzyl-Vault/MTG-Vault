@@ -63,7 +63,7 @@
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.6</footer>
+<footer>Version 0.7</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -165,9 +165,24 @@ async function scanOnce(){
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-  let area = detectCardArea(ctx, canvas.width, canvas.height);
+let area = detectCardArea(ctx, canvas.width, canvas.height);
 
-  if(!area){ scanning=false; return; }
+let workingCanvas;
+
+if(!area){
+  // 👉 Fallback: ganzes Bild verwenden
+  statusDiv.innerText = "⚠️ Keine Karte erkannt – Fallback aktiv";
+  workingCanvas = canvas;
+} else {
+  statusDiv.innerText = "📐 Karte erkannt";
+
+  workingCanvas = document.createElement('canvas');
+  workingCanvas.width = area.w;
+  workingCanvas.height = area.h;
+
+  let wctx = workingCanvas.getContext('2d');
+  wctx.drawImage(canvas, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
+}
 
   // 👉 Karte zuschneiden ("gerade ziehen light")
   let tempCanvas=document.createElement('canvas');
@@ -177,9 +192,9 @@ async function scanOnce(){
   tctx.drawImage(canvas, area.x, area.y, area.w, area.h, 0, 0, area.w, area.h);
 
   let candidates=[];
-
-  for (let i=0;i<3;i++){
-    let cropY = tempCanvas.height*(0.1+i*0.03);
+  
+for (let i=0;i<3;i++){
+  let cropY = workingCanvas.height*(0.1+i*0.03);
     let cropH = tempCanvas.height*0.15;
 
     let part=document.createElement('canvas');
