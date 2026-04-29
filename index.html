@@ -337,7 +337,7 @@
 </div>
 
 <footer>
-  <span>MTG-Vault v0.24 ©to</span>
+  <span>MTG-Vault v0.25 ©to</span>
   <span id="footerCount"></span>
 </footer>
 
@@ -452,11 +452,11 @@ async function initOCR() {
   setStatus('Lade OCR-Engine…');
   try {
     tesseractWorker = await Tesseract.createWorker('eng', 1, {
-      logger: () => {}   // silence progress logs
+      logger: () => {}
     });
     await tesseractWorker.setParameters({
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz \'-,',
-      tessedit_pageseg_mode: '7', // single line
+      tessedit_pageseg_mode: '6', // assume uniform block of text — works better than single-line for MTG
     });
     workerReady = true;
     setStatus('Kamera wird gestartet…');
@@ -514,20 +514,23 @@ function extractTitleStrip() {
   const w = video.videoWidth;
   const h = Math.floor(video.videoHeight * CONFIG.titleZoneHeight);
 
+  // Scale up 2x — Tesseract works much better on larger images
+  const scale = 2;
   const c   = document.createElement('canvas');
-  c.width   = w;
-  c.height  = h;
+  c.width   = w * scale;
+  c.height  = h * scale;
   const ctx = c.getContext('2d');
 
-  // draw top slice
-  ctx.drawImage(video, 0, 0, w, h, 0, 0, w, h);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(video, 0, 0, w, h, 0, 0, c.width, c.height);
 
-  // greyscale + threshold
-  const img = ctx.getImageData(0, 0, w, h);
+  // greyscale only — NO hard threshold, keeps more detail for Tesseract
+  const img = ctx.getImageData(0, 0, c.width, c.height);
   const d   = img.data;
   for (let i = 0; i < d.length; i += 4) {
-    const v = d[i] * 0.3 + d[i+1] * 0.59 + d[i+2] * 0.11 > 130 ? 255 : 0;
-    d[i] = d[i+1] = d[i+2] = v;
+    const grey = d[i] * 0.3 + d[i+1] * 0.59 + d[i+2] * 0.11;
+    d[i] = d[i+1] = d[i+2] = grey;
   }
   ctx.putImageData(img, 0, 0);
   return c;
@@ -574,20 +577,18 @@ async function scanOnce() {
 
     const { data } = await tesseractWorker.recognize(strip);
 
-    if (data.confidence < CONFIG.ocrConfidence) {
-      setStatus('⚠️ Schlechte Bildqualität — näher heran?', 'idle');
-      scanning = false;
-      return;
-    }
+    // Log for debugging — can be removed later
+    console.log(`OCR conf: ${data.confidence} | text: "${data.text.trim()}"`);
 
-    // clean raw text — keep only longest word-like tokens as card name candidate
+    // Don't gate on confidence — Tesseract gives low scores for MTG fonts even when correct.
+    // Instead, check that we got at least some usable text.
     const lines = data.text
       .split('\n')
       .map(l => l.replace(/[^a-zA-Z '\-,]/g, '').trim())
       .filter(l => l.length > 2);
 
     if (lines.length === 0) {
-      setStatus('⚠️ Kein Text erkannt', 'idle');
+      setStatus('⚠️ Kein Text erkannt — Karte in den gelben Rahmen halten', 'idle');
       scanning = false;
       return;
     }
