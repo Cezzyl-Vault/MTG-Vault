@@ -56,7 +56,7 @@ video, canvas { width:100%; max-width:420px; }
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.18",
+  version: "0.19",
   scanInterval: 1200,
   motionThreshold: 50000,
   ocrConfidence: 40,
@@ -66,17 +66,10 @@ const CONFIG = {
 /* =========================================
    🔹 MODULE: STATE
 ========================================= */
-let video = document.getElementById('video');
-let motionCanvas = document.getElementById('motionCanvas');
-let statusDiv = document.getElementById('status');
-let flash = document.getElementById('flash');
+let worker = new Worker('ocrWorker.js');
 
-let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
-let scanning = false;
-let lastCard = null;
-let lastFrame = null;
-let cameraStarted = false;
-let loopRunning = false;
+let frameBuffer = [];
+const FRAME_BUFFER_SIZE = 3;
 
 /* =========================================
    🔹 MODULE: STORAGE
@@ -218,195 +211,121 @@ function detectMotion(){
 }
 
 /* =========================================
-   🔹 MODULE: SCANNER (OpenCV Perspektivkorrektur)
+   🔹 MODULE: SCANNER (mit Perspektivkorrektur)
 ========================================= */
-
-function detectCardContour(src) {
-  let gray = new cv.Mat();
-  let blur = new cv.Mat();
-  let edges = new cv.Mat();
-
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-  cv.GaussianBlur(gray, blur, new cv.Size(5,5), 0);
-  cv.Canny(blur, edges, 50, 150);
-
-  let contours = new cv.MatVector();
-  let hierarchy = new cv.Mat();
-
-  cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-  let maxArea = 0;
-  let bestContour = null;
-
-  for (let i = 0; i < contours.size(); i++) {
-    let cnt = contours.get(i);
-    let area = cv.contourArea(cnt);
-
-    if (area > maxArea) {
-      let peri = cv.arcLength(cnt, true);
-      let approx = new cv.Mat();
-      cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-
-      if (approx.rows === 4) {
-        maxArea = area;
-        bestContour = approx;
-      }
-    }
-  }
-
-  gray.delete(); blur.delete(); edges.delete();
-  contours.delete(); hierarchy.delete();
-
-  return bestContour;
-}
-
-function warpCard(src, contour) {
-  let pts = contour.data32S;
-
-  let srcTri = cv.matFromArray(4,1,cv.CV_32FC2,[
-    pts[0], pts[1],
-    pts[2], pts[3],
-    pts[4], pts[5],
-    pts[6], pts[7]
-  ]);
-
-  let width = 300;
-  let height = 420;
-
-  let dstTri = cv.matFromArray(4,1,cv.CV_32FC2,[
-    0,0,
-    width,0,
-    width,height,
-    0,height
-  ]);
-
-  let M = cv.getPerspectiveTransform(srcTri, dstTri);
-  let dst = new cv.Mat();
-
-  cv.warpPerspective(src, dst, M, new cv.Size(width, height));
-
-  srcTri.delete(); dstTri.delete(); M.delete();
-
-  return dst;
-}
 
 async function scanOnce(){
 
   if (scanning) return;
 
-  if (typeof cv === 'undefined') {
-    statusDiv.innerText = "⏳ OpenCV lädt...";
-    return;
-  }
-
-  if (video.videoWidth === 0) {
+  if (video.videoWidth === 0){
     statusDiv.innerText = "⏳ Kamera lädt...";
     return;
   }
 
-  if (!detectMotion()) {
+  if (!detectMotion()){
     statusDiv.innerText = "⏸ Keine Bewegung";
+    return;
+  }
+
+  let canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video,0,0);
+
+  // obere Zone
+  let part = document.createElement('canvas');
+  let h = canvas.height * 0.2;
+
+  part.width = canvas.width;
+  part.height = h;
+
+  part.getContext('2d')
+    .drawImage(canvas,0,0,canvas.width,h,0,0,canvas.width,h);
+
+  preprocess(part);
+
+  // 📦 Frame sammeln
+  frameBuffer.push(part.toDataURL());
+
+  if (frameBuffer.length < FRAME_BUFFER_SIZE){
+    statusDiv.innerText = "📸 Sammle Frames...";
     return;
   }
 
   scanning = true;
 
-  let canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  let results = [];
 
-  let ctx = canvas.getContext('2d');
-  ctx.drawImage(video,0,0);
+  // 🧠 mehrere Frames parallel an Worker schicken
+  let promises = frameBuffer.map(img => {
+    return new Promise(resolve => {
+      worker.onmessage = (e) => resolve(e.data);
+      worker.postMessage({ image: img });
+    });
+  });
 
-  let src = cv.imread(canvas);
+  let ocrResults = await Promise.all(promises);
 
-  let contour = detectCardContour(src);
+  frameBuffer = [];
 
-  if (!contour) {
-    statusDiv.innerText = "⚠️ Keine Karte erkannt";
-    src.delete();
+  for (let r of ocrResults){
+    if (!r || r.error) continue;
+    if (r.confidence < CONFIG.ocrConfidence) continue;
+
+    let cleaned = clean(r.text || "");
+    results.push(...cleaned);
+  }
+
+  results = [...new Set(results)];
+
+  if (results.length === 0){
+    statusDiv.innerText = "⚠️ Kein Text";
     scanning = false;
     return;
   }
 
-  let warped = warpCard(src, contour);
+  // 🎯 Voting → bestes Wort
+  let votes = {};
+  results.forEach(r => {
+    votes[r] = (votes[r] || 0) + 1;
+  });
 
-  // convert zurück zu Canvas
-  let outCanvas = document.createElement('canvas');
-  cv.imshow(outCanvas, warped);
+  let bestCandidate = Object.keys(votes)
+    .sort((a,b) => votes[b]-votes[a])[0];
 
-  // OCR nur obere Zone
-  let part = document.createElement('canvas');
-  let h = outCanvas.height * 0.2;
+  let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(bestCandidate)}`);
+  let d = await r.json();
 
-  part.width = outCanvas.width;
-  part.height = h;
-
-  part.getContext('2d').drawImage(outCanvas, 0, 0, outCanvas.width, h, 0, 0, outCanvas.width, h);
-
-  preprocess(part);
-
-  try {
-    let res = await Tesseract.recognize(part.toDataURL(),'eng');
-
-    if (res.data.confidence < CONFIG.ocrConfidence) {
-      statusDiv.innerText = "⚠️ Unsicher";
-      scanning = false;
-      return;
-    }
-
-    let candidates = clean(res.data.text || "");
-    if (candidates.length === 0) {
-      scanning = false;
-      return;
-    }
-
-    let guess = bestMatch(candidates[0], candidates);
-
-    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
-    let d = await r.json();
-
-    if (d.object === 'error') {
-      statusDiv.innerText = "❌ Kein Treffer";
-      scanning = false;
-      return;
-    }
-
-    if (d.name === lastCard) {
-      scanning = false;
-      return;
-    }
-
-    lastCard = d.name;
-    setTimeout(()=>lastCard=null,3000);
-
-    let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
-
-    if (!collection[d.name]) {
-      collection[d.name] = {count:0,image:img};
-    }
-
-    collection[d.name].count++;
-    save();
-
-    statusDiv.innerText = "✅ " + d.name;
-
-    flash.classList.add('active');
-    setTimeout(()=>flash.classList.remove('active'),200);
-
-  } catch(e) {
-    console.error(e);
+  if (d.object === 'error'){
+    statusDiv.innerText = "❌ Kein Treffer";
+    scanning = false;
+    return;
   }
 
-  src.delete();
-  warped.delete();
+  if (d.name === lastCard){
+    scanning = false;
+    return;
+  }
+
+  lastCard = d.name;
+  setTimeout(()=>lastCard=null,3000);
+
+  let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
+
+  if (!collection[d.name]){
+    collection[d.name] = {count:0,image:img};
+  }
+
+  collection[d.name].count++;
+  save();
+
+  statusDiv.innerText = "✅ " + d.name;
+
+  flash.classList.add('active');
+  setTimeout(()=>flash.classList.remove('active'),200);
 
   scanning = false;
-}
-
-async function loop(){
-  await scanOnce();
-  setTimeout(loop, CONFIG.scanInterval);
 }
   
 /* ========================================= */
