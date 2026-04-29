@@ -3,41 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MTG-Vault DEBUG</title>
+  <title>MTG-Vault</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: Arial; background:#111; color:#eee; padding:10px; }
-    video, canvas { width:100%; max-width:400px; margin-top:10px; }
-    #debug { font-size:12px; margin-top:10px; background:#222; padding:10px; }
+    button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
+    button.activeBtn { border-color:lime; }
+    video { width:100%; max-width:420px; }
+    .tab { display:none; }
+    .active { display:block; }
+    .card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; align-items:center; }
+    .card img { width:60px; margin-right:10px; }
+
+    .camera-container { position: relative; display:inline-block; }
+    .scan-box {
+      position: absolute;
+      top: 5%;
+      left: 5%;
+      width: 90%;
+      height: 90%;
+      border: 2px solid rgba(0,255,0,0.5);
+      pointer-events: none;
+    }
+
+    .status { margin-bottom:5px; color:#0f0; }
+
+    .flash {
+      position:absolute;
+      top:0;left:0;right:0;bottom:0;
+      background:rgba(0,255,0,0.3);
+      opacity:0;
+      pointer-events:none;
+    }
+    .flash.active { opacity:1; }
+
+    footer { margin-top:20px; font-size:12px; opacity:0.6; }
   </style>
 </head>
-  <footer>Version 0.8</footer>
 <body>
 
-<h1>MTG-Vault DEBUG</h1>
-<div id="status">Starte...</div>
+<h1>MTG-Vault</h1>
 
-<video id="video" autoplay playsinline></video>
-<canvas id="preview"></canvas>
+<button id="btnScan" onclick="showTab('scan')">📷 Scannen</button>
+<button id="btnCollection" onclick="showTab('collection')">🗂 Sammlung</button>
 
-<div id="debug"></div>
+<div id="scan" class="tab active">
+  <div class="status" id="status">Initialisiere Kamera...</div>
+
+  <div class="camera-container">
+    <video id="video" autoplay playsinline></video>
+    <div class="scan-box"></div>
+    <div id="flash" class="flash"></div>
+  </div>
+</div>
+
+<div id="collection" class="tab">
+  <h2>Sammlung</h2>
+  <div id="collectionList"></div>
+</div>
+
+<footer>Version 0.9</footer>
 
 <script>
 let video = document.getElementById('video');
-let preview = document.getElementById('preview');
 let statusDiv = document.getElementById('status');
-let debugDiv = document.getElementById('debug');
+let flash = document.getElementById('flash');
 
+let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
 let scanning = false;
+let lastCard = null;
+
+function save() {
+  localStorage.setItem('mtgCollection', JSON.stringify(collection));
+  render();
+}
+
+function showTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+
+  document.getElementById('btnScan').classList.toggle('activeBtn', tab==='scan');
+  document.getElementById('btnCollection').classList.toggle('activeBtn', tab==='collection');
+
+  if (tab === 'scan') startCamera();
+  render();
+}
+
+function render() {
+  let div = document.getElementById('collectionList');
+  if (!div) return;
+  div.innerHTML = '';
+  for (let name in collection) {
+    let c = collection[name];
+    div.innerHTML += `<div class="card"><img src="${c.image}"><div><b>${name}</b><br>x${c.count}</div></div>`;
+  }
+}
 
 async function startCamera() {
   try {
     let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
-    statusDiv.innerText = "📷 Kamera läuft";
+    statusDiv.innerText = "📷 Kamera aktiv – Karte ruhig halten";
     loop();
   } catch {
-    statusDiv.innerText = "❌ Kamera Fehler";
+    statusDiv.innerText = "❌ Kamera nicht verfügbar";
   }
 }
 
@@ -70,13 +139,18 @@ async function scanOnce(){
 
   scanning = true;
 
+  // failsafe
+  setTimeout(()=>scanning=false,5000);
+
   let canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-  // 👉 Titelbereich
+  let candidates=[];
+
+  // nur 1 OCR-Pass (stabil + schnell)
   let cropY = canvas.height * 0.1;
   let cropH = canvas.height * 0.2;
 
@@ -88,48 +162,54 @@ async function scanOnce(){
 
   preprocess(part);
 
-  // 👉 Vorschau anzeigen
-  preview.width = part.width;
-  preview.height = part.height;
-  preview.getContext('2d').drawImage(part,0,0);
-
-  statusDiv.innerText = "🔍 OCR läuft...";
-
   try {
     let res = await Tesseract.recognize(part.toDataURL(),'eng');
 
-    let text = res.data.text;
-    let confidence = res.data.confidence;
-
-    let cleaned = clean(text);
-
-    debugDiv.innerHTML = `
-      <b>Confidence:</b> ${confidence}<br>
-      <b>Raw Text:</b><br>${text}<br><br>
-      <b>Cleaned:</b><br>${cleaned.join('<br>')}
-    `;
-
-    if (cleaned.length === 0) {
-      statusDiv.innerText = "⚠️ Kein Text erkannt";
+    if (res.data.confidence < 45) {
+      statusDiv.innerText = "⚠️ Unsicher";
       scanning = false;
       return;
     }
 
-    let guess = cleaned[0];
+    candidates = clean(res.data.text);
 
-    statusDiv.innerText = "🔎 Suche: " + guess;
+    if (candidates.length === 0) {
+      statusDiv.innerText = "⚠️ Kein Text";
+      scanning = false;
+      return;
+    }
+
+    let guess = candidates[0];
+    statusDiv.innerText = "🔎 " + guess;
 
     let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
     let data = await r.json();
 
     if (data.object !== "error") {
-      statusDiv.innerText = "✅ Treffer: " + data.name;
+
+      if (data.name === lastCard) {
+        scanning = false;
+        return;
+      }
+
+      lastCard = data.name;
+
+      let image = data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small;
+
+      if (!collection[data.name]) collection[data.name] = {count:0,image:image};
+      collection[data.name].count++;
+
+      save();
+      statusDiv.innerText = "✅ " + data.name;
+
+      flash.classList.add('active');
+      setTimeout(()=>flash.classList.remove('active'),200);
     } else {
       statusDiv.innerText = "❌ Kein Treffer";
     }
 
-  } catch (e) {
-    statusDiv.innerText = "❌ OCR Fehler";
+  } catch {
+    statusDiv.innerText = "❌ Fehler";
   }
 
   scanning = false;
@@ -137,10 +217,11 @@ async function scanOnce(){
 
 async function loop(){
   await scanOnce();
-  setTimeout(loop,2000);
+  setTimeout(loop,1500);
 }
 
 startCamera();
+render();
 </script>
 
 </body>
