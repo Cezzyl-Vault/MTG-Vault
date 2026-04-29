@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MTG Scanner Ultimate</title>
+  <title>MTG Scanner Ultimate UX+</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: Arial; background:#111; color:#eee; padding:10px; }
@@ -14,11 +14,22 @@
     .card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; align-items:center; }
     .card img { width:60px; margin-right:10px; }
     #status { margin-top:10px; color:#0f0; }
+
+    .camera-container { position: relative; display:inline-block; }
+    .scan-box {
+      position: absolute;
+      top: 10%;
+      left: 5%;
+      width: 90%;
+      height: 20%;
+      border: 2px solid lime;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
 
-<h1>MTG Scanner Ultimate 🚀</h1>
+<h1>MTG Scanner Ultimate UX+ 🚀</h1>
 
 <button onclick="showTab('scan')">📷 Scannen</button>
 <button onclick="showTab('collection')">🗂 Sammlung</button>
@@ -26,7 +37,13 @@
 <div id="scan" class="tab active">
   <button onclick="startCamera()">Kamera starten</button>
   <button onclick="toggleLiveScan()">Live-Scan EIN/AUS</button>
-  <video id="video" autoplay playsinline></video>
+  <br><br>
+
+  <div class="camera-container">
+    <video id="video" autoplay playsinline></video>
+    <div class="scan-box"></div>
+  </div>
+
   <canvas id="canvas" style="display:none;"></canvas>
   <div id="status"></div>
 </div>
@@ -45,6 +62,8 @@ let statusDiv = document.getElementById('status');
 let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
 let live = false;
 let scanning = false;
+let lastScan = 0;
+let lastCard = null;
 
 function save() {
   localStorage.setItem('mtgCollection', JSON.stringify(collection));
@@ -103,8 +122,8 @@ async function multiOCR() {
   let candidates = [];
 
   for (let i=0;i<3;i++) {
-    let cropY = canvas.height*(0.05+i*0.03);
-    let cropH = canvas.height*0.12;
+    let cropY = canvas.height*(0.1+i*0.03);
+    let cropH = canvas.height*0.15;
 
     let img = ctx.getImageData(0,cropY,canvas.width,cropH);
 
@@ -118,7 +137,6 @@ async function multiOCR() {
 
     let res = await Tesseract.recognize(temp.toDataURL(),'eng');
 
-    // Confidence filter
     if (res.data.confidence < 50) continue;
 
     let lines = clean(res.data.text);
@@ -141,13 +159,17 @@ async function matchCandidates(candidates) {
 
 async function scanOnce() {
   if (scanning) return;
+
+  let now = Date.now();
+  if (now - lastScan < 2000) return; // throttle
+
   scanning = true;
+  lastScan = now;
 
   statusDiv.innerText = "Scanne...";
 
   let candidates = await multiOCR();
 
-  // sort by frequency
   let freq={};
   candidates.forEach(c=>freq[c]=(freq[c]||0)+1);
   let sorted = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
@@ -156,6 +178,15 @@ async function scanOnce() {
 
   if (result) {
     let name=result.name;
+
+    // Scan-Stop Logik
+    if (name === lastCard) {
+      scanning = false;
+      return;
+    }
+
+    lastCard = name;
+
     let image=result.image_uris?.small || result.card_faces?.[0]?.image_uris?.small;
 
     if (!collection[name]) collection[name]={count:0,image:image};
@@ -178,7 +209,7 @@ function toggleLiveScan() {
 async function loop() {
   if (!live) return;
   await scanOnce();
-  setTimeout(loop, 2000);
+  requestAnimationFrame(loop);
 }
 
 render();
