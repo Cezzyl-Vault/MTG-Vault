@@ -12,29 +12,47 @@
     video { width:100%; max-width:420px; }
     .tab { display:none; }
     .active { display:block; }
-    .card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; align-items:center; }
-    .card img { width:60px; margin-right:10px; }
+
+    .card {
+      border:1px solid #444;
+      padding:10px;
+      margin:5px 0;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .card img { width:60px; }
+
+    .removeBtn {
+      margin-left:auto;
+      background:#400;
+      border:1px solid #800;
+      color:#fff;
+      cursor:pointer;
+      padding:5px 8px;
+    }
 
     .camera-container { position: relative; display:inline-block; }
+
     .scan-box {
-      position: absolute;
-      top: 5%;
-      left: 5%;
-      width: 90%;
-      height: 90%;
-      border: 2px solid rgba(0,255,0,0.5);
-      pointer-events: none;
+      position:absolute;
+      top:5%; left:5%;
+      width:90%; height:90%;
+      border:2px solid rgba(0,255,0,0.5);
+      pointer-events:none;
     }
 
     .status { margin-bottom:5px; color:#0f0; }
 
     .flash {
       position:absolute;
-      top:0;left:0;right:0;bottom:0;
+      top:0; left:0; right:0; bottom:0;
       background:rgba(0,255,0,0.3);
       opacity:0;
       pointer-events:none;
     }
+
     .flash.active { opacity:1; }
 
     footer { margin-top:20px; font-size:12px; opacity:0.6; }
@@ -62,7 +80,7 @@
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.9</footer>
+<footer>Version 0.10</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -78,6 +96,18 @@ function save() {
   render();
 }
 
+function removeCard(name) {
+  if (!collection[name]) return;
+
+  collection[name].count--;
+
+  if (collection[name].count <= 0) {
+    delete collection[name];
+  }
+
+  save();
+}
+
 function showTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(tab).classList.add('active');
@@ -91,11 +121,19 @@ function showTab(tab) {
 
 function render() {
   let div = document.getElementById('collectionList');
-  if (!div) return;
   div.innerHTML = '';
+
   for (let name in collection) {
     let c = collection[name];
-    div.innerHTML += `<div class="card"><img src="${c.image}"><div><b>${name}</b><br>x${c.count}</div></div>`;
+
+    div.innerHTML += `
+      <div class="card">
+        <img src="${c.image}">
+        <div>
+          <b>${name}</b><br>x${c.count}
+        </div>
+        <button class="removeBtn" onclick="removeCard('${name.replace(/'/g,"\\'")}')">❌</button>
+      </div>`;
   }
 }
 
@@ -103,7 +141,7 @@ async function startCamera() {
   try {
     let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
-    statusDiv.innerText = "📷 Kamera aktiv – Karte ruhig halten";
+    statusDiv.innerText = "📷 Kamera aktiv – Karte halten";
     loop();
   } catch {
     statusDiv.innerText = "❌ Kamera nicht verfügbar";
@@ -114,11 +152,13 @@ function preprocess(canvas) {
   let ctx = canvas.getContext('2d');
   let img = ctx.getImageData(0,0,canvas.width,canvas.height);
   let d = img.data;
+
   for (let i=0;i<d.length;i+=4){
     let avg=(d[i]+d[i+1]+d[i+2])/3;
     let val=avg>140?255:0;
     d[i]=d[i+1]=d[i+2]=val;
   }
+
   ctx.putImageData(img,0,0);
 }
 
@@ -138,25 +178,22 @@ async function scanOnce(){
   }
 
   scanning = true;
-
-  // failsafe
   setTimeout(()=>scanning=false,5000);
 
   let canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
+
   let ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
 
-  let candidates=[];
-
-  // nur 1 OCR-Pass (stabil + schnell)
   let cropY = canvas.height * 0.1;
   let cropH = canvas.height * 0.2;
 
   let part = document.createElement('canvas');
   part.width = canvas.width;
   part.height = cropH;
+
   let pctx = part.getContext('2d');
   pctx.drawImage(canvas,0,cropY,canvas.width,cropH,0,0,canvas.width,cropH);
 
@@ -165,13 +202,16 @@ async function scanOnce(){
   try {
     let res = await Tesseract.recognize(part.toDataURL(),'eng');
 
-    if (res.data.confidence < 45) {
+    let text = res.data.text || "";
+    let confidence = res.data.confidence || 0;
+
+    if (confidence < 45) {
       statusDiv.innerText = "⚠️ Unsicher";
       scanning = false;
       return;
     }
 
-    candidates = clean(res.data.text);
+    let candidates = clean(text);
 
     if (candidates.length === 0) {
       statusDiv.innerText = "⚠️ Kein Text";
@@ -179,34 +219,45 @@ async function scanOnce(){
       return;
     }
 
-    let guess = candidates[0];
-    statusDiv.innerText = "🔎 " + guess;
+    // SMART MATCHING
+    let best = null;
 
-    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
-    let data = await r.json();
+    for (let c of candidates) {
+      try {
+        let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
+        let d = await r.json();
 
-    if (data.object !== "error") {
-
-      if (data.name === lastCard) {
-        scanning = false;
-        return;
-      }
-
-      lastCard = data.name;
-
-      let image = data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small;
-
-      if (!collection[data.name]) collection[data.name] = {count:0,image:image};
-      collection[data.name].count++;
-
-      save();
-      statusDiv.innerText = "✅ " + data.name;
-
-      flash.classList.add('active');
-      setTimeout(()=>flash.classList.remove('active'),200);
-    } else {
-      statusDiv.innerText = "❌ Kein Treffer";
+        if (d.object !== "error") {
+          best = d;
+          break;
+        }
+      } catch {}
     }
+
+    if (!best) {
+      statusDiv.innerText = "❌ Kein Treffer";
+      scanning = false;
+      return;
+    }
+
+    if (best.name === lastCard) {
+      scanning = false;
+      return;
+    }
+
+    lastCard = best.name;
+
+    let img = best.image_uris?.small || best.card_faces?.[0]?.image_uris?.small;
+
+    if (!collection[best.name]) collection[best.name] = {count:0,image:img};
+    collection[best.name].count++;
+
+    save();
+
+    statusDiv.innerText = "✅ " + best.name;
+
+    flash.classList.add('active');
+    setTimeout(()=>flash.classList.remove('active'),200);
 
   } catch {
     statusDiv.innerText = "❌ Fehler";
