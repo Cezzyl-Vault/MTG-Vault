@@ -77,7 +77,7 @@ footer { margin-top:20px; font-size:12px; opacity:0.6; }
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 0.13</footer>
+<footer>Version 0.14</footer>
 
 <script>
 let video = document.getElementById('video');
@@ -174,12 +174,36 @@ function preprocess(canvas) {
 }
 
 function clean(text){
-  return [...new Set(
-    text.replace(/[^a-zA-Z' ]/g,'')
-      .split('\n')
-      .map(l=>l.trim())
-      .filter(l=>l.length>2)
-  )];
+  let lines = text.replace(/[^a-zA-Z0-9' ]/g,'')
+    .split('\n')
+    .map(l=>l.trim())
+    .filter(l=>l.length>2);
+
+  return [...new Set(lines.map(fixOCR))];
+}
+
+// 🔥 OCR FEHLERKORREKTUR
+function fixOCR(str) {
+  let s = str.toLowerCase();
+
+  // typische OCR Fehler
+  s = s.replace(/0/g, 'o');
+  s = s.replace(/1/g, 'l');
+  s = s.replace(/5/g, 's');
+  s = s.replace(/\|/g, 'l');
+
+  // bekannte MTG Fixes
+  s = s.replace(/lightninq/g, 'lightning');
+  s = s.replace(/ligthning/g, 'lightning');
+  s = s.replace(/lighlning/g, 'lightning');
+
+  s = s.replace(/bo1t/g, 'bolt');
+  s = s.replace(/boit/g, 'bolt');
+
+  // erste Buchstaben groß (für API schöner)
+  s = s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+  return s;
 }
 
 async function scanOnce(){
