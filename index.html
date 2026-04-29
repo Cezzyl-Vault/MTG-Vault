@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MTG Scanner Pro</title>
+  <title>MTG Scanner Ultimate</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: Arial; background:#111; color:#eee; padding:10px; }
@@ -18,15 +18,14 @@
 </head>
 <body>
 
-<h1>MTG Scanner Pro</h1>
+<h1>MTG Scanner Ultimate 🚀</h1>
 
 <button onclick="showTab('scan')">📷 Scannen</button>
 <button onclick="showTab('collection')">🗂 Sammlung</button>
 
 <div id="scan" class="tab active">
   <button onclick="startCamera()">Kamera starten</button>
-  <button onclick="capture()">Scannen</button>
-  <br><br>
+  <button onclick="toggleLiveScan()">Live-Scan EIN/AUS</button>
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" style="display:none;"></canvas>
   <div id="status"></div>
@@ -44,6 +43,8 @@ let ctx = canvas.getContext('2d');
 let statusDiv = document.getElementById('status');
 
 let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
+let live = false;
+let scanning = false;
 
 function save() {
   localStorage.setItem('mtgCollection', JSON.stringify(collection));
@@ -59,17 +60,9 @@ function showTab(tab) {
 function render() {
   let div = document.getElementById('collectionList');
   div.innerHTML = '';
-
   for (let name in collection) {
-    let card = collection[name];
-    div.innerHTML += `
-      <div class="card">
-        <img src="${card.image}" />
-        <div>
-          <b>${name}</b><br>
-          x${card.count}
-        </div>
-      </div>`;
+    let c = collection[name];
+    div.innerHTML += `<div class="card"><img src="${c.image}"><div><b>${name}</b><br>x${c.count}</div></div>`;
   }
 }
 
@@ -78,60 +71,114 @@ async function startCamera() {
     let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
     statusDiv.innerText = "Kamera läuft";
-  } catch (err) {
+  } catch {
     statusDiv.innerText = "Kamera Fehler (HTTPS nötig)";
   }
 }
 
-async function capture() {
-  statusDiv.innerText = "Scanne Titelbereich...";
+function preprocess(canvasEl) {
+  let ctx = canvasEl.getContext('2d');
+  let img = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+  let d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let avg = (d[i]+d[i+1]+d[i+2])/3;
+    let val = avg > 140 ? 255 : 0;
+    d[i]=d[i+1]=d[i+2]=val;
+  }
+  ctx.putImageData(img,0,0);
+}
 
+function clean(text) {
+  return text.replace(/[^a-zA-Z' ]/g,'')
+    .split('\n')
+    .map(l=>l.trim())
+    .filter(l=>l.length>2);
+}
+
+async function multiOCR() {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0);
+  ctx.drawImage(video,0,0);
 
-  // 👉 nur oberen Bereich (Titel)
-  let cropHeight = canvas.height * 0.25;
-  let imageData = ctx.getImageData(0, 0, canvas.width, cropHeight);
+  let candidates = [];
 
-  let tempCanvas = document.createElement('canvas');
-  tempCanvas.width = canvas.width;
-  tempCanvas.height = cropHeight;
-  tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
+  for (let i=0;i<3;i++) {
+    let cropY = canvas.height*(0.05+i*0.03);
+    let cropH = canvas.height*0.12;
 
-  let dataURL = tempCanvas.toDataURL('image/png');
+    let img = ctx.getImageData(0,cropY,canvas.width,cropH);
 
-  const result = await Tesseract.recognize(dataURL, 'eng', {
-    logger: m => statusDiv.innerText = m.status
-  });
+    let temp=document.createElement('canvas');
+    temp.width=canvas.width;
+    temp.height=cropH;
+    let tctx=temp.getContext('2d');
+    tctx.putImageData(img,0,0);
 
-  let text = result.data.text;
-  let lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-  let guessedName = lines[0];
+    preprocess(temp);
 
-  statusDiv.innerText = "Suche: " + guessedName;
+    let res = await Tesseract.recognize(temp.toDataURL(),'eng');
 
-  try {
-    let res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guessedName)}`);
-    let data = await res.json();
+    // Confidence filter
+    if (res.data.confidence < 50) continue;
 
-    if (data.object === "error") throw new Error();
+    let lines = clean(res.data.text);
+    candidates.push(...lines);
+  }
 
-    let name = data.name;
-    let image = data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small;
+  return candidates;
+}
 
-    if (!collection[name]) {
-      collection[name] = { count: 0, image: image };
-    }
+async function matchCandidates(candidates) {
+  for (let c of candidates) {
+    try {
+      let res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(c)}`);
+      let data = await res.json();
+      if (data.object !== "error") return data;
+    } catch {}
+  }
+  return null;
+}
 
+async function scanOnce() {
+  if (scanning) return;
+  scanning = true;
+
+  statusDiv.innerText = "Scanne...";
+
+  let candidates = await multiOCR();
+
+  // sort by frequency
+  let freq={};
+  candidates.forEach(c=>freq[c]=(freq[c]||0)+1);
+  let sorted = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
+
+  let result = await matchCandidates(sorted);
+
+  if (result) {
+    let name=result.name;
+    let image=result.image_uris?.small || result.card_faces?.[0]?.image_uris?.small;
+
+    if (!collection[name]) collection[name]={count:0,image:image};
     collection[name].count++;
 
     save();
-    statusDiv.innerText = "✅ " + name + " hinzugefügt";
-
-  } catch {
-    statusDiv.innerText = "❌ Karte nicht erkannt – nicht gespeichert";
+    statusDiv.innerText = "✅ " + name;
+  } else {
+    statusDiv.innerText = "❌ Kein Treffer";
   }
+
+  scanning = false;
+}
+
+function toggleLiveScan() {
+  live = !live;
+  if (live) loop();
+}
+
+async function loop() {
+  if (!live) return;
+  await scanOnce();
+  setTimeout(loop, 2000);
 }
 
 render();
