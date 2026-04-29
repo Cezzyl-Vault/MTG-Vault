@@ -5,31 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MTG-Vault</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
 <style>
 body { font-family: Arial; background:#111; color:#eee; padding:10px; }
-button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; cursor:pointer; }
-button.activeBtn { border-color:lime; }
+button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
 video, canvas { width:100%; max-width:420px; }
 .tab { display:none; }
 .active { display:block; }
-.card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; align-items:center; gap:10px; }
+.card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; gap:10px; align-items:center;}
 .card img { width:60px; }
-.removeBtn { margin-left:auto; background:#400; border:1px solid #800; }
-.camera-container { position: relative; display:inline-block; }
-.scan-box { position:absolute; top:5%; left:5%; width:90%; height:90%; border:2px solid rgba(0,255,0,0.5);} 
-.status { margin-bottom:5px; color:#0f0; }
+.removeBtn { margin-left:auto; background:#400; }
+.camera-container { position:relative; }
+.scan-box { position:absolute; top:5%; left:5%; width:90%; height:90%; border:2px solid rgba(0,255,0,0.5);}
+.status { color:#0f0; margin-bottom:5px; }
 .flash { position:absolute; inset:0; background:rgba(0,255,0,0.3); opacity:0; }
 .flash.active { opacity:1; }
-footer { margin-top:20px; font-size:12px; opacity:0.6; }
 </style>
 </head>
+
 <body>
+
 <h1>MTG-Vault</h1>
+
 <button onclick="showTab('scan')">📷 Scannen</button>
 <button onclick="showTab('collection')">🗂 Sammlung</button>
 
 <div id="scan" class="tab active">
-  <div class="status" id="status">Initialisiere...</div>
+  <div id="status" class="status">Initialisiere...</div>
   <div class="camera-container">
     <video id="video" autoplay playsinline></video>
     <canvas id="motionCanvas" style="display:none"></canvas>
@@ -44,62 +46,134 @@ footer { margin-top:20px; font-size:12px; opacity:0.6; }
   <div id="collectionList"></div>
 </div>
 
-<footer>Version 1.0</footer>
-
+<footer id="versionFooter" style="margin-top:20px; font-size:12px; opacity:0.6;">
+</footer>
+  
 <script>
+
+/* =========================================
+   🔹 MODULE: CONFIG
+========================================= */
+const CONFIG = {
+  version: "0.17",
+  scanInterval: 1200,
+  motionThreshold: 50000,
+  ocrConfidence: 40,
+  scanZones: [0.08, 0.1, 0.12]
+};
+
+/* =========================================
+   🔹 MODULE: STATE
+========================================= */
 let video = document.getElementById('video');
 let motionCanvas = document.getElementById('motionCanvas');
 let statusDiv = document.getElementById('status');
 let flash = document.getElementById('flash');
 
 let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
-let lastFrame = null;
 let scanning = false;
 let lastCard = null;
+let lastFrame = null;
 let cameraStarted = false;
 let loopRunning = false;
 
-function save(){ localStorage.setItem('mtgCollection', JSON.stringify(collection)); render(); }
-function clearCollection(){ localStorage.removeItem('mtgCollection'); collection={}; render(); }
+/* =========================================
+   🔹 MODULE: STORAGE
+========================================= */
+function save(){
+  localStorage.setItem('mtgCollection', JSON.stringify(collection));
+  render();
+}
+
+function clearCollection(){
+  localStorage.removeItem('mtgCollection');
+  collection = {};
+  render();
+}
+
+/* =========================================
+   🔹 MODULE: UI
+========================================= */
+function showTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  if(tab==='scan') startCamera();
+  render();
+}
 
 function render(){
-  let div = document.getElementById('collectionList'); div.innerHTML='';
+  let div = document.getElementById('collectionList');
+  div.innerHTML = '';
   for(let name in collection){
-    let c=collection[name];
-    div.innerHTML+=`<div class="card">
+    let c = collection[name];
+    div.innerHTML += `
+    <div class="card">
       <img src="${c.image}">
       <div><b>${name}</b><br>x${c.count}</div>
-      <button class="removeBtn" data-name="${name}" onclick="removeCard(this.dataset.name)">❌</button>
+      <button class="removeBtn" onclick="removeCard('${name}')">❌</button>
     </div>`;
   }
 }
 
-function removeCard(name){ if(!collection[name])return; collection[name].count--; if(collection[name].count<=0) delete collection[name]; save(); }
-
-function showTab(tab){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.getElementById(tab).classList.add('active'); if(tab==='scan') startCamera(); render(); }
-
-async function startCamera(){
-  if(cameraStarted) return; cameraStarted=true;
-  let stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-  video.srcObject = stream;
-  statusDiv.innerText='📷 Kamera aktiv';
-  if(!loopRunning){ loopRunning=true; loop(); }
+function removeCard(name){
+  if(!collection[name]) return;
+  collection[name].count--;
+  if(collection[name].count<=0) delete collection[name];
+  save();
 }
 
+/* =========================================
+   🔹 MODULE: CAMERA
+========================================= */
+async function startCamera(){
+  if(cameraStarted) return;
+  cameraStarted = true;
+
+  let stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+  video.srcObject = stream;
+
+  if(!loopRunning){
+    loopRunning = true;
+    loop();
+  }
+}
+
+/* =========================================
+   🔹 MODULE: OCR
+========================================= */
 function preprocess(canvas){
-  let ctx=canvas.getContext('2d'); let img=ctx.getImageData(0,0,canvas.width,canvas.height); let d=img.data;
-  for(let i=0;i<d.length;i+=4){ let avg=(d[i]+d[i+1]+d[i+2])/3; let v=avg>140?255:0; d[i]=d[i+1]=d[i+2]=v; }
+  let ctx = canvas.getContext('2d');
+  let img = ctx.getImageData(0,0,canvas.width,canvas.height);
+  let d = img.data;
+
+  for(let i=0;i<d.length;i+=4){
+    let avg=(d[i]+d[i+1]+d[i+2])/3;
+    let v=avg>140?255:0;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
   ctx.putImageData(img,0,0);
 }
 
-// 🔥 LEVENSHTEIN
+function clean(text){
+  return [...new Set(
+    text.replace(/[^a-zA-Z ]/g,'')
+      .split('\n')
+      .map(l=>l.trim())
+      .filter(l=>l.length>2)
+  )];
+}
+
+/* =========================================
+   🔹 MODULE: MATCHING
+========================================= */
 function levenshtein(a,b){
   let m=[];
   for(let i=0;i<=b.length;i++){ m[i]=[i]; }
   for(let j=0;j<=a.length;j++){ m[0][j]=j; }
   for(let i=1;i<=b.length;i++){
     for(let j=1;j<=a.length;j++){
-      m[i][j]=b[i-1]==a[j-1]?m[i-1][j-1]:Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);
+      m[i][j]=b[i-1]==a[j-1]?m[i-1][j-1]:
+      Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);
     }
   }
   return m[b.length][a.length];
@@ -109,91 +183,142 @@ function bestMatch(input, candidates){
   let best=null, bestScore=Infinity;
   for(let c of candidates){
     let score=levenshtein(input.toLowerCase(), c.toLowerCase());
-    if(score<bestScore){ bestScore=score; best=c; }
+    if(score<bestScore){
+      bestScore=score;
+      best=c;
+    }
   }
   return best;
 }
 
-function clean(text){
-  return [...new Set(text.replace(/[^a-zA-Z ]/g,'').split('\n').map(l=>l.trim()).filter(l=>l.length>2))];
-}
-
-// 🎥 MOTION DETECTION
+/* =========================================
+   🔹 MODULE: MOTION
+========================================= */
 function detectMotion(){
   let ctx = motionCanvas.getContext('2d');
   motionCanvas.width = video.videoWidth;
   motionCanvas.height = video.videoHeight;
+
   ctx.drawImage(video,0,0);
   let frame = ctx.getImageData(0,0,motionCanvas.width,motionCanvas.height).data;
 
-  if(!lastFrame){ lastFrame = frame; return true; }
+  if(!lastFrame){
+    lastFrame = frame;
+    return true;
+  }
 
   let diff=0;
-  for(let i=0;i<frame.length;i+=20){ diff += Math.abs(frame[i]-lastFrame[i]); }
-  lastFrame = frame;
+  for(let i=0;i<frame.length;i+=20){
+    diff += Math.abs(frame[i]-lastFrame[i]);
+  }
 
-  return diff > 50000; // threshold
+  lastFrame = frame;
+  return diff > CONFIG.motionThreshold;
 }
 
+/* =========================================
+   🔹 MODULE: SCANNER
+========================================= */
 async function scanOnce(){
+
   if(scanning) return;
 
-  if(!detectMotion()){
-    statusDiv.innerText='⏸ Keine Bewegung';
+  if(video.videoWidth === 0){
+    statusDiv.innerText = "⏳ Kamera lädt...";
     return;
   }
 
-  scanning=true;
+  if(!detectMotion()){
+    statusDiv.innerText = "⏸ Keine Bewegung";
+    return;
+  }
 
-  let canvas=document.createElement('canvas');
-  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+  scanning = true;
+
+  let canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video,0,0);
 
-  let zones=[0.08,0.1,0.12];
   let candidates=[];
 
-  for(let z of zones){
+  for(let z of CONFIG.scanZones){
+
     let part=document.createElement('canvas');
     let h=canvas.height*0.18;
-    part.width=canvas.width; part.height=h;
-    part.getContext('2d').drawImage(canvas,0,canvas.height*z,canvas.width,h,0,0,canvas.width,h);
+
+    part.width=canvas.width;
+    part.height=h;
+
+    part.getContext('2d')
+      .drawImage(canvas,0,canvas.height*z,canvas.width,h,0,0,canvas.width,h);
 
     preprocess(part);
 
     let res = await Tesseract.recognize(part.toDataURL(),'eng');
-    if(res.data.confidence<40) continue;
 
-    candidates.push(...clean(res.data.text||""));
+    if(res.data.confidence < CONFIG.ocrConfidence) continue;
+
+    candidates.push(...clean(res.data.text || ""));
   }
 
   candidates=[...new Set(candidates)];
-  if(candidates.length===0){ scanning=false; return; }
+
+  if(candidates.length===0){
+    statusDiv.innerText="⚠️ Kein Text";
+    scanning=false;
+    return;
+  }
 
   let guess = bestMatch(candidates[0], candidates);
 
   let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
   let d = await r.json();
 
-  if(d.object==='error'){ statusDiv.innerText='❌ Kein Treffer'; scanning=false; return; }
+  if(d.object==='error'){
+    statusDiv.innerText="❌ Kein Treffer";
+    scanning=false;
+    return;
+  }
 
-  if(d.name===lastCard){ scanning=false; return; }
-  lastCard=d.name; setTimeout(()=>lastCard=null,3000);
+  if(d.name===lastCard){
+    scanning=false;
+    return;
+  }
+
+  lastCard = d.name;
+  setTimeout(()=>lastCard=null,3000);
 
   let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
 
-  if(!collection[d.name]) collection[d.name]={count:0,image:img};
+  if(!collection[d.name]){
+    collection[d.name] = {count:0,image:img};
+  }
+
   collection[d.name].count++;
   save();
 
-  statusDiv.innerText='✅ '+d.name;
-  flash.classList.add('active'); setTimeout(()=>flash.classList.remove('active'),200);
+  statusDiv.innerText="✅ "+d.name;
+
+  flash.classList.add('active');
+  setTimeout(()=>flash.classList.remove('active'),200);
 
   scanning=false;
 }
 
-async function loop(){ await scanOnce(); setTimeout(loop,1200); }
+async function loop(){
+  await scanOnce();
+  setTimeout(loop, CONFIG.scanInterval);
+}
 
-startCamera(); render();
+/* ========================================= */
+
+startCamera();
+render();
+
+ document.getElementById("versionFooter").innerText =
+  "Version " + CONFIG.version + " ©to";  
+  
 </script>
 </body>
 </html>
