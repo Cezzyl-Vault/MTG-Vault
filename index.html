@@ -337,7 +337,7 @@
 </div>
 
 <footer>
-  <span>MTG-Vault v0.25 ©to</span>
+  <span>MTG-Vault v0.26 ©to</span>
   <span id="footerCount"></span>
 </footer>
 
@@ -510,29 +510,34 @@ function detectMotion() {
 /* =========================================
    IMAGE PREPROCESSING
 ========================================= */
-function extractTitleStrip() {
-  const w = video.videoWidth;
-  const h = Math.floor(video.videoHeight * CONFIG.titleZoneHeight);
+function extractStrip(topFraction, heightFraction) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
 
-  // Scale up 2x — Tesseract works much better on larger images
-  const scale = 2;
-  const c   = document.createElement('canvas');
-  c.width   = w * scale;
-  c.height  = h * scale;
+  const srcY = Math.floor(vh * topFraction);
+  const srcH = Math.floor(vh * heightFraction);
+
+  // 3× hochskalieren für bessere OCR
+  const scale = 3;
+  const c = document.createElement('canvas');
+  c.width  = vw * scale;
+  c.height = srcH * scale;
+
   const ctx = c.getContext('2d');
-
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(video, 0, 0, w, h, 0, 0, c.width, c.height);
+  ctx.drawImage(video, 0, srcY, vw, srcH, 0, 0, c.width, c.height);
 
-  // greyscale only — NO hard threshold, keeps more detail for Tesseract
-  const img = ctx.getImageData(0, 0, c.width, c.height);
-  const d   = img.data;
+  // Kontrast erhöhen + Graustufen (kein harter Schwellwert)
+  const imgData = ctx.getImageData(0, 0, c.width, c.height);
+  const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
-    const grey = d[i] * 0.3 + d[i+1] * 0.59 + d[i+2] * 0.11;
+    let grey = d[i] * 0.3 + d[i+1] * 0.59 + d[i+2] * 0.11;
+    // Kontrast-Stretch
+    grey = Math.min(255, Math.max(0, (grey - 80) * 1.8));
     d[i] = d[i+1] = d[i+2] = grey;
   }
-  ctx.putImageData(img, 0, 0);
+  ctx.putImageData(imgData, 0, 0);
   return c;
 }
 
@@ -573,40 +578,58 @@ async function scanOnce() {
   setStatus('🔍 Scanne…', 'active');
 
   try {
-    const strip = extractTitleStrip();
+    // Versuche mehrere Zonen und nimm den besten Treffer
+    const zones = [
+      { top: 0.03, height: 0.10 },  // sehr oben (Kartenname-Zeile)
+      { top: 0.03, height: 0.15 },  // etwas breiter
+      { top: 0.00, height: 0.20 },  // ganzes oberes Fünftel
+    ];
 
-    const { data } = await tesseractWorker.recognize(strip);
+    let bestCandidate = null;
 
-    // Log for debugging — can be removed later
-    console.log(`OCR conf: ${data.confidence} | text: "${data.text.trim()}"`);
+    for (const zone of zones) {
+      const strip = extractStrip(zone.top, zone.height);
+      const { data } = await tesseractWorker.recognize(strip);
 
-    // Don't gate on confidence — Tesseract gives low scores for MTG fonts even when correct.
-    // Instead, check that we got at least some usable text.
-    const lines = data.text
-      .split('\n')
-      .map(l => l.replace(/[^a-zA-Z '\-,]/g, '').trim())
-      .filter(l => l.length > 2);
+      console.log(`Zone ${zone.top}-${zone.height} | conf:${data.confidence} | "${data.text.trim()}"`);
 
-    if (lines.length === 0) {
-      setStatus('⚠️ Kein Text erkannt — Karte in den gelben Rahmen halten', 'idle');
+      const lines = data.text
+        .split('\n')
+        .map(l => l.replace(/[^a-zA-Z '\-,]/g, '').trim())
+        .filter(l => l.length > 3 && l.length < 40);
+
+      if (lines.length === 0) continue;
+
+      // Nimm die kürzeste Zeile — das ist meistens der Kartenname
+      const candidate = lines.sort((a, b) => a.length - b.length)[0];
+
+      // Schnell-Check: Scryfall autocomplete gibt Treffer zurück
+      const check = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(candidate)}`);
+      const checkData = await check.json();
+
+      if (checkData.total_values > 0) {
+        bestCandidate = checkData.data[0]; // bester Autocomplete-Treffer
+        console.log(`✅ Autocomplete Treffer: ${bestCandidate}`);
+        break;
+      }
+    }
+
+    if (!bestCandidate) {
+      setStatus('❌ Keine Karte erkannt', 'idle');
       scanning = false;
       return;
     }
 
-    // use the longest line as the most likely card name
-    const candidate = lines.sort((a, b) => b.length - a.length)[0];
+    // Jetzt volle Karteninfo holen
+    const r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(bestCandidate)}`);
+    const card = await r.json();
 
-    setStatus(`🌐 Suche: "${candidate}"…`, 'active');
-
-    const card = await scryfallLookup(candidate);
-
-    if (!card) {
-      setStatus(`❌ Nicht gefunden: "${candidate}"`, 'error');
+    if (card.object === 'error') {
+      setStatus('❌ Karte nicht gefunden', 'idle');
       scanning = false;
       return;
     }
 
-    // cooldown — don't double-count same card
     if (card.name === lastCard) {
       setStatus(`✅ ${card.name} (warte…)`, 'idle');
       scanning = false;
@@ -626,16 +649,13 @@ async function scanOnce() {
 
     setStatus(`✅ ${card.name} hinzugefügt!`, 'active');
 
-    // flash
     flash.classList.add('active');
     setTimeout(() => flash.classList.remove('active'), 250);
 
-    // badge
-    document.getElementById('lsbImg').src       = img;
-    document.getElementById('lsbName').innerText = card.name;
+    document.getElementById('lsbImg').src        = img;
+    document.getElementById('lsbName').innerText  = card.name;
     document.getElementById('lsbCount').innerText = `${collection[card.name].count}× in Sammlung`;
-    const badge = document.getElementById('lastScanBadge');
-    badge.classList.add('show');
+    document.getElementById('lastScanBadge').classList.add('show');
 
   } catch(e) {
     setStatus('❌ Fehler: ' + e.message, 'error');
