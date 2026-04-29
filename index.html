@@ -56,7 +56,7 @@ video, canvas { width:100%; max-width:420px; }
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.22",
+  version: "0.23",
   scanInterval: 1200,
   motionThreshold: 50000,
   ocrConfidence: 40,
@@ -66,14 +66,33 @@ const CONFIG = {
 /* =========================================
    🔹 MODULE: STATE
 ========================================= */
-let worker;
+/* =========================================
+   🔹 MODULE: STATE
+========================================= */
 
+let video = document.getElementById('video');
+let motionCanvas = document.getElementById('motionCanvas');
+let statusDiv = document.getElementById('status');
+let flash = document.getElementById('flash');
+
+let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
+
+let scanning = false;
+let lastCard = null;
+let lastFrame = null;
+let cameraStarted = false;
+let loopRunning = false;
+
+// Worker
+let worker;
 try {
   worker = new Worker('./ocrWorker.js');
+  console.log("✅ Worker geladen");
 } catch(e) {
-  console.error("Worker konnte nicht geladen werden", e);
+  console.error("❌ Worker Fehler:", e);
 }
 
+// Multi-Frame Buffer
 let frameBuffer = [];
 const FRAME_BUFFER_SIZE = 3;
 
