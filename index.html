@@ -5,364 +5,650 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MTG-Vault</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 
 <style>
-body { font-family: Arial; background:#111; color:#eee; padding:10px; }
-button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
-video, canvas { width:100%; max-width:420px; }
-.tab { display:none; }
-.active { display:block; }
-.card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; gap:10px; align-items:center;}
-.card img { width:60px; }
-.removeBtn { margin-left:auto; background:#400; }
-.camera-container { position:relative; }
-.scan-box { position:absolute; top:5%; left:5%; width:90%; height:90%; border:2px solid rgba(0,255,0,0.5);}
-.status { color:#0f0; margin-bottom:5px; }
-.flash { position:absolute; inset:0; background:rgba(0,255,0,0.3); opacity:0; }
-.flash.active { opacity:1; }
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+
+  :root {
+    --gold: #c9a84c;
+    --gold-dim: #7a6030;
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1c1c28;
+    --border: #2a2a3a;
+    --text: #e8e0d0;
+    --text-dim: #7a7070;
+    --green: #3ddc84;
+    --red: #e05555;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Crimson Text', serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(180deg, #1a1408 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--gold-dim);
+    padding: 14px 16px 10px;
+    text-align: center;
+  }
+  header h1 {
+    font-family: 'Cinzel', serif;
+    font-size: 1.6rem;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(201,168,76,0.4);
+  }
+  header p {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  /* ── Nav ── */
+  nav {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  nav button {
+    flex: 1;
+    padding: 12px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Cinzel', serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+
+  /* ── Tabs ── */
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  /* ── Scan Tab ── */
+  #scan { padding: 12px; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    min-height: 38px;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 1.2s infinite; }
+  .status-dot.error  { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  #statusText {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+
+  .camera-wrap {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+  }
+  video {
+    display: block;
+    width: 100%;
+    max-height: 55vh;
+    object-fit: cover;
+  }
+
+  /* scan guide overlay */
+  .guide-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .guide-overlay svg {
+    width: 100%; height: 100%;
+  }
+
+  /* flash */
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(201,168,76,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  .flash.active { opacity: 1; }
+
+  /* last-scan badge */
+  #lastScanBadge {
+    display: none;
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--gold-dim);
+    border-radius: 8px;
+    align-items: center;
+    gap: 12px;
+  }
+  #lastScanBadge.show { display: flex; }
+  #lastScanBadge img { width: 44px; border-radius: 4px; }
+  #lastScanBadge .lsb-info b { font-size: 1rem; color: var(--gold); }
+  #lastScanBadge .lsb-info span { font-size: 0.8rem; color: var(--text-dim); }
+
+  /* ── Collection Tab ── */
+  #collection { padding: 12px; }
+
+  .coll-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .coll-header h2 {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+  }
+  .coll-header span {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .clear-btn {
+    padding: 6px 12px;
+    background: none;
+    border: 1px solid #4a1a1a;
+    color: var(--red);
+    border-radius: 5px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .clear-btn:hover { background: #4a1a1a; }
+
+  .card-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+  .card-item:hover { border-color: var(--gold-dim); }
+  .card-item img {
+    width: 48px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .card-item .info { flex: 1; }
+  .card-item .info b {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+  .card-item .info span {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .count-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .count-ctrl button {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s;
+  }
+  .count-ctrl button:hover { border-color: var(--gold-dim); }
+  .count-ctrl .count {
+    font-family: 'Cinzel', serif;
+    font-size: 0.95rem;
+    color: var(--gold);
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .empty-state p { font-size: 0.9rem; }
+
+  /* ── Footer ── */
+  footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 6px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+  }
 </style>
 </head>
-
 <body>
 
-<h1>MTG-Vault</h1>
+<header>
+  <h1>⚔ MTG-Vault</h1>
+  <p>Kartensammlung &middot; Scanner</p>
+</header>
 
-<button onclick="showTab('scan')">📷 Scannen</button>
-<button onclick="showTab('collection')">🗂 Sammlung</button>
+<nav>
+  <button class="active" onclick="showTab('scan', this)">📷 Scannen</button>
+  <button onclick="showTab('collection', this)">🗂 Sammlung</button>
+</nav>
 
+<!-- ── SCAN TAB ── -->
 <div id="scan" class="tab active">
-  <div id="status" class="status">Initialisiere...</div>
-  <div class="camera-container">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="motionCanvas" style="display:none"></canvas>
-    <div class="scan-box"></div>
-    <div id="flash" class="flash"></div>
+  <div style="padding:12px;">
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Initialisiere OCR…</span>
+    </div>
+    <div class="camera-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="motionCanvas" style="display:none"></canvas>
+      <!-- guide corners -->
+      <div class="guide-overlay">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <!-- top-left corner -->
+          <polyline points="5,15 5,5 15,5" fill="none" stroke="rgba(201,168,76,0.7)" stroke-width="0.8"/>
+          <!-- top-right -->
+          <polyline points="85,5 95,5 95,15" fill="none" stroke="rgba(201,168,76,0.7)" stroke-width="0.8"/>
+          <!-- bottom-left -->
+          <polyline points="5,85 5,95 15,95" fill="none" stroke="rgba(201,168,76,0.7)" stroke-width="0.8"/>
+          <!-- bottom-right -->
+          <polyline points="85,95 95,95 95,85" fill="none" stroke="rgba(201,168,76,0.7)" stroke-width="0.8"/>
+          <!-- title zone indicator -->
+          <rect x="5" y="5" width="90" height="20"
+            fill="rgba(201,168,76,0.05)" stroke="rgba(201,168,76,0.25)" stroke-width="0.5" stroke-dasharray="2,2"/>
+          <text x="50" y="13" text-anchor="middle" fill="rgba(201,168,76,0.5)" font-size="4" font-family="serif">NAME</text>
+        </svg>
+      </div>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <!-- last scan -->
+    <div id="lastScanBadge">
+      <img id="lsbImg" src="" alt="">
+      <div class="lsb-info">
+        <b id="lsbName"></b><br>
+        <span id="lsbCount"></span>
+      </div>
+    </div>
   </div>
 </div>
 
+<!-- ── COLLECTION TAB ── -->
 <div id="collection" class="tab">
-  <h2>Sammlung</h2>
-  <button onclick="clearCollection()">🧹 Alles löschen</button>
-  <div id="collectionList"></div>
+  <div style="padding:12px;">
+    <div class="coll-header">
+      <div>
+        <h2>Sammlung</h2>
+        <span id="collCount"></span>
+      </div>
+      <button class="clear-btn" onclick="clearCollection()">🧹 Löschen</button>
+    </div>
+    <div id="collectionList"></div>
+  </div>
 </div>
 
-<footer id="versionFooter" style="margin-top:20px; font-size:12px; opacity:0.6;">
+<footer>
+  <span>MTG-Vault v0.24 ©to</span>
+  <span id="footerCount"></span>
 </footer>
-  
-<script>
 
+<script>
 /* =========================================
-   🔹 MODULE: CONFIG
+   CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.23",
-  scanInterval: 1200,
-  motionThreshold: 50000,
-  ocrConfidence: 40,
-  scanZones: [0.08, 0.1, 0.12]
+  scanInterval:      1500,   // ms between scans
+  motionThreshold:   40000,  // pixel diff to trigger scan
+  ocrConfidence:     35,     // min tesseract confidence
+  titleZoneHeight:   0.18,   // fraction of frame height to OCR
+  cooldownMs:        3000,   // ignore same card for N ms
 };
 
 /* =========================================
-   🔹 MODULE: STATE
+   STATE
 ========================================= */
+const video         = document.getElementById('video');
+const motionCanvas  = document.getElementById('motionCanvas');
+const statusDot     = document.getElementById('statusDot');
+const statusText    = document.getElementById('statusText');
+const flash         = document.getElementById('flash');
+
+let collection    = JSON.parse(localStorage.getItem('mtgCollection') || '{}');
+let scanning      = false;
+let lastCard      = null;
+let lastFrame     = null;
+let cameraReady   = false;
+let workerReady   = false;
+let tesseractWorker = null;
+
 /* =========================================
-   🔹 MODULE: STATE
+   STATUS HELPERS
 ========================================= */
-
-let video = document.getElementById('video');
-let motionCanvas = document.getElementById('motionCanvas');
-let statusDiv = document.getElementById('status');
-let flash = document.getElementById('flash');
-
-let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
-
-let scanning = false;
-let lastCard = null;
-let lastFrame = null;
-let cameraStarted = false;
-let loopRunning = false;
-
-// Worker
-let worker;
-try {
-  worker = new Worker('./ocrWorker.js');
-  console.log("✅ Worker geladen");
-} catch(e) {
-  console.error("❌ Worker Fehler:", e);
+function setStatus(msg, mode = 'idle') {
+  statusText.innerText = msg;
+  statusDot.className  = 'status-dot' + (mode === 'active' ? ' active' : mode === 'error' ? ' error' : '');
 }
 
-// Multi-Frame Buffer
-let frameBuffer = [];
-const FRAME_BUFFER_SIZE = 3;
-
 /* =========================================
-   🔹 MODULE: STORAGE
+   STORAGE
 ========================================= */
-function save(){
+function save() {
   localStorage.setItem('mtgCollection', JSON.stringify(collection));
   render();
 }
 
-function clearCollection(){
-  localStorage.removeItem('mtgCollection');
+function clearCollection() {
+  if (!confirm('Wirklich alles löschen?')) return;
   collection = {};
-  render();
-}
-
-/* =========================================
-   🔹 MODULE: UI
-========================================= */
-function showTab(tab){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById(tab).classList.add('active');
-  if(tab==='scan') startCamera();
-  render();
-}
-
-function render(){
-  let div = document.getElementById('collectionList');
-  div.innerHTML = '';
-  for(let name in collection){
-    let c = collection[name];
-    div.innerHTML += `
-    <div class="card">
-      <img src="${c.image}">
-      <div><b>${name}</b><br>x${c.count}</div>
-      <button class="removeBtn" onclick="removeCard('${name}')">❌</button>
-    </div>`;
-  }
-}
-
-function removeCard(name){
-  if(!collection[name]) return;
-  collection[name].count--;
-  if(collection[name].count<=0) delete collection[name];
   save();
 }
 
 /* =========================================
-   🔹 MODULE: CAMERA
+   UI / RENDER
 ========================================= */
-async function startCamera(){
-  if(cameraStarted) return;
-  cameraStarted = true;
+function showTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  if (btn) btn.classList.add('active');
+  render();
+}
 
-  let stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-  video.srcObject = stream;
+function render() {
+  const list   = document.getElementById('collectionList');
+  const keys   = Object.keys(collection);
+  const total  = keys.reduce((s, k) => s + collection[k].count, 0);
 
-  if(!loopRunning){
-    loopRunning = true;
-    loop();
+  document.getElementById('collCount').innerText   = `${keys.length} Karten · ${total}×`;
+  document.getElementById('footerCount').innerText = `${total} Karten`;
+
+  if (keys.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🃏</div>
+        <p>Noch keine Karten.<br>Halte eine Magic-Karte vor die Kamera.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = keys.map(name => {
+    const c = collection[name];
+    return `
+    <div class="card-item">
+      <img src="${c.image}" alt="${name}" onerror="this.style.display='none'">
+      <div class="info">
+        <b>${name}</b>
+        <span>${c.count}× in Sammlung</span>
+      </div>
+      <div class="count-ctrl">
+        <button onclick="changeCount('${name.replace(/'/g,"\\'")}', -1)">−</button>
+        <span class="count">${c.count}</span>
+        <button onclick="changeCount('${name.replace(/'/g,"\\'")}', +1)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function changeCount(name, delta) {
+  if (!collection[name]) return;
+  collection[name].count += delta;
+  if (collection[name].count <= 0) delete collection[name];
+  save();
+}
+
+/* =========================================
+   TESSERACT — inline (no Worker file needed)
+========================================= */
+async function initOCR() {
+  setStatus('Lade OCR-Engine…');
+  try {
+    tesseractWorker = await Tesseract.createWorker('eng', 1, {
+      logger: () => {}   // silence progress logs
+    });
+    await tesseractWorker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz \'-,',
+      tessedit_pageseg_mode: '7', // single line
+    });
+    workerReady = true;
+    setStatus('Kamera wird gestartet…');
+    startCamera();
+  } catch(e) {
+    setStatus('❌ OCR-Fehler: ' + e.message, 'error');
+    console.error(e);
   }
 }
 
 /* =========================================
-   🔹 MODULE: OCR
+   CAMERA
 ========================================= */
-function preprocess(canvas){
-  let ctx = canvas.getContext('2d');
-  let img = ctx.getImageData(0,0,canvas.width,canvas.height);
-  let d = img.data;
-
-  for(let i=0;i<d.length;i+=4){
-    let avg=(d[i]+d[i+1]+d[i+2])/3;
-    let v=avg>140?255:0;
-    d[i]=d[i+1]=d[i+2]=v;
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      cameraReady = true;
+      setStatus('⏸ Karte in den Rahmen halten', 'idle');
+      loop();
+    };
+  } catch(e) {
+    setStatus('❌ Kamera: ' + e.message, 'error');
   }
-  ctx.putImageData(img,0,0);
-}
-
-function clean(text){
-  return [...new Set(
-    text.replace(/[^a-zA-Z ]/g,'')
-      .split('\n')
-      .map(l=>l.trim())
-      .filter(l=>l.length>2)
-  )];
 }
 
 /* =========================================
-   🔹 MODULE: MATCHING
+   MOTION DETECTION
 ========================================= */
-function levenshtein(a,b){
-  let m=[];
-  for(let i=0;i<=b.length;i++){ m[i]=[i]; }
-  for(let j=0;j<=a.length;j++){ m[0][j]=j; }
-  for(let i=1;i<=b.length;i++){
-    for(let j=1;j<=a.length;j++){
-      m[i][j]=b[i-1]==a[j-1]?m[i-1][j-1]:
-      Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);
-    }
-  }
-  return m[b.length][a.length];
-}
-
-function bestMatch(input, candidates){
-  let best=null, bestScore=Infinity;
-  for(let c of candidates){
-    let score=levenshtein(input.toLowerCase(), c.toLowerCase());
-    if(score<bestScore){
-      bestScore=score;
-      best=c;
-    }
-  }
-  return best;
-}
-
-/* =========================================
-   🔹 MODULE: MOTION
-========================================= */
-function detectMotion(){
-  let ctx = motionCanvas.getContext('2d');
-  motionCanvas.width = video.videoWidth;
+function detectMotion() {
+  const ctx = motionCanvas.getContext('2d');
+  motionCanvas.width  = video.videoWidth;
   motionCanvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
 
-  ctx.drawImage(video,0,0);
-  let frame = ctx.getImageData(0,0,motionCanvas.width,motionCanvas.height).data;
+  const frame = ctx.getImageData(0, 0, motionCanvas.width, motionCanvas.height).data;
 
-  if(!lastFrame){
-    lastFrame = frame;
-    return true;
+  if (!lastFrame) { lastFrame = frame; return true; }
+
+  let diff = 0;
+  for (let i = 0; i < frame.length; i += 16) {
+    diff += Math.abs(frame[i] - lastFrame[i]);
   }
-
-  let diff=0;
-  for(let i=0;i<frame.length;i+=20){
-    diff += Math.abs(frame[i]-lastFrame[i]);
-  }
-
   lastFrame = frame;
   return diff > CONFIG.motionThreshold;
 }
 
 /* =========================================
-   🔹 MODULE: SCANNER (mit Perspektivkorrektur)
+   IMAGE PREPROCESSING
 ========================================= */
+function extractTitleStrip() {
+  const w = video.videoWidth;
+  const h = Math.floor(video.videoHeight * CONFIG.titleZoneHeight);
 
-async function scanOnce(){
+  const c   = document.createElement('canvas');
+  c.width   = w;
+  c.height  = h;
+  const ctx = c.getContext('2d');
 
-  if (scanning) return;
+  // draw top slice
+  ctx.drawImage(video, 0, 0, w, h, 0, 0, w, h);
 
-  if (video.videoWidth === 0){
-    statusDiv.innerText = "⏳ Kamera lädt...";
-    return;
+  // greyscale + threshold
+  const img = ctx.getImageData(0, 0, w, h);
+  const d   = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = d[i] * 0.3 + d[i+1] * 0.59 + d[i+2] * 0.11 > 130 ? 255 : 0;
+    d[i] = d[i+1] = d[i+2] = v;
   }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
 
-  if (!detectMotion()){
-    statusDiv.innerText = "⏸ Keine Bewegung";
-    return;
+/* =========================================
+   SCRYFALL LOOKUP
+========================================= */
+async function scryfallLookup(query) {
+  try {
+    const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(query)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.object === 'error') return null;
+    return d;
+  } catch {
+    return null;
   }
+}
 
-  let canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video,0,0);
+/* =========================================
+   MAIN SCAN LOOP
+========================================= */
+async function loop() {
+  if (!cameraReady || !workerReady) return;
 
-  // obere Zone
-  let part = document.createElement('canvas');
-  let h = canvas.height * 0.2;
+  await scanOnce();
+  setTimeout(loop, CONFIG.scanInterval);
+}
 
-  part.width = canvas.width;
-  part.height = h;
+async function scanOnce() {
+  if (scanning || video.videoWidth === 0) return;
 
-  part.getContext('2d')
-    .drawImage(canvas,0,0,canvas.width,h,0,0,canvas.width,h);
-
-  preprocess(part);
-
-  // 📦 Frame sammeln
-  frameBuffer.push(part.toDataURL());
-
-  if (frameBuffer.length < FRAME_BUFFER_SIZE){
-    statusDiv.innerText = "📸 Sammle Frames...";
+  if (!detectMotion()) {
+    setStatus('⏸ Karte in den Rahmen halten', 'idle');
     return;
   }
 
   scanning = true;
+  setStatus('🔍 Scanne…', 'active');
 
-  let results = [];
+  try {
+    const strip = extractTitleStrip();
 
-  // 🧠 mehrere Frames parallel an Worker schicken
-  let promises = frameBuffer.map(img => {
-    return new Promise(resolve => {
-      worker.onmessage = (e) => resolve(e.data);
-      worker.postMessage({ image: img });
-    });
-  });
+    const { data } = await tesseractWorker.recognize(strip);
 
-  let ocrResults = await Promise.all(promises);
+    if (data.confidence < CONFIG.ocrConfidence) {
+      setStatus('⚠️ Schlechte Bildqualität — näher heran?', 'idle');
+      scanning = false;
+      return;
+    }
 
-  frameBuffer = [];
+    // clean raw text — keep only longest word-like tokens as card name candidate
+    const lines = data.text
+      .split('\n')
+      .map(l => l.replace(/[^a-zA-Z '\-,]/g, '').trim())
+      .filter(l => l.length > 2);
 
-  for (let r of ocrResults){
-    if (!r || r.error) continue;
-    if (r.confidence < CONFIG.ocrConfidence) continue;
+    if (lines.length === 0) {
+      setStatus('⚠️ Kein Text erkannt', 'idle');
+      scanning = false;
+      return;
+    }
 
-    let cleaned = clean(r.text || "");
-    results.push(...cleaned);
+    // use the longest line as the most likely card name
+    const candidate = lines.sort((a, b) => b.length - a.length)[0];
+
+    setStatus(`🌐 Suche: "${candidate}"…`, 'active');
+
+    const card = await scryfallLookup(candidate);
+
+    if (!card) {
+      setStatus(`❌ Nicht gefunden: "${candidate}"`, 'error');
+      scanning = false;
+      return;
+    }
+
+    // cooldown — don't double-count same card
+    if (card.name === lastCard) {
+      setStatus(`✅ ${card.name} (warte…)`, 'idle');
+      scanning = false;
+      return;
+    }
+
+    lastCard = card.name;
+    setTimeout(() => { lastCard = null; }, CONFIG.cooldownMs);
+
+    const img = card.image_uris?.small || card.card_faces?.[0]?.image_uris?.small || '';
+
+    if (!collection[card.name]) {
+      collection[card.name] = { count: 0, image: img };
+    }
+    collection[card.name].count++;
+    save();
+
+    setStatus(`✅ ${card.name} hinzugefügt!`, 'active');
+
+    // flash
+    flash.classList.add('active');
+    setTimeout(() => flash.classList.remove('active'), 250);
+
+    // badge
+    document.getElementById('lsbImg').src       = img;
+    document.getElementById('lsbName').innerText = card.name;
+    document.getElementById('lsbCount').innerText = `${collection[card.name].count}× in Sammlung`;
+    const badge = document.getElementById('lastScanBadge');
+    badge.classList.add('show');
+
+  } catch(e) {
+    setStatus('❌ Fehler: ' + e.message, 'error');
+    console.error(e);
   }
-
-  results = [...new Set(results)];
-
-  if (results.length === 0){
-    statusDiv.innerText = "⚠️ Kein Text";
-    scanning = false;
-    return;
-  }
-
-  // 🎯 Voting → bestes Wort
-  let votes = {};
-  results.forEach(r => {
-    votes[r] = (votes[r] || 0) + 1;
-  });
-
-  let bestCandidate = Object.keys(votes)
-    .sort((a,b) => votes[b]-votes[a])[0];
-
-  let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(bestCandidate)}`);
-  let d = await r.json();
-
-  if (d.object === 'error'){
-    statusDiv.innerText = "❌ Kein Treffer";
-    scanning = false;
-    return;
-  }
-
-  if (d.name === lastCard){
-    scanning = false;
-    return;
-  }
-
-  lastCard = d.name;
-  setTimeout(()=>lastCard=null,3000);
-
-  let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
-
-  if (!collection[d.name]){
-    collection[d.name] = {count:0,image:img};
-  }
-
-  collection[d.name].count++;
-  save();
-
-  statusDiv.innerText = "✅ " + d.name;
-
-  flash.classList.add('active');
-  setTimeout(()=>flash.classList.remove('active'),200);
 
   scanning = false;
 }
-  
-/* ========================================= */
 
-  console.log("Script läuft");
-startCamera();
-  console.log("Starte Kamera");
+/* =========================================
+   BOOT
+========================================= */
 render();
-
- document.getElementById("versionFooter").innerText =
-  "Version " + CONFIG.version + " ©to";  
-  
+initOCR();
 </script>
 </body>
 </html>
