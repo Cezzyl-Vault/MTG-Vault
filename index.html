@@ -34,6 +34,8 @@ video { width:100%; max-width:420px; }
   <div id="status" class="status">Initialisiere...</div>
   <video id="video" autoplay playsinline></video>
   <button onclick="manualScan()">📸 Scannen</button>
+  <button onclick="startAutoScan()">▶️ Auto Start</button>
+  <button onclick="stopAutoScan()">⏸ Auto Stop</button>
 </div>
 
 <div id="collection" class="tab">
@@ -50,8 +52,9 @@ video { width:100%; max-width:420px; }
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.30",
+  version: "0.31",
   scanCooldown: 2000,
+  autoScanInterval: 2500,
   ocrConfidence: 50
 };
 
@@ -65,6 +68,7 @@ let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
 
 let lastScanTime = 0;
 let lastCard = null;
+let autoScanRunning = false;
 
 /* =========================================
    🔹 MODULE: STORAGE
@@ -154,6 +158,33 @@ function clean(text){
     .filter(t=>t.length>2);
 }
 
+/* =========================================
+   🔹 MODULE: AUTO SCAN
+========================================= */
+
+function startAutoScan(){
+  if(autoScanRunning) return;
+  autoScanRunning = true;
+
+  statusDiv.innerText = "🔄 Auto-Scan aktiv";
+
+  autoScanLoop();
+}
+
+function stopAutoScan(){
+  autoScanRunning = false;
+  statusDiv.innerText = "⏸ Auto-Scan gestoppt";
+}
+
+async function autoScanLoop(){
+  if(!autoScanRunning) return;
+
+  await manualScan();
+
+  setTimeout(autoScanLoop, CONFIG.autoScanInterval);
+}
+
+  
 /* =========================================
    🔹 MODULE: SCANNER (STABIL)
 ========================================= */
@@ -245,6 +276,7 @@ async function manualScan(){
 /* ========================================= */
 
 startCamera();
+startAutoScan();
 render();
 
 document.getElementById("versionFooter").innerText =
