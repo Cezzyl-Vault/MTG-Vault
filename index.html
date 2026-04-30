@@ -3,21 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MTG-Vault</title>
+
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+
+<title>MTG-Vault</title>
 
 <style>
 body { font-family: Arial; background:#111; color:#eee; padding:10px; }
 button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
-video, canvas { width:100%; max-width:420px; }
+video { width:100%; max-width:420px; }
 .tab { display:none; }
 .active { display:block; }
 .card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; gap:10px; align-items:center;}
 .card img { width:60px; }
 .removeBtn { margin-left:auto; background:#400; }
-.camera-container { position:relative; }
-.scan-box { position:absolute; top:5%; left:5%; width:90%; height:90%; border:2px solid rgba(0,255,0,0.5);}
 .status { color:#0f0; margin-bottom:5px; }
 .flash { position:absolute; inset:0; background:rgba(0,255,0,0.3); opacity:0; }
 .flash.active { opacity:1; }
@@ -33,12 +32,8 @@ video, canvas { width:100%; max-width:420px; }
 
 <div id="scan" class="tab active">
   <div id="status" class="status">Initialisiere...</div>
-  <div class="camera-container">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="motionCanvas" style="display:none"></canvas>
-    <div class="scan-box"></div>
-    <div id="flash" class="flash"></div>
-  </div>
+  <video id="video" autoplay playsinline></video>
+  <button onclick="manualScan()">📸 Scannen</button>
 </div>
 
 <div id="collection" class="tab">
@@ -47,54 +42,29 @@ video, canvas { width:100%; max-width:420px; }
   <div id="collectionList"></div>
 </div>
 
-<footer id="versionFooter" style="margin-top:20px; font-size:12px; opacity:0.6;">
-</footer>
-  
+<footer id="versionFooter" style="margin-top:20px; font-size:12px; opacity:0.6;"></footer>
+
 <script>
 
 /* =========================================
    🔹 MODULE: CONFIG
 ========================================= */
 const CONFIG = {
-  version: "0.23",
-  scanInterval: 1200,
-  motionThreshold: 50000,
-  ocrConfidence: 40,
-  scanZones: [0.08, 0.1, 0.12]
+  version: "0.30",
+  scanCooldown: 2000,
+  ocrConfidence: 50
 };
 
 /* =========================================
    🔹 MODULE: STATE
 ========================================= */
-/* =========================================
-   🔹 MODULE: STATE
-========================================= */
-
 let video = document.getElementById('video');
-let motionCanvas = document.getElementById('motionCanvas');
 let statusDiv = document.getElementById('status');
-let flash = document.getElementById('flash');
 
 let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
 
-let scanning = false;
+let lastScanTime = 0;
 let lastCard = null;
-let lastFrame = null;
-let cameraStarted = false;
-let loopRunning = false;
-
-// Worker
-let worker;
-try {
-  worker = new Worker('./ocrWorker.js');
-  console.log("✅ Worker geladen");
-} catch(e) {
-  console.error("❌ Worker Fehler:", e);
-}
-
-// Multi-Frame Buffer
-let frameBuffer = [];
-const FRAME_BUFFER_SIZE = 3;
 
 /* =========================================
    🔹 MODULE: STORAGE
@@ -123,6 +93,7 @@ function showTab(tab){
 function render(){
   let div = document.getElementById('collectionList');
   div.innerHTML = '';
+
   for(let name in collection){
     let c = collection[name];
     div.innerHTML += `
@@ -145,16 +116,17 @@ function removeCard(name){
    🔹 MODULE: CAMERA
 ========================================= */
 async function startCamera(){
-  if(cameraStarted) return;
-  cameraStarted = true;
+  if(video.srcObject) return;
 
-  let stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+  let stream = await navigator.mediaDevices.getUserMedia({
+    video:{facingMode:'environment'}
+  });
+
   video.srcObject = stream;
 
-  if(!loopRunning){
-    loopRunning = true;
-    loop();
-  }
+  await new Promise(res => video.onloadedmetadata = res);
+
+  statusDiv.innerText = "📷 Kamera bereit";
 }
 
 /* =========================================
@@ -170,95 +142,46 @@ function preprocess(canvas){
     let v=avg>140?255:0;
     d[i]=d[i+1]=d[i+2]=v;
   }
+
   ctx.putImageData(img,0,0);
 }
 
 function clean(text){
-  return [...new Set(
-    text.replace(/[^a-zA-Z ]/g,'')
-      .split('\n')
-      .map(l=>l.trim())
-      .filter(l=>l.length>2)
-  )];
+  return text
+    .replace(/[^a-zA-Z ]/g,'')
+    .split('\n')
+    .map(t=>t.trim())
+    .filter(t=>t.length>2);
 }
 
 /* =========================================
-   🔹 MODULE: MATCHING
+   🔹 MODULE: SCANNER (STABIL)
 ========================================= */
-function levenshtein(a,b){
-  let m=[];
-  for(let i=0;i<=b.length;i++){ m[i]=[i]; }
-  for(let j=0;j<=a.length;j++){ m[0][j]=j; }
-  for(let i=1;i<=b.length;i++){
-    for(let j=1;j<=a.length;j++){
-      m[i][j]=b[i-1]==a[j-1]?m[i-1][j-1]:
-      Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);
-    }
-  }
-  return m[b.length][a.length];
-}
+async function manualScan(){
 
-function bestMatch(input, candidates){
-  let best=null, bestScore=Infinity;
-  for(let c of candidates){
-    let score=levenshtein(input.toLowerCase(), c.toLowerCase());
-    if(score<bestScore){
-      bestScore=score;
-      best=c;
-    }
-  }
-  return best;
-}
-
-/* =========================================
-   🔹 MODULE: MOTION
-========================================= */
-function detectMotion(){
-  let ctx = motionCanvas.getContext('2d');
-  motionCanvas.width = video.videoWidth;
-  motionCanvas.height = video.videoHeight;
-
-  ctx.drawImage(video,0,0);
-  let frame = ctx.getImageData(0,0,motionCanvas.width,motionCanvas.height).data;
-
-  if(!lastFrame){
-    lastFrame = frame;
-    return true;
-  }
-
-  let diff=0;
-  for(let i=0;i<frame.length;i+=20){
-    diff += Math.abs(frame[i]-lastFrame[i]);
-  }
-
-  lastFrame = frame;
-  return diff > CONFIG.motionThreshold;
-}
-
-/* =========================================
-   🔹 MODULE: SCANNER (mit Perspektivkorrektur)
-========================================= */
-
-async function scanOnce(){
-
-  if (scanning) return;
-
-  if (video.videoWidth === 0){
-    statusDiv.innerText = "⏳ Kamera lädt...";
+  let now = Date.now();
+  if(now - lastScanTime < CONFIG.scanCooldown){
+    statusDiv.innerText = "⏳ Bitte kurz warten...";
     return;
   }
 
-  if (!detectMotion()){
-    statusDiv.innerText = "⏸ Keine Bewegung";
+  if(!video.srcObject || video.readyState < 2){
+    statusDiv.innerText = "⏳ Kamera nicht bereit";
     return;
   }
+
+  lastScanTime = now;
+
+  statusDiv.innerText = "🔍 Scanne...";
 
   let canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video,0,0);
 
-  // obere Zone
+  let ctx = canvas.getContext('2d');
+  ctx.drawImage(video,0,0);
+
+  // nur obere 20%
   let part = document.createElement('canvas');
   let h = canvas.height * 0.2;
 
@@ -270,99 +193,63 @@ async function scanOnce(){
 
   preprocess(part);
 
-  // 📦 Frame sammeln
-  frameBuffer.push(part.toDataURL());
+  try{
+    let res = await Tesseract.recognize(part.toDataURL(),'eng');
 
-  if (frameBuffer.length < FRAME_BUFFER_SIZE){
-    statusDiv.innerText = "📸 Sammle Frames...";
-    return;
+    if(res.data.confidence < CONFIG.ocrConfidence){
+      statusDiv.innerText = "⚠️ Unsicher";
+      return;
+    }
+
+    let words = clean(res.data.text);
+
+    if(words.length === 0){
+      statusDiv.innerText = "⚠️ Kein Text erkannt";
+      return;
+    }
+
+    let guess = words[0];
+
+    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
+    let d = await r.json();
+
+    if(d.object === 'error'){
+      statusDiv.innerText = "❌ Kein Treffer";
+      return;
+    }
+
+    if(d.name === lastCard){
+      statusDiv.innerText = "⏭ Bereits erkannt";
+      return;
+    }
+
+    lastCard = d.name;
+
+    let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
+
+    if(!collection[d.name]){
+      collection[d.name] = {count:0,image:img};
+    }
+
+    collection[d.name].count++;
+    save();
+
+    statusDiv.innerText = "✅ " + d.name;
+
+  } catch(e){
+    console.error(e);
+    statusDiv.innerText = "❌ Fehler beim Scannen";
   }
-
-  scanning = true;
-
-  let results = [];
-
-  // 🧠 mehrere Frames parallel an Worker schicken
-  let promises = frameBuffer.map(img => {
-    return new Promise(resolve => {
-      worker.onmessage = (e) => resolve(e.data);
-      worker.postMessage({ image: img });
-    });
-  });
-
-  let ocrResults = await Promise.all(promises);
-
-  frameBuffer = [];
-
-  for (let r of ocrResults){
-    if (!r || r.error) continue;
-    if (r.confidence < CONFIG.ocrConfidence) continue;
-
-    let cleaned = clean(r.text || "");
-    results.push(...cleaned);
-  }
-
-  results = [...new Set(results)];
-
-  if (results.length === 0){
-    statusDiv.innerText = "⚠️ Kein Text";
-    scanning = false;
-    return;
-  }
-
-  // 🎯 Voting → bestes Wort
-  let votes = {};
-  results.forEach(r => {
-    votes[r] = (votes[r] || 0) + 1;
-  });
-
-  let bestCandidate = Object.keys(votes)
-    .sort((a,b) => votes[b]-votes[a])[0];
-
-  let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(bestCandidate)}`);
-  let d = await r.json();
-
-  if (d.object === 'error'){
-    statusDiv.innerText = "❌ Kein Treffer";
-    scanning = false;
-    return;
-  }
-
-  if (d.name === lastCard){
-    scanning = false;
-    return;
-  }
-
-  lastCard = d.name;
-  setTimeout(()=>lastCard=null,3000);
-
-  let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
-
-  if (!collection[d.name]){
-    collection[d.name] = {count:0,image:img};
-  }
-
-  collection[d.name].count++;
-  save();
-
-  statusDiv.innerText = "✅ " + d.name;
-
-  flash.classList.add('active');
-  setTimeout(()=>flash.classList.remove('active'),200);
-
-  scanning = false;
 }
-  
+
 /* ========================================= */
 
-  console.log("Script läuft");
 startCamera();
-  console.log("Starte Kamera");
 render();
 
- document.getElementById("versionFooter").innerText =
-  "Version " + CONFIG.version + " ©to";  
-  
+document.getElementById("versionFooter").innerText =
+  "Version " + CONFIG.version + " ©to";
+
 </script>
 </body>
 </html>
