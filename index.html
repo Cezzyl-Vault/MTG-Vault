@@ -3,285 +3,302 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTG Vault</title>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<!-- Supabase Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<title>MTG-Vault</title>
-
-<style>
-body { font-family: Arial; background:#111; color:#eee; padding:10px; }
-button { padding:10px; margin:5px; border:2px solid #555; background:#222; color:#eee; }
-video { width:100%; max-width:420px; }
-.tab { display:none; }
-.active { display:block; }
-.card { border:1px solid #444; padding:10px; margin:5px 0; display:flex; gap:10px; align-items:center;}
-.card img { width:60px; }
-.removeBtn { margin-left:auto; background:#400; }
-.status { color:#0f0; margin-bottom:5px; }
-.flash { position:absolute; inset:0; background:rgba(0,255,0,0.3); opacity:0; }
-.flash.active { opacity:1; }
-</style>
+<!-- Stylesheets -->
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/auth.css">
+<link rel="stylesheet" href="styles/header.css">
+<link rel="stylesheet" href="styles/collection.css">
+<link rel="stylesheet" href="styles/stats.css">
+<link rel="stylesheet" href="styles/decks.css">
+<link rel="stylesheet" href="styles/modals.css">
 </head>
-
 <body>
 
-<h1>MTG-Vault</h1>
+<!-- ══ CONFIG ══ -->
+<div id="configScreen">
+  <div class="config-box">
+    <div class="brand-logo">MTG Vault</div>
+    <div class="brand-sub">COLLECTION MANAGER · SETUP</div>
+    <div class="cfg-step">
+      <h3>SCHRITT 1 — SUPABASE PROJEKT</h3>
+      <p>Gehe zu <strong>supabase.com</strong>, erstelle ein Konto und ein neues Projekt. Unter <strong>Project Settings → API</strong> findest du URL und <code>anon</code> Key.</p>
+    </div>
+    <div class="cfg-step">
+      <h3>SCHRITT 2 — TABELLEN ANLEGEN</h3>
+      <p>Im Supabase <strong>SQL Editor</strong> ausführen:</p>
+      <div class="code-block" id="sqlCode">-- Tabellen anlegen
+create table if not exists cards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text, set_code text, set_name text,
+  collector_number text, foil text, rarity text,
+  quantity integer default 1, manabox_id text,
+  scryfall_id text, purchase_price text, currency text,
+  misprint boolean default false, altered boolean default false,
+  condition text, language text,
+  created_at timestamptz default now()
+);
+create table if not exists decks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text not null, description text, format text,
+  created_at timestamptz default now()
+);
+create table if not exists deck_cards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  deck_id uuid references decks(id) on delete cascade,
+  card_id uuid references cards(id) on delete cascade,
+  category text default 'Sonstige',
+  quantity integer default 1,
+  created_at timestamptz default now()
+);
 
-<button onclick="showTab('scan')">📷 Scannen</button>
-<button onclick="showTab('collection')">🗂 Sammlung</button>
+-- Row Level Security aktivieren
+alter table cards enable row level security;
+alter table decks enable row level security;
+alter table deck_cards enable row level security;
 
-<div id="scan" class="tab active">
-  <div id="status" class="status">Initialisiere...</div>
-  <video id="video" autoplay playsinline></video>
-  <button onclick="manualScan()">📸 Scannen</button>
-  <button onclick="startAutoScan()">▶️ Auto Start</button>
-  <button onclick="stopAutoScan()">⏸ Auto Stop</button>
+-- Alte Policies löschen (falls vorhanden) und neu anlegen
+drop policy if exists "own cards" on cards;
+drop policy if exists "own decks" on decks;
+drop policy if exists "own deck_cards" on deck_cards;
+
+create policy "own cards" on cards for all
+  using (auth.uid()=user_id) with check (auth.uid()=user_id);
+create policy "own decks" on decks for all
+  using (auth.uid()=user_id) with check (auth.uid()=user_id);
+create policy "own deck_cards" on deck_cards for all
+  using (auth.uid()=user_id) with check (auth.uid()=user_id);</div>
+      <button class="copy-btn" onclick="copySQL()">Kopieren</button>
+    </div>
+    <div class="cfg-step">
+      <h3>SCHRITT 3 — VERBINDEN</h3>
+      <label class="cfg-label">SUPABASE PROJECT URL</label>
+      <input class="cfg-input" id="cfgUrl" placeholder="https://xxxxxxxxxxxx.supabase.co">
+      <label class="cfg-label">ANON PUBLIC KEY</label>
+      <input class="cfg-input" id="cfgKey" placeholder="eyJhbGci…">
+      <button class="cfg-save-btn" onclick="saveConfig()">Verbinden &amp; Starten →</button>
+    </div>
+  </div>
 </div>
 
-<div id="collection" class="tab">
-  <h2>Sammlung</h2>
-  <button onclick="clearCollection()">🧹 Alles löschen</button>
-  <div id="collectionList"></div>
+<!-- ══ AUTH ══ -->
+<div id="authScreen">
+  <div class="auth-box">
+    <div class="auth-emblem">🏛️</div>
+    <div class="brand-logo">MTG Vault</div>
+    <div class="auth-tagline">Deine Sammlung. Jedes Gerät.</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Anmelden</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Registrieren</button>
+    </div>
+    <div class="auth-form">
+      <input class="auth-input" type="email" id="authEmail" placeholder="E-Mail Adresse">
+      <input class="auth-input" type="password" id="authPassword" placeholder="Passwort">
+      <div class="auth-error" id="authError"></div>
+      <button class="auth-btn" id="authSubmit" onclick="submitAuth()">Anmelden</button>
+    </div>
+    <div class="auth-cfg-link" onclick="showConfig()">⚙ Supabase neu konfigurieren</div>
+  </div>
 </div>
 
-<footer id="versionFooter" style="margin-top:20px; font-size:12px; opacity:0.6;"></footer>
+<!-- ══ APP ══ -->
+<div id="appScreen">
+  <header>
+    <div class="header-inner">
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; v0.5 &nbsp;·&nbsp; © 2025</small></div>
+      <nav class="desktop-nav">
+        <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
+        <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
+        <button class="nav-btn" onclick="switchView('decks')">Decks</button>
+      </nav>
+      <div class="header-right">
+        <div class="sync-pill">
+          <div class="sync-dot" id="syncDot"></div>
+          <span id="syncLabel">Verbunden</span>
+        </div>
+        <label class="import-btn" for="fileInput">⬆ CSV</label>
+        <input type="file" id="fileInput" accept=".csv">
+        <button class="user-menu-btn" onclick="signOut()">Abmelden</button>
+        <button class="hamburger" id="hamburger" onclick="toggleMobileNav()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
 
-<script>
+  <!-- Mobile Nav Drawer -->
+  <nav class="mobile-nav" id="mobileNav">
+    <button class="mobile-nav-btn active" id="mob-collection" onclick="switchView('collection');closeMobileNav()">🃏 &nbsp;Sammlung</button>
+    <button class="mobile-nav-btn" id="mob-stats" onclick="switchView('stats');closeMobileNav()">📊 &nbsp;Statistiken</button>
+    <button class="mobile-nav-btn" id="mob-decks" onclick="switchView('decks');closeMobileNav()">⚔️ &nbsp;Decks</button>
+    <hr class="mobile-nav-divider">
+    <label class="mobile-import-btn" for="fileInput" onclick="closeMobileNav()">⬆ CSV Importieren</label>
+    <button class="mobile-signout" onclick="signOut()">Abmelden</button>
+  </nav>
 
-/* =========================================
-   🔹 MODULE: CONFIG
-========================================= */
-const CONFIG = {
-  version: "0.31",
-  scanCooldown: 2000,
-  autoScanInterval: 2500,
-  ocrConfidence: 50
-};
+  <main>
+    <!-- COLLECTION -->
+    <div id="view-collection" class="view active">
+      <div id="collection-empty" class="empty-state">
+        <div class="empty-icon">🃏</div>
+        <h2>Deine Sammlung ist leer</h2>
+        <p>Importiere eine CSV-Datei aus ManaBox oder einem anderen Tool.</p>
+        <button class="empty-cta" onclick="document.getElementById('fileInput').click()">CSV Importieren</button>
+      </div>
+      <div id="collection-content" style="display:none">
+        <div class="filters">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Karte suchen…" oninput="applyFilters()">
+          </div>
+          <select class="filter-select" id="filterRarity" onchange="applyFilters()">
+            <option value="">Alle Seltenheiten</option>
+            <option value="mythic">Mythic</option>
+            <option value="rare">Rare</option>
+            <option value="uncommon">Uncommon</option>
+            <option value="common">Common</option>
+          </select>
+          <select class="filter-select" id="filterFoil" onchange="applyFilters()">
+            <option value="">Foil / Normal</option>
+            <option value="foil">Foil</option>
+            <option value="normal">Normal</option>
+          </select>
+          <select class="filter-select" id="filterSet" onchange="applyFilters()">
+            <option value="">Alle Sets</option>
+          </select>
+          <select class="filter-select" id="filterCondition" onchange="applyFilters()">
+            <option value="">Alle Zustände</option>
+            <option value="near_mint">Near Mint</option>
+            <option value="lightly_played">Lightly Played</option>
+            <option value="moderately_played">Moderately Played</option>
+            <option value="heavily_played">Heavily Played</option>
+            <option value="damaged">Damaged</option>
+          </select>
+          <div class="view-toggle">
+            <button id="btnGrid" class="active" onclick="setViewMode('grid')" title="Raster">⊞</button>
+            <button id="btnList" onclick="setViewMode('list')" title="Liste">☰</button>
+          </div>
+        </div>
+        <div class="stats-bar" id="statsBar"></div>
+        <div id="cardContainer"></div>
+      </div>
+    </div>
 
-/* =========================================
-   🔹 MODULE: STATE
-========================================= */
-let video = document.getElementById('video');
-let statusDiv = document.getElementById('status');
+    <!-- STATS -->
+    <div id="view-stats" class="view">
+      <div id="stats-empty" class="empty-state">
+        <div class="empty-icon">📊</div>
+        <h2>Keine Daten verfügbar</h2>
+        <p>Importiere zuerst Karten.</p>
+      </div>
+      <div id="stats-content" style="display:none"></div>
+    </div>
 
-let collection = JSON.parse(localStorage.getItem('mtgCollection')) || {};
+    <!-- DECKS -->
+    <div id="view-decks" class="view">
+      <div id="decks-list-view">
+        <div class="decks-header">
+          <h1>⚔️ Meine Decks</h1>
+          <button class="btn-gold" onclick="openDeckModal()">+ Neues Deck</button>
+        </div>
+        <div id="decks-empty" class="empty-state" style="display:none">
+          <div class="empty-icon">⚔️</div>
+          <h2>Noch keine Decks</h2>
+          <p>Erstelle dein erstes Deck und ordne deine Karten in Kategorien.</p>
+          <button class="empty-cta" onclick="openDeckModal()">Deck erstellen</button>
+        </div>
+        <div class="decks-grid" id="decksGrid"></div>
+      </div>
+      <div id="deck-detail-view" style="display:none"></div>
+    </div>
+  </main>
+</div>
 
-let lastScanTime = 0;
-let lastCard = null;
-let autoScanRunning = false;
+<!-- CARD DETAIL MODAL -->
+<div class="modal-overlay" id="cardModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KARTEN DETAIL</span>
+      <button class="modal-close" onclick="closeModal('cardModal')">✕</button>
+    </div>
+    <div class="modal-inner" id="modalInner"></div>
+  </div>
+</div>
 
-/* =========================================
-   🔹 MODULE: STORAGE
-========================================= */
-function save(){
-  localStorage.setItem('mtgCollection', JSON.stringify(collection));
-  render();
-}
+<!-- DECK CREATE/EDIT MODAL -->
+<div class="modal-overlay" id="deckModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)" id="deckModalTitle">NEUES DECK</span>
+      <button class="modal-close" onclick="closeModal('deckModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field"><label>DECK NAME *</label><input id="deckName" placeholder="z.B. Dragon Tribal"></div>
+      <div class="form-field"><label>BESCHREIBUNG</label><textarea id="deckDesc" rows="2" placeholder="Optional…"></textarea></div>
+      <div class="form-field"><label>FORMAT</label>
+        <select id="deckFormat">
+          <option value="">Kein Format</option>
+          <option value="Commander">Commander / EDH</option>
+          <option value="Standard">Standard</option>
+          <option value="Pioneer">Pioneer</option>
+          <option value="Modern">Modern</option>
+          <option value="Legacy">Legacy</option>
+          <option value="Vintage">Vintage</option>
+          <option value="Draft">Draft</option>
+          <option value="Casual">Casual</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveDeck()">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-function clearCollection(){
-  localStorage.removeItem('mtgCollection');
-  collection = {};
-  render();
-}
+<!-- ADD CATEGORY MODAL -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KATEGORIE HINZUFÜGEN</span>
+      <button class="modal-close" onclick="closeModal('catModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field"><label>KATEGORIE NAME</label>
+        <input id="catName" placeholder="z.B. Commander, Lands, Ramp…" list="catSuggestions">
+        <datalist id="catSuggestions">
+          <option value="Commander"><option value="Lands"><option value="Ramp">
+          <option value="Creatures"><option value="Removal"><option value="Card Draw">
+          <option value="Enchantments"><option value="Artifacts"><option value="Instants">
+          <option value="Sorceries"><option value="Planeswalkers"><option value="Sideboard">
+          <option value="Sonstige">
+        </datalist>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="addCategory()">Hinzufügen</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-/* =========================================
-   🔹 MODULE: UI
-========================================= */
-function showTab(tab){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById(tab).classList.add('active');
-  if(tab==='scan') startCamera();
-  render();
-}
+<div class="toast" id="toast"></div>
 
-function render(){
-  let div = document.getElementById('collectionList');
-  div.innerHTML = '';
-
-  for(let name in collection){
-    let c = collection[name];
-    div.innerHTML += `
-    <div class="card">
-      <img src="${c.image}">
-      <div><b>${name}</b><br>x${c.count}</div>
-      <button class="removeBtn" onclick="removeCard('${name}')">❌</button>
-    </div>`;
-  }
-}
-
-function removeCard(name){
-  if(!collection[name]) return;
-  collection[name].count--;
-  if(collection[name].count<=0) delete collection[name];
-  save();
-}
-
-/* =========================================
-   🔹 MODULE: CAMERA
-========================================= */
-async function startCamera(){
-  if(video.srcObject) return;
-
-  let stream = await navigator.mediaDevices.getUserMedia({
-    video:{facingMode:'environment'}
-  });
-
-  video.srcObject = stream;
-
-  await new Promise(res => video.onloadedmetadata = res);
-
-  statusDiv.innerText = "📷 Kamera bereit";
-}
-
-/* =========================================
-   🔹 MODULE: OCR
-========================================= */
-function preprocess(canvas){
-  let ctx = canvas.getContext('2d');
-  let img = ctx.getImageData(0,0,canvas.width,canvas.height);
-  let d = img.data;
-
-  for(let i=0;i<d.length;i+=4){
-    let avg=(d[i]+d[i+1]+d[i+2])/3;
-    let v=avg>140?255:0;
-    d[i]=d[i+1]=d[i+2]=v;
-  }
-
-  ctx.putImageData(img,0,0);
-}
-
-function clean(text){
-  return text
-    .replace(/[^a-zA-Z ]/g,'')
-    .split('\n')
-    .map(t=>t.trim())
-    .filter(t=>t.length>2);
-}
-
-/* =========================================
-   🔹 MODULE: AUTO SCAN
-========================================= */
-
-function startAutoScan(){
-  if(autoScanRunning) return;
-  autoScanRunning = true;
-
-  statusDiv.innerText = "🔄 Auto-Scan aktiv";
-
-  autoScanLoop();
-}
-
-function stopAutoScan(){
-  autoScanRunning = false;
-  statusDiv.innerText = "⏸ Auto-Scan gestoppt";
-}
-
-async function autoScanLoop(){
-  if(!autoScanRunning) return;
-
-  await manualScan();
-
-  setTimeout(autoScanLoop, CONFIG.autoScanInterval);
-}
-
-  
-/* =========================================
-   🔹 MODULE: SCANNER (STABIL)
-========================================= */
-async function manualScan(){
-
-  let now = Date.now();
-  if(now - lastScanTime < CONFIG.scanCooldown){
-    statusDiv.innerText = "⏳ Bitte kurz warten...";
-    return;
-  }
-
-  if(!video.srcObject || video.readyState < 2){
-    statusDiv.innerText = "⏳ Kamera nicht bereit";
-    return;
-  }
-
-  lastScanTime = now;
-
-  statusDiv.innerText = "🔍 Scanne...";
-
-  let canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  let ctx = canvas.getContext('2d');
-  ctx.drawImage(video,0,0);
-
-  // nur obere 20%
-  let part = document.createElement('canvas');
-  let h = canvas.height * 0.2;
-
-  part.width = canvas.width;
-  part.height = h;
-
-  part.getContext('2d')
-    .drawImage(canvas,0,0,canvas.width,h,0,0,canvas.width,h);
-
-  preprocess(part);
-
-  try{
-    let res = await Tesseract.recognize(part.toDataURL(),'eng');
-
-    if(res.data.confidence < CONFIG.ocrConfidence){
-      statusDiv.innerText = "⚠️ Unsicher";
-      return;
-    }
-
-    let words = clean(res.data.text);
-
-    if(words.length === 0){
-      statusDiv.innerText = "⚠️ Kein Text erkannt";
-      return;
-    }
-
-    let guess = words[0];
-
-    let r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(guess)}`);
-    let d = await r.json();
-
-    if(d.object === 'error'){
-      statusDiv.innerText = "❌ Kein Treffer";
-      return;
-    }
-
-    if(d.name === lastCard){
-      statusDiv.innerText = "⏭ Bereits erkannt";
-      return;
-    }
-
-    lastCard = d.name;
-
-    let img = d.image_uris?.small || d.card_faces?.[0]?.image_uris?.small;
-
-    if(!collection[d.name]){
-      collection[d.name] = {count:0,image:img};
-    }
-
-    collection[d.name].count++;
-    save();
-
-    statusDiv.innerText = "✅ " + d.name;
-
-  } catch(e){
-    console.error(e);
-    statusDiv.innerText = "❌ Fehler beim Scannen";
-  }
-}
-
-/* ========================================= */
-
-startCamera();
-startAutoScan();
-render();
-
-document.getElementById("versionFooter").innerText =
-  "Version " + CONFIG.version + " ©to";
-
-</script>
+<!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
+<script src="js/state.js" defer></script>
+<script src="js/utils.js" defer></script>
+<script src="js/db.js" defer></script>
+<script src="js/config.js" defer></script>
+<script src="js/auth.js" defer></script>
+<script src="js/csv-import.js" defer></script>
+<script src="js/collection.js" defer></script>
+<script src="js/decks.js" defer></script>
+<script src="js/stats.js" defer></script>
+<script src="js/app.js" defer></script>
 </body>
 </html>

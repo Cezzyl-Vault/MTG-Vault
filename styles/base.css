@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+:root {
+  --bg:       #07080d;
+  --bg2:      #0d0f18;
+  --surface:  #111420;
+  --surface2: #181c2e;
+  --surface3: #1e2338;
+  --border:   #2c3154;
+  --border2:  #3d4470;
+  --gold:     #c9a84c;
+  --gold2:    #e8c96a;
+  --gold-dim: #7a6230;
+  --teal:     #38b2ac;
+  --purple:   #7c6fcd;
+  --red:      #e05252;
+  --green:    #48bb78;
+  --text:     #ede8d8;
+  --text2:    #a09880;
+  --text3:    #60587a;
+  --mythic:   #e8732a;
+  --rare:     #c9a84c;
+  --uncommon: #a0b4c0;
+  --glow:     0 0 40px rgba(201,168,76,0.15);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'EB Garamond',serif;
+  font-size:18px;
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+
+/* ── NOISE TEXTURE OVERLAY ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0;opacity:0.6;
+}
+
+/* ── COSMIC BG ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 10% -10%, rgba(124,111,205,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 90% 110%, rgba(56,178,172,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(201,168,76,0.04) 0%, transparent 70%);
+  pointer-events:none;z-index:0;
+}
