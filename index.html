@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTG Vault</title>
+
+<!-- Supabase Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- Stylesheets -->
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/auth.css">
+<link rel="stylesheet" href="styles/header.css">
+<link rel="stylesheet" href="styles/collection.css">
+<link rel="stylesheet" href="styles/stats.css">
+<link rel="stylesheet" href="styles/decks.css">
+<link rel="stylesheet" href="styles/modals.css">
+</head>
+<body>
+
+<!-- ══ CONFIG ══ -->
+<div id="configScreen">
+  <div class="config-box">
+    <div class="brand-logo">MTG Vault</div>
+    <div class="brand-sub">COLLECTION MANAGER · SETUP</div>
+    <div class="cfg-step">
+      <h3>SCHRITT 1 — SUPABASE PROJEKT</h3>
+      <p>Gehe zu <strong>supabase.com</strong>, erstelle ein Konto und ein neues Projekt. Unter <strong>Project Settings → API</strong> findest du URL und <code>anon</code> Key.</p>
+    </div>
+    <div class="cfg-step">
+      <h3>SCHRITT 2 — TABELLEN ANLEGEN</h3>
+      <p>Im Supabase <strong>SQL Editor</strong> ausführen:</p>
+      <div class="code-block" id="sqlCode">-- Tabellen anlegen
+create table if not exists cards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text, set_code text, set_name text,
+  collector_number text, foil text, rarity text,
+  quantity integer default 1, manabox_id text,
+  scryfall_id text, purchase_price text, currency text,
+  misprint boolean default false, altered boolean default false,
+  condition text, language text,
+  created_at timestamptz default now()
+);
+create table if not exists decks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text not null, description text, format text,
+  created_at timestamptz default now()
+);
+create table if not exists deck_cards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  deck_id uuid references decks(id) on delete cascade,
+  card_id uuid references cards(id) on delete cascade,
+  category text default 'Sonstige',
+  quantity integer default 1,
+  created_at timestamptz default now()
+);
+
+-- Row Level Security aktivieren
+alter table cards enable row level security;
+alter table decks enable row level security;
+alter table deck_cards enable row level security;
+
+-- Alte Policies löschen (falls vorhanden) und neu anlegen
+drop policy if exists "own cards" on cards;
+drop policy if exists "own decks" on decks;
+drop policy if exists "own deck_cards" on deck_cards;
+
+create policy "own cards" on cards for all
+  using (auth.uid()=user_id) with check (auth.uid()=user_id);
+create policy "own decks" on decks for all
+  using (auth.uid()=user_id) with check (auth.uid()=user_id);
+create policy "own deck_cards" on deck_cards for all
+  using (auth.uid()=user_id) with check (auth.uid()=user_id);</div>
+      <button class="copy-btn" onclick="copySQL()">Kopieren</button>
+    </div>
+    <div class="cfg-step">
+      <h3>SCHRITT 3 — VERBINDEN</h3>
+      <label class="cfg-label">SUPABASE PROJECT URL</label>
+      <input class="cfg-input" id="cfgUrl" placeholder="https://xxxxxxxxxxxx.supabase.co">
+      <label class="cfg-label">ANON PUBLIC KEY</label>
+      <input class="cfg-input" id="cfgKey" placeholder="eyJhbGci…">
+      <button class="cfg-save-btn" onclick="saveConfig()">Verbinden &amp; Starten →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AUTH ══ -->
+<div id="authScreen">
+  <div class="auth-box">
+    <div class="auth-emblem">🏛️</div>
+    <div class="brand-logo">MTG Vault</div>
+    <div class="auth-tagline">Deine Sammlung. Jedes Gerät.</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Anmelden</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Registrieren</button>
+    </div>
+    <div class="auth-form">
+      <input class="auth-input" type="email" id="authEmail" placeholder="E-Mail Adresse">
+      <input class="auth-input" type="password" id="authPassword" placeholder="Passwort">
+      <div class="auth-error" id="authError"></div>
+      <button class="auth-btn" id="authSubmit" onclick="submitAuth()">Anmelden</button>
+    </div>
+    <div class="auth-cfg-link" onclick="showConfig()">⚙ Supabase neu konfigurieren</div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="appScreen">
+  <header>
+    <div class="header-inner">
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; v0.5 &nbsp;·&nbsp; © 2025</small></div>
+      <nav class="desktop-nav">
+        <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
+        <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
+        <button class="nav-btn" onclick="switchView('decks')">Decks</button>
+      </nav>
+      <div class="header-right">
+        <div class="sync-pill">
+          <div class="sync-dot" id="syncDot"></div>
+          <span id="syncLabel">Verbunden</span>
+        </div>
+        <label class="import-btn" for="fileInput">⬆ CSV</label>
+        <input type="file" id="fileInput" accept=".csv">
+        <button class="user-menu-btn" onclick="signOut()">Abmelden</button>
+        <button class="hamburger" id="hamburger" onclick="toggleMobileNav()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Nav Drawer -->
+  <nav class="mobile-nav" id="mobileNav">
+    <button class="mobile-nav-btn active" id="mob-collection" onclick="switchView('collection');closeMobileNav()">🃏 &nbsp;Sammlung</button>
+    <button class="mobile-nav-btn" id="mob-stats" onclick="switchView('stats');closeMobileNav()">📊 &nbsp;Statistiken</button>
+    <button class="mobile-nav-btn" id="mob-decks" onclick="switchView('decks');closeMobileNav()">⚔️ &nbsp;Decks</button>
+    <hr class="mobile-nav-divider">
+    <label class="mobile-import-btn" for="fileInput" onclick="closeMobileNav()">⬆ CSV Importieren</label>
+    <button class="mobile-signout" onclick="signOut()">Abmelden</button>
+  </nav>
+
+  <main>
+    <!-- COLLECTION -->
+    <div id="view-collection" class="view active">
+      <div id="collection-empty" class="empty-state">
+        <div class="empty-icon">🃏</div>
+        <h2>Deine Sammlung ist leer</h2>
+        <p>Importiere eine CSV-Datei aus ManaBox oder einem anderen Tool.</p>
+        <button class="empty-cta" onclick="document.getElementById('fileInput').click()">CSV Importieren</button>
+      </div>
+      <div id="collection-content" style="display:none">
+        <div class="filters">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Karte suchen…" oninput="applyFilters()">
+          </div>
+          <select class="filter-select" id="filterRarity" onchange="applyFilters()">
+            <option value="">Alle Seltenheiten</option>
+            <option value="mythic">Mythic</option>
+            <option value="rare">Rare</option>
+            <option value="uncommon">Uncommon</option>
+            <option value="common">Common</option>
+          </select>
+          <select class="filter-select" id="filterFoil" onchange="applyFilters()">
+            <option value="">Foil / Normal</option>
+            <option value="foil">Foil</option>
+            <option value="normal">Normal</option>
+          </select>
+          <select class="filter-select" id="filterSet" onchange="applyFilters()">
+            <option value="">Alle Sets</option>
+          </select>
+          <select class="filter-select" id="filterCondition" onchange="applyFilters()">
+            <option value="">Alle Zustände</option>
+            <option value="near_mint">Near Mint</option>
+            <option value="lightly_played">Lightly Played</option>
+            <option value="moderately_played">Moderately Played</option>
+            <option value="heavily_played">Heavily Played</option>
+            <option value="damaged">Damaged</option>
+          </select>
+          <div class="view-toggle">
+            <button id="btnGrid" class="active" onclick="setViewMode('grid')" title="Raster">⊞</button>
+            <button id="btnList" onclick="setViewMode('list')" title="Liste">☰</button>
+          </div>
+        </div>
+        <div class="stats-bar" id="statsBar"></div>
+        <div id="cardContainer"></div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div id="view-stats" class="view">
+      <div id="stats-empty" class="empty-state">
+        <div class="empty-icon">📊</div>
+        <h2>Keine Daten verfügbar</h2>
+        <p>Importiere zuerst Karten.</p>
+      </div>
+      <div id="stats-content" style="display:none"></div>
+    </div>
+
+    <!-- DECKS -->
+    <div id="view-decks" class="view">
+      <div id="decks-list-view">
+        <div class="decks-header">
+          <h1>⚔️ Meine Decks</h1>
+          <button class="btn-gold" onclick="openDeckModal()">+ Neues Deck</button>
+        </div>
+        <div id="decks-empty" class="empty-state" style="display:none">
+          <div class="empty-icon">⚔️</div>
+          <h2>Noch keine Decks</h2>
+          <p>Erstelle dein erstes Deck und ordne deine Karten in Kategorien.</p>
+          <button class="empty-cta" onclick="openDeckModal()">Deck erstellen</button>
+        </div>
+        <div class="decks-grid" id="decksGrid"></div>
+      </div>
+      <div id="deck-detail-view" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<!-- CARD DETAIL MODAL -->
+<div class="modal-overlay" id="cardModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KARTEN DETAIL</span>
+      <button class="modal-close" onclick="closeModal('cardModal')">✕</button>
+    </div>
+    <div class="modal-inner" id="modalInner"></div>
+  </div>
+</div>
+
+<!-- DECK CREATE/EDIT MODAL -->
+<div class="modal-overlay" id="deckModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)" id="deckModalTitle">NEUES DECK</span>
+      <button class="modal-close" onclick="closeModal('deckModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field"><label>DECK NAME *</label><input id="deckName" placeholder="z.B. Dragon Tribal"></div>
+      <div class="form-field"><label>BESCHREIBUNG</label><textarea id="deckDesc" rows="2" placeholder="Optional…"></textarea></div>
+      <div class="form-field"><label>FORMAT</label>
+        <select id="deckFormat">
+          <option value="">Kein Format</option>
+          <option value="Commander">Commander / EDH</option>
+          <option value="Standard">Standard</option>
+          <option value="Pioneer">Pioneer</option>
+          <option value="Modern">Modern</option>
+          <option value="Legacy">Legacy</option>
+          <option value="Vintage">Vintage</option>
+          <option value="Draft">Draft</option>
+          <option value="Casual">Casual</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveDeck()">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CATEGORY MODAL -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KATEGORIE HINZUFÜGEN</span>
+      <button class="modal-close" onclick="closeModal('catModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field"><label>KATEGORIE NAME</label>
+        <input id="catName" placeholder="z.B. Commander, Lands, Ramp…" list="catSuggestions">
+        <datalist id="catSuggestions">
+          <option value="Commander"><option value="Lands"><option value="Ramp">
+          <option value="Creatures"><option value="Removal"><option value="Card Draw">
+          <option value="Enchantments"><option value="Artifacts"><option value="Instants">
+          <option value="Sorceries"><option value="Planeswalkers"><option value="Sideboard">
+          <option value="Sonstige">
+        </datalist>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="addCategory()">Hinzufügen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- App Logic -->
+<script src="js/app.js" defer></script>
+</body>
+</html>
