@@ -12,6 +12,8 @@ let _sb = null, currentUser = null;
 let allCards = [], allDecks = [], currentDeckCards = [];
 
 // Aktuelle Filter-Ergebnisse und Anzeige-Modus (Grid oder Liste)
+// Hinweis: `filtered` ist seit der Group-Logik unbenutzt. Die aktive Liste
+// heißt jetzt `filteredGroups` und wird in collection.js verwaltet.
 let filtered = [], viewMode = 'grid';
 
 // IDs für gerade bearbeitete Karte / bearbeitetes Deck / offenes Deck

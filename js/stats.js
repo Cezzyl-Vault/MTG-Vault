@@ -5,6 +5,8 @@ function renderStats(){
   const sc=document.getElementById('stats-content');
   if(!allCards.length){sc.style.display='none';return;}sc.style.display='';
   const total=allCards.reduce((s,c)=>s+c.quantity,0);
+  // Einträge = unique Kartennamen (entspricht der Group-Logik in der Sammlung)
+  const uniqueNames=new Set(allCards.map(c=>(c.name||'').toLowerCase())).size;
   const totalVal=allCards.reduce((s,c)=>s+(parseFloat(c.purchase_price)||0)*c.quantity,0);
   const foilC=allCards.filter(c=>c.foil==='foil').reduce((s,c)=>s+c.quantity,0);
   const sets=new Set(allCards.map(c=>c.set_code)).size;
@@ -20,7 +22,7 @@ function renderStats(){
   sc.innerHTML=`
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-val">${total.toLocaleString('de')}</div><div class="kpi-label">Karten gesamt</div></div>
-    <div class="kpi"><div class="kpi-val">${allCards.length.toLocaleString('de')}</div><div class="kpi-label">Einträge</div></div>
+    <div class="kpi"><div class="kpi-val">${uniqueNames.toLocaleString('de')}</div><div class="kpi-label">Einträge</div></div>
     <div class="kpi"><div class="kpi-val">${sets}</div><div class="kpi-label">Sets</div></div>
     <div class="kpi"><div class="kpi-val">${foilC.toLocaleString('de')}</div><div class="kpi-label">Foil-Karten</div></div>
     <div class="kpi"><div class="kpi-val">${allDecks.length}</div><div class="kpi-label">Decks</div></div>

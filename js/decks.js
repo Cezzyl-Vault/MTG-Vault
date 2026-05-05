@@ -199,34 +199,57 @@ function openAddCardsModal(presetCategory){
   document.getElementById('addCardsModal').classList.add('open');
 }
 
-// Liste der Karten im Modal rendern (gefiltert per Suchfeld)
+// Liste der Karten im Modal rendern (gefiltert per Suchfeld, gruppiert nach Namen)
 function renderAddCardsList(){
   const search=(document.getElementById('addCardsSearch').value||'').toLowerCase().trim();
-  const list=allCards.filter(c=>{
+
+  // Erst alle Karten suchen, dann nach Namen gruppieren
+  const matches=allCards.filter(c=>{
     if(!search)return true;
     const hay=`${c.name||''} ${c.set_code||''} ${c.set_name||''}`.toLowerCase();
     return hay.includes(search);
   });
-  // Alphabetisch sortieren für Übersicht
-  list.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
 
-  const html=list.slice(0,200).map(c=>{
+  // Gruppieren: pro unique Name eine Zeile, älteste Variante als Repräsentant
+  const byName={};
+  for(const c of matches){
+    const key=(c.name||'').toLowerCase();
+    if(!byName[key])byName[key]=[];
+    byName[key].push(c);
+  }
+  const groups=Object.values(byName).map(variants=>{
+    const rep=[...variants].sort((a,b)=>{
+      const da=setReleasedAt(a.set_code),db=setReleasedAt(b.set_code);
+      if(!da&&!db)return(a.set_code||'').localeCompare(b.set_code||'');
+      if(!da)return 1;if(!db)return -1;
+      return da.localeCompare(db);
+    })[0];
+    return{
+      representative:rep,
+      variants,
+      totalQty:variants.reduce((s,v)=>s+(v.quantity||1),0)
+    };
+  }).sort((a,b)=>(a.representative.name||'').localeCompare(b.representative.name||''));
+
+  const html=groups.slice(0,200).map(g=>{
+    const c=g.representative;
     const checked=addCardsSelected.has(c.id);
     const img=iUrl(c);
+    const variantsLabel=g.variants.length>1?` <em style="color:var(--text3);font-style:normal;font-size:0.75em">+${g.variants.length-1} weitere</em>`:'';
     return`<label class="add-card-row${checked?' selected':''}" data-id="${c.id}">
       <input type="checkbox" ${checked?'checked':''} onchange="toggleAddCard('${c.id}')">
       ${img?`<img src="${img}" alt="">`:`<div class="add-card-noimg">🃏</div>`}
       <div class="add-card-info">
-        <div class="add-card-name">${esc(c.name||'')}</div>
-        <div class="add-card-meta">${esc(c.set_code||'')}${c.collector_number?' #'+esc(c.collector_number):''}${c.foil==='foil'?' · ✦':''}${c.condition?' · '+cl(c.condition):''}</div>
+        <div class="add-card-name">${esc(c.name||'')}${variantsLabel}</div>
+        <div class="add-card-meta">${esc(c.set_code||'')}${g.totalQty>1?' · ×'+g.totalQty+' insgesamt':''}</div>
       </div>
     </label>`;
   }).join('');
 
   const target=document.getElementById('addCardsList');
   target.innerHTML=html||`<div style="padding:1rem;color:var(--text3);text-align:center">Keine Karten gefunden.</div>`;
-  if(list.length>200){
-    target.innerHTML+=`<div style="padding:0.6rem;color:var(--text3);text-align:center;font-size:0.8rem">… ${list.length-200} weitere ausgeblendet. Suche eingrenzen.</div>`;
+  if(groups.length>200){
+    target.innerHTML+=`<div style="padding:0.6rem;color:var(--text3);text-align:center;font-size:0.8rem">… ${groups.length-200} weitere ausgeblendet. Suche eingrenzen.</div>`;
   }
 }
 

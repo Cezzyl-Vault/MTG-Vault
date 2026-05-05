@@ -61,6 +61,9 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
 //   - Config vorhanden, aktive Session → direkt in App
 //   - Config vorhanden, keine Session → Login-Screen
 (async()=>{
+  // Sets-Liste im Hintergrund laden (blockiert nicht den Login-Flow)
+  loadSets();
+
   const cfg=loadCfg();
   if(!cfg){showConfig();return;}
   _sb=window.supabase.createClient(cfg.url,cfg.key);
