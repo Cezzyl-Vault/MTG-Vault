@@ -1,4 +1,4 @@
-# MTG Vault
+# MTG Vault v0.6
 
 Magic: The Gathering Sammlungs-Manager mit Supabase-Backend.
 
@@ -7,6 +7,9 @@ Magic: The Gathering Sammlungs-Manager mit Supabase-Backend.
 ```
 MTG-Vault/
 ├── index.html              ← HTML-Skelett + Datei-Referenzen
+├── .github/
+│   └── workflows/
+│       └── version-bump.yml
 ├── styles/
 │   ├── base.css            Variablen, Body, Hintergrund, Scrollbar
 │   ├── auth.css            Setup-Screen + Login/Registrierung
