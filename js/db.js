@@ -18,6 +18,8 @@ async function loadAll(){
   if(e1||e2){setSyncing('error');showToast('Ladefehler');return;}
   allCards=cards||[];allDecks=decks||[];
   setSyncing('ok');renderAll();
+  // Nach jedem vollständigen Laden prüfen, ob die Anreicherungs-Aufforderung sichtbar sein soll
+  if(typeof checkAndShowMigrationBanner==='function')checkAndShowMigrationBanner();
 }
 
 async function upsertCards(cards){
