@@ -112,7 +112,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; v0.5 &nbsp;·&nbsp; © 2025</small></div>
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.5</small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -282,6 +282,35 @@ create policy "own deck_cards" on deck_cards for all
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="addCategory()">Hinzufügen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CARDS TO DECK MODAL -->
+<div class="modal-overlay" id="addCardsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)" id="addCardsTitle">KARTEN ZU DECK HINZUFÜGEN</span>
+      <button class="modal-close" onclick="closeModal('addCardsModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field">
+        <label>KATEGORIE</label>
+        <input id="addCardsCategory" placeholder="z.B. Lands, Creatures…" list="addCardsCatSuggestions">
+        <datalist id="addCardsCatSuggestions"></datalist>
+      </div>
+      <div class="form-field">
+        <label>SUCHE</label>
+        <input id="addCardsSearch" placeholder="Karte suchen (Name, Set…)" oninput="filterAddCards()">
+      </div>
+      <div class="add-cards-meta">
+        <span id="addCardsSelectionInfo">0 ausgewählt</span>
+        <button type="button" class="btn-link" onclick="clearAddCardsSelection()">Auswahl leeren</button>
+      </div>
+      <div class="add-cards-list" id="addCardsList"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="confirmAddCardsToDeck()" id="addCardsConfirmBtn">Hinzufügen</button>
       </div>
     </div>
   </div>
