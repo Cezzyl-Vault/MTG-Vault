@@ -1,74 +1,77 @@
 # ══════════════════════════════════════════════════════════
-#  Auto-Versionierung
+#  Auto-Versionierung  (commit-count-basiert)
 # ══════════════════════════════════════════════════════════
 #
 #  Was diese Action tut:
 #  Bei jedem Push auf den konfigurierten Branch:
-#  1. Liest die aktuelle Version aus index.html (z.B. "v0.5")
-#  2. Erhöht die Zahl um 1 (zu "v0.6")
-#  3. Schreibt sie zurück in index.html
-#  4. Committet die Änderung mit "[skip ci]" - damit die Action
-#     nicht durch ihren eigenen Commit erneut getriggert wird
-#     (sonst Endlosschleife!)
+#  1. Zählt die Anzahl der "echten" Commits in der Git-Historie
+#     (Commits, die NICHT vom Auto-Bump-Job stammen — erkennbar am
+#     "[skip ci]"-Marker in der Commit-Message).
+#  2. Setzt die Versionsnummer in index.html auf v0.<count>.
+#  3. Committet zurück mit "[skip ci]" — verhindert Endlosschleife,
+#     weil unten ein "if: !contains(...)" diesen Commit ignoriert.
 #
-#  Falls du die Versionsnummer mal manuell setzen willst (z.B. zurück
-#  auf v0.0 vor einem Release), edit einfach index.html direkt - die
-#  Action zählt von dort weiter hoch.
+#  Vorteil gegenüber der vorherigen Variante:
+#  Die Versionsnummer kommt jetzt aus der Git-Historie, nicht aus der
+#  HTML-Datei. Egal welcher Wert in einer hochgeladenen index.html steht
+#  — die Action setzt ihn beim nächsten Push immer auf den korrekten
+#  Stand. Damit kann auch ein Datei-Upload mit veralteter Version den
+#  Counter nicht zurückwerfen.
 
 name: Auto-Version Bump
 
 on:
   push:
     branches:
-      - Sammlung-mit-Auto-Import   # Hauptbranch hier eintragen
-      - main                        # Fallback - wird ignoriert wenn nicht existent
+      - Sammlung-mit-Auto-Import   # Hauptbranch
+      - main                        # Fallback, falls main genutzt wird
 
 permissions:
-  contents: write   # damit die Action committen darf
+  contents: write
 
 jobs:
   bump-version:
     runs-on: ubuntu-latest
-    # Wichtig: NICHT laufen lassen, wenn der Commit von dieser Action selbst kam
+    # NICHT laufen lassen, wenn der Commit von dieser Action selbst kam
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
 
     steps:
-      - name: Code auschecken
+      - name: Code auschecken (mit voller Historie)
         uses: actions/checkout@v4
         with:
-          # Voller Verlauf nicht nötig, aber Token muss schreibfähig sein
+          # WICHTIG: fetch-depth: 0 — sonst kann die Action die Commits
+          # nicht zählen (per default holt checkout nur den letzten Commit)
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Version in index.html erhöhen
+      - name: Versionsnummer aus Commit-Count berechnen
+        id: ver
         run: |
-          # Aktuelle Version aus index.html extrahieren (Pattern: v0.ZAHL)
-          CURRENT=$(grep -oE 'v0\.[0-9]+' index.html | head -1)
+          # Zählt alle Commits, deren Message NICHT "[skip ci]" enthält.
+          # --invert-grep dreht das --grep-Filter um.
+          COUNT=$(git log --invert-grep --grep="\[skip ci\]" --format="%H" | wc -l)
+          if [ "$COUNT" -lt "1" ]; then COUNT=1; fi
 
-          if [ -z "$CURRENT" ]; then
-            echo "Keine Versionsnummer im Format v0.X in index.html gefunden - Action bricht ab."
-            exit 0
-          fi
+          NEW_VERSION="v0.${COUNT}"
+          echo "Echte Commits auf dem Branch: $COUNT"
+          echo "Neue Version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-          # Zahl extrahieren und um 1 erhöhen
-          NUMBER=$(echo "$CURRENT" | sed 's/v0\.//')
-          NEW_NUMBER=$((NUMBER + 1))
-          NEW_VERSION="v0.${NEW_NUMBER}"
+      - name: index.html aktualisieren
+        run: |
+          # Ersetzt nur das ERSTE Vorkommen (im Header) — falls
+          # später noch andere Versionsnummern im Code stehen, bleiben die unangetastet
+          sed -i "0,/v0\.[0-9]\+/s//${{ steps.ver.outputs.new_version }}/" index.html
 
-          echo "Alte Version: $CURRENT  →  Neue Version: $NEW_VERSION"
-
-          # In index.html ersetzen (nur das erste Vorkommen, das im Header)
-          sed -i "0,/${CURRENT}/s//${NEW_VERSION}/" index.html
-
-      - name: Änderung zurück committen
+      - name: Änderung zurück committen (nur falls etwas neu ist)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Nur committen wenn sich tatsächlich etwas geändert hat
           if git diff --quiet; then
-            echo "Keine Änderung - überspringe Commit."
+            echo "Versionsnummer ist bereits aktuell — kein Commit nötig."
           else
             git add index.html
-            git commit -m "chore: bump version [skip ci]"
+            git commit -m "chore: bump version to ${{ steps.ver.outputs.new_version }} [skip ci]"
             git push
           fi
