@@ -41,8 +41,15 @@ create table if not exists cards (
   scryfall_id text, purchase_price text, currency text,
   misprint boolean default false, altered boolean default false,
   condition text, language text,
+  mana_value integer, colors text[], type_line text,
   created_at timestamptz default now()
 );
+
+-- Falls die Tabelle schon existiert: fehlende Spalten nachziehen
+alter table cards add column if not exists mana_value integer;
+alter table cards add column if not exists colors text[];
+alter table cards add column if not exists type_line text;
+
 create table if not exists decks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users not null,
@@ -112,7 +119,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.7</small></div>
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.5</small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -142,6 +149,16 @@ create policy "own deck_cards" on deck_cards for all
     <label class="mobile-import-btn" for="fileInput" onclick="closeMobileNav()">⬆ CSV Importieren</label>
     <button class="mobile-signout" onclick="signOut()">Abmelden</button>
   </nav>
+
+  <!-- Daten-Anreicherungs-Banner (wird via JS ein-/ausgeblendet) -->
+  <div id="migrationBanner" class="migration-banner" style="display:none">
+    <div class="migration-info">
+      <strong><span id="migrationCount">0</span> Karten</strong>
+      <span id="migrationLabel">können angereichert werden.</span>
+    </div>
+    <button class="btn-gold" id="migrationButton" onclick="startMigration()">Jetzt anreichern</button>
+    <button class="migration-dismiss" onclick="dismissMigrationBanner()" title="Banner schließen">✕</button>
+  </div>
 
   <main>
     <!-- COLLECTION -->
@@ -316,6 +333,47 @@ create policy "own deck_cards" on deck_cards for all
   </div>
 </div>
 
+<!-- DATEN-ANREICHERUNGS-FORTSCHRITT MODAL -->
+<div class="modal-overlay" id="migrationModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">DATEN-ANREICHERUNG</span>
+    </div>
+    <div class="modal-detail">
+      <p style="font-size:0.9rem;color:var(--text2);margin-top:0">Karten werden mit Manawert, Farben und Kartentypen ergänzt. Bitte das Tab nicht schließen.</p>
+      <div class="progress-track">
+        <div class="progress-fill" id="migrationProgressBar" style="width:0%"></div>
+      </div>
+      <div id="migrationProgressLabel" style="font-size:0.85rem;color:var(--text2);text-align:center;margin-top:0.5rem">Wird vorbereitet…</div>
+    </div>
+  </div>
+</div>
+
+<!-- SCHEMA-SQL MODAL (zeigt ALTER-Statement, falls Spalten fehlen) -->
+<div class="modal-overlay" id="schemaSqlModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">DATENBANK-UPDATE</span>
+      <button class="modal-close" onclick="closeModal('schemaSqlModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <p style="font-size:0.9rem;color:var(--text2)">Das Datenbank-Schema muss um drei Spalten erweitert werden, damit die erweiterten Filter (Manawert, Farben, Typ) funktionieren.</p>
+      <ol style="font-size:0.88rem;color:var(--text2);margin-left:1.2rem">
+        <li>SQL kopieren (Button unten)</li>
+        <li>Im Supabase-Dashboard → "SQL Editor" → Neue Abfrage einfügen → "Run"</li>
+        <li>Hierher zurückkommen und die App neu laden</li>
+      </ol>
+      <div class="code-block" id="schemaSqlCode">alter table cards add column if not exists mana_value integer;
+alter table cards add column if not exists colors text[];
+alter table cards add column if not exists type_line text;</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="copySchemaSQL()">SQL kopieren</button>
+        <button class="btn" onclick="closeModal('schemaSqlModal')">Schließen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
@@ -323,6 +381,7 @@ create policy "own deck_cards" on deck_cards for all
 <script src="js/utils.js" defer></script>
 <script src="js/sets.js" defer></script>
 <script src="js/db.js" defer></script>
+<script src="js/scryfall.js" defer></script>
 <script src="js/config.js" defer></script>
 <script src="js/auth.js" defer></script>
 <script src="js/csv-import.js" defer></script>

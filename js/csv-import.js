@@ -101,6 +101,12 @@ async function parseCSV(text){
   let added=0,updated=0,failed=false;
 
   if(toInsert.length){
+    // Vor dem Insert die neuen Karten anreichern (Manawert, Farben, Typ).
+    // Das ist optional — wenn Scryfall nicht erreichbar ist, gehen die Karten ohne diese Daten rein
+    // und können später per Banner nachgezogen werden.
+    showToast(`⬇ Lade Karten-Daten von Scryfall…`);
+    await enrichCards(toInsert);
+
     if(await upsertCards(toInsert)){
       added=toInsert.length;
     }else{
