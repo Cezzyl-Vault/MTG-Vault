@@ -113,6 +113,33 @@
 
 details summary{outline:none;}
 
+/* ── VARIANTEN-TABELLE im Karten-Modal (mehrere Varianten einer Karte) ── */
+.variants-summary{
+  display:flex;gap:1rem;flex-wrap:wrap;
+  padding:0.7rem 0.9rem;background:var(--surface2);
+  border-radius:8px;margin-bottom:0.8rem;
+  font-size:0.82rem;color:var(--text2);
+}
+.variants-summary strong{color:var(--text);}
+.variants-list{
+  display:flex;flex-direction:column;gap:0.35rem;
+  margin-bottom:1.2rem;
+  max-height:300px;overflow-y:auto;
+  padding-right:0.3rem;
+}
+.variant-row{
+  display:flex;align-items:center;gap:0.6rem;
+  padding:0.55rem 0.7rem;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;font-size:0.85rem;
+}
+.variant-row:hover{border-color:var(--gold-dim);}
+.variant-set{flex:1;min-width:0;}
+.variant-set strong{color:var(--text);font-size:0.9rem;display:block;}
+.variant-meta{color:var(--text3);font-size:0.72rem;display:block;margin-top:0.1rem;}
+.variant-qty{color:var(--text2);font-weight:600;min-width:40px;text-align:right;}
+.variant-price{color:var(--text2);min-width:80px;text-align:right;font-size:0.78rem;}
+
 /* ── ADD CARDS TO DECK MODAL ── */
 .add-cards-meta{
   display:flex;justify-content:space-between;align-items:center;

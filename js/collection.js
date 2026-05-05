@@ -1,6 +1,13 @@
 // ══════════════════════════════════════════════════════════
 //  COLLECTION  ·  Sammlung-Anzeige (Filter, Grid, Liste, Karten-Modal)
 // ══════════════════════════════════════════════════════════
+//
+//  Karten werden nach Namen gruppiert dargestellt:
+//  - Eine "Group" = alle Varianten einer Karte (z.B. 5× Lightning Bolt
+//    aus verschiedenen Sets/Zuständen/Sprachen).
+//  - In der Übersicht zeigen wir pro Group EINE Kachel/Zeile.
+//  - Beim Klick öffnet das Modal die Liste aller Varianten dieser Karte.
+//  - "Anzahl" in der Übersicht = Summe der quantity über alle Varianten.
 
 function populateSets(){
   const sel=document.getElementById('filterSet');const cur=sel.value;
@@ -9,13 +16,68 @@ function populateSets(){
   sel.value=cur;
 }
 
+// Aktuell gefilterte Groups (jede Group hat: name, cards[], representative, totalQty, totalValue)
+let filteredGroups = [];
+
+// Hilfsfunktion: Gruppiert eine Liste von Karten nach Namen.
+// Rückgabe: Array von { name, cards, representative, totalQty, totalValue }
+//   - representative: die Variante, deren Bild/Daten in der Übersicht gezeigt wird
+//   - bestimmt durch: ÄLTESTE Edition (Default), oder PASSENDE Variante wenn Set-Filter aktiv
+function buildGroups(cards, activeSetFilter){
+  const byName={};
+  for(const c of cards){
+    const key=(c.name||'').toLowerCase();
+    if(!byName[key])byName[key]=[];
+    byName[key].push(c);
+  }
+
+  const groups=[];
+  for(const key in byName){
+    const variants=byName[key];
+
+    // Repräsentative Variante wählen
+    let representative;
+    if(activeSetFilter){
+      // Set-Filter aktiv: bevorzuge eine Variante aus genau diesem Set
+      representative=variants.find(v=>v.set_code===activeSetFilter)||variants[0];
+    }else{
+      // Default: älteste Edition (über setReleasedAt aus sets.js)
+      representative=[...variants].sort((a,b)=>{
+        const da=setReleasedAt(a.set_code);
+        const db=setReleasedAt(b.set_code);
+        // Karten mit unbekanntem Datum ans Ende
+        if(!da&&!db)return(a.set_code||'').localeCompare(b.set_code||'');
+        if(!da)return 1;
+        if(!db)return -1;
+        return da.localeCompare(db); // ältestes Datum zuerst
+      })[0];
+    }
+
+    const totalQty=variants.reduce((s,v)=>s+(v.quantity||1),0);
+    const totalValue=variants.reduce((s,v)=>s+((parseFloat(v.purchase_price)||0)*(v.quantity||1)),0);
+
+    groups.push({
+      name:representative.name,
+      cards:variants,
+      representative,
+      totalQty,
+      totalValue
+    });
+  }
+  return groups.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+}
+
 function applyFilters(){
   const q=document.getElementById('searchInput').value.toLowerCase();
   const rar=document.getElementById('filterRarity').value;
   const foil=document.getElementById('filterFoil').value;
   const set=document.getElementById('filterSet').value;
   const cond=document.getElementById('filterCondition').value;
-  filtered=allCards.filter(c=>{
+
+  // Filter werden auf VARIANTEN angewendet:
+  // Eine Group bleibt sichtbar, wenn MINDESTENS EINE ihrer Varianten den Filter erfüllt.
+  // Erst die Karten filtern, dann gruppieren.
+  const matchingCards=allCards.filter(c=>{
     if(q&&!c.name.toLowerCase().includes(q)&&!(c.set_name||'').toLowerCase().includes(q))return false;
     if(rar&&c.rarity!==rar)return false;
     if(foil==='foil'&&c.foil!=='foil')return false;
@@ -24,97 +86,176 @@ function applyFilters(){
     if(cond&&!(c.condition||'').includes(cond.split('_')[0]))return false;
     return true;
   });
-  const tot=filtered.reduce((s,c)=>s+c.quantity,0);
+
+  filteredGroups=buildGroups(matchingCards,set);
+
+  // Stats-Bar: Einträge (= unique Namen), Karten (= Summe), Gesamtwert (in €)
+  const totalEntries=filteredGroups.length;
+  const totalCards=filteredGroups.reduce((s,g)=>s+g.totalQty,0);
+  const totalValue=filteredGroups.reduce((s,g)=>s+g.totalValue,0);
+
+  // Vergleich zur Gesamt-Sammlung (nur anzeigen wenn gefiltert)
+  const allGroups=buildGroups(allCards);
+  const isFiltered=totalEntries!==allGroups.length||totalCards!==allCards.reduce((s,c)=>s+(c.quantity||1),0);
+
   document.getElementById('statsBar').innerHTML=
-    `<span>${filtered.length} <strong>Einträge</strong></span><span>${tot} <strong>Karten</strong></span>`+
-    (filtered.length!==allCards.length?`<span style="color:var(--purple)">(von ${allCards.length})</span>`:'');
+    `<span>${totalEntries} <strong>Einträge</strong></span>`+
+    `<span>${totalCards} <strong>Karten</strong></span>`+
+    `<span>${totalValue.toFixed(2)} € <strong>Gesamtwert</strong></span>`+
+    (isFiltered?`<span style="color:var(--purple)">(von ${allGroups.length} Einträgen)</span>`:'');
+
   renderCards();
 }
 
 function renderCards(){
   const container=document.getElementById('cardContainer');
-  if(!filtered.length){container.innerHTML='<div style="text-align:center;padding:4rem;color:var(--text2)">Keine Karten gefunden.</div>';return;}
+  if(!filteredGroups.length){container.innerHTML='<div style="text-align:center;padding:4rem;color:var(--text2)">Keine Karten gefunden.</div>';return;}
   if(viewMode==='grid'){
-    container.innerHTML='<div class="card-grid">'+filtered.map(c=>gridHTML(c)).join('')+'</div>';
+    container.innerHTML='<div class="card-grid">'+filteredGroups.map(g=>gridHTML(g)).join('')+'</div>';
     container.querySelectorAll('[data-src]').forEach(el=>{
       const img=new Image();
       img.onload=()=>{el.src=el.dataset.src;el.removeAttribute('data-src');};
       img.src=el.dataset.src;
     });
   }else{
-    container.innerHTML='<div class="card-list"><div class="list-header"><span>NAME</span><span>SET</span><span>SELTENHEIT</span><span>ZUSTAND</span><span>FOIL</span><span>QTY</span><span>PREIS</span><span>SPRACHE</span><span></span></div>'+filtered.map(c=>listHTML(c)).join('')+'</div>';
+    container.innerHTML='<div class="card-list"><div class="list-header"><span>NAME</span><span>SET</span><span>SELTENHEIT</span><span>VARIANTEN</span><span>FOIL</span><span>QTY</span><span>WERT</span><span>SPRACHE</span><span></span></div>'+filteredGroups.map(g=>listHTML(g)).join('')+'</div>';
   }
 }
 
 
-// ── HTML-Templates für eine Karte (Grid-Kachel und Listen-Zeile) ──
-function gridHTML(c){
+// ── HTML-Templates: jetzt für eine GROUP statt für eine einzelne Karte ──
+function gridHTML(g){
+  const c=g.representative;
   const img=iUrl(c);const r=rc(c.rarity);
-  const badges=[c.foil==='foil'?'<span class="badge badge-foil">✦ FOIL</span>':'',c.misprint?'<span class="badge badge-misprint">⚠ MISPRINT</span>':'',c.altered?'<span class="badge badge-altered">✎ ALTERED</span>':''].filter(Boolean).join('');
-  return`<div class="card-item" onclick="openCardModal('${c.id}')">
+  // Badges: zeigen zusammengefasste Eigenschaften der Group
+  const hasFoil=g.cards.some(v=>v.foil==='foil');
+  const hasMisprint=g.cards.some(v=>v.misprint);
+  const hasAltered=g.cards.some(v=>v.altered);
+  const badges=[
+    hasFoil?'<span class="badge badge-foil">✦ FOIL</span>':'',
+    hasMisprint?'<span class="badge badge-misprint">⚠ MISPRINT</span>':'',
+    hasAltered?'<span class="badge badge-altered">✎ ALTERED</span>':''
+  ].filter(Boolean).join('');
+  return`<div class="card-item" onclick="openCardModal('${esc(g.name)}')">
     <div class="img-wrap">
       ${img?`<img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" data-src="${img}" alt="${esc(c.name)}">`:`<div class="img-placeholder">🃏<span>${esc(c.name)}</span></div>`}
-      ${c.quantity>1?`<span class="qty-badge">×${c.quantity}</span>`:''}
+      ${g.totalQty>1?`<span class="qty-badge">×${g.totalQty}</span>`:''}
     </div>
     <div class="rarity-bar ${r}"></div>
     <div class="card-meta">
       <div class="card-name" title="${esc(c.name)}">${esc(c.name)}</div>
-      <div class="card-sub"><span>${esc(c.set_code)}${c.collector_number?' #'+esc(c.collector_number):''}</span><div style="display:flex;gap:3px;flex-wrap:wrap">${badges}</div></div>
+      <div class="card-sub"><span>${esc(c.set_code)}${g.cards.length>1?` <em style="color:var(--text3);font-style:normal">+${g.cards.length-1}</em>`:''}</span><div style="display:flex;gap:3px;flex-wrap:wrap">${badges}</div></div>
     </div>
   </div>`;
 }
 
-function listHTML(c){
+function listHTML(g){
+  const c=g.representative;
   const r=rc(c.rarity);
-  const price=c.purchase_price?`${parseFloat(c.purchase_price).toFixed(2)} ${c.currency||'€'}`:'–';
-  const cond=c.condition?`<span class="condition-badge ${cc(c.condition)}">${cl(c.condition)}</span>`:'–';
-  return`<div class="list-row" onclick="openCardModal('${c.id}')">
+  const price=g.totalValue>0?`${g.totalValue.toFixed(2)} ${c.currency||'€'}`:'–';
+  // Bei Liste: Varianten-Spalte zeigt die Anzahl unterschiedlicher Versionen
+  const variantsLabel=g.cards.length>1?`<strong>${g.cards.length}</strong> Varianten`:'1 Variante';
+  const hasFoil=g.cards.some(v=>v.foil==='foil');
+  // Sprachen kompakt zusammenfassen
+  const languages=[...new Set(g.cards.map(v=>v.language).filter(Boolean))];
+  const langLabel=languages.length===0?'–':languages.length===1?languages[0]:languages.length+' Sprachen';
+  return`<div class="list-row" onclick="openCardModal('${esc(g.name)}')">
     <span class="name-col"><span class="rarity-dot ${r}" style="margin-right:5px"></span>${esc(c.name)}</span>
-    <span class="col">${esc(c.set_name||c.set_code)}</span>
+    <span class="col">${esc(c.set_name||c.set_code)}${g.cards.length>1?' …':''}</span>
     <span class="col" style="text-transform:capitalize">${esc(c.rarity)}</span>
-    <span class="col">${cond}</span>
-    <span class="col">${c.foil==='foil'?'✦':'–'}</span>
-    <span class="col">×${c.quantity}</span>
+    <span class="col">${variantsLabel}</span>
+    <span class="col">${hasFoil?'✦':'–'}</span>
+    <span class="col">×${g.totalQty}</span>
     <span class="col">${price}</span>
-    <span class="col">${esc(c.language||'–')}</span>
+    <span class="col">${esc(langLabel)}</span>
     <div class="list-actions" onclick="event.stopPropagation()">
-      <button class="icon-btn" onclick="openCardModal('${c.id}')">👁</button>
-      <button class="icon-btn danger" onclick="deleteCard('${c.id}')">🗑</button>
+      <button class="icon-btn" onclick="openCardModal('${esc(g.name)}')">👁</button>
     </div>
   </div>`;
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARD MODAL
+//  CARD MODAL  ·  Zeigt jetzt ALLE Varianten einer Karte
 // ══════════════════════════════════════════════════════════
-function openCardModal(id){
-  editingCardId=id;
-  const c=allCards.find(x=>x.id===id);if(!c)return;
+//
+//  Das Modal nimmt jetzt einen NAMEN entgegen (nicht mehr eine ID).
+//  Es zeigt links die repräsentative Karte (älteste Edition oder
+//  gefilterte Variante) und rechts eine Liste aller Varianten mit
+//  ihren individuellen Eigenschaften (Set, Zustand, Foil, Sprache, Preis).
+//  Bearbeiten und Löschen geht jetzt PRO Variante.
+function openCardModal(name){
+  const variants=allCards.filter(c=>(c.name||'').toLowerCase()===(name||'').toLowerCase());
+  if(!variants.length)return;
+
+  // Repräsentative Variante: berücksichtigt aktuell aktiven Set-Filter
+  const activeSet=document.getElementById('filterSet').value;
+  let representative;
+  if(activeSet){
+    representative=variants.find(v=>v.set_code===activeSet)||variants[0];
+  }else{
+    representative=[...variants].sort((a,b)=>{
+      const da=setReleasedAt(a.set_code);
+      const db=setReleasedAt(b.set_code);
+      if(!da&&!db)return(a.set_code||'').localeCompare(b.set_code||'');
+      if(!da)return 1;
+      if(!db)return -1;
+      return da.localeCompare(db);
+    })[0];
+  }
+
+  editingCardId=representative.id;
+  const c=representative;
   const img=iUrl(c);const r=rc(c.rarity);
-  const price=c.purchase_price?`${parseFloat(c.purchase_price).toFixed(2)} ${c.currency||'€'}`:'–';
+  const totalQty=variants.reduce((s,v)=>s+(v.quantity||1),0);
+  const totalValue=variants.reduce((s,v)=>s+((parseFloat(v.purchase_price)||0)*(v.quantity||1)),0);
   const decksOptions=allDecks.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+
+  // Tabelle aller Varianten (oder einzelnes Detail-Panel falls nur 1 Variante)
+  let variantsBlock='';
+  if(variants.length===1){
+    const price=c.purchase_price?`${parseFloat(c.purchase_price).toFixed(2)} ${c.currency||'€'}`:'–';
+    variantsBlock=`<div class="detail-grid">
+      <div class="detail-item"><label>SELTENHEIT</label><div class="val" style="text-transform:capitalize;color:var(--${r})">${esc(c.rarity)}</div></div>
+      <div class="detail-item"><label>ANZAHL</label><div class="val">×${c.quantity}</div></div>
+      <div class="detail-item"><label>ZUSTAND</label><div class="val"><span class="condition-badge ${cc(c.condition)}">${cl(c.condition)}</span></div></div>
+      <div class="detail-item"><label>SPRACHE</label><div class="val">${esc(c.language||'–')}</div></div>
+      <div class="detail-item"><label>KAUFPREIS</label><div class="val">${price}</div></div>
+      <div class="detail-item"><label>FOIL</label><div class="val">${c.foil==='foil'?'✦ Foil':'Normal'}</div></div>
+    </div>`;
+  }else{
+    // Mehrere Varianten: Tabelle
+    const rows=variants.map(v=>{
+      const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
+      return`<div class="variant-row">
+        <div class="variant-set">
+          <strong>${esc(v.set_name||v.set_code)}</strong>
+          <span class="variant-meta">${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>
+        </div>
+        <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
+        <span class="variant-qty">×${v.quantity}</span>
+        <span class="variant-price">${vPrice}</span>
+        <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante bearbeiten">✎</button>
+        <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante löschen">🗑</button>
+      </div>`;
+    }).join('');
+    variantsBlock=`
+      <div class="variants-summary">
+        <span><strong>${variants.length}</strong> Varianten</span>
+        <span><strong>${totalQty}</strong> Karten gesamt</span>
+        ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Gesamtwert</span>`:''}
+      </div>
+      <div class="variants-list">${rows}</div>`;
+  }
 
   document.getElementById('modalInner').innerHTML=`
     <div class="modal-img-side">
       ${img?`<img src="${img}" alt="${esc(c.name)}">`:`<div class="modal-img-placeholder">🃏</div>`}
-      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:0.3rem">
-        ${c.foil==='foil'?'<span class="badge badge-foil">✦ FOIL</span>':''}
-        ${c.misprint?'<span class="badge badge-misprint">⚠ MISPRINT</span>':''}
-        ${c.altered?'<span class="badge badge-altered">✎ ALTERED</span>':''}
-      </div>
       ${c.scryfall_id?`<a href="https://scryfall.com/card/${(c.set_code||'').toLowerCase()}/${c.collector_number}" target="_blank" style="font-size:0.72rem;color:var(--teal);text-decoration:none;margin-top:0.5rem">🔗 Scryfall</a>`:''}
     </div>
     <div class="modal-detail">
       <div class="modal-title">${esc(c.name)}</div>
-      <div class="modal-set">${esc(c.set_name||c.set_code)} · ${esc(c.set_code)} · #${esc(c.collector_number)}</div>
-      <div class="detail-grid">
-        <div class="detail-item"><label>SELTENHEIT</label><div class="val" style="text-transform:capitalize;color:var(--${r})">${esc(c.rarity)}</div></div>
-        <div class="detail-item"><label>ANZAHL</label><div class="val">×${c.quantity}</div></div>
-        <div class="detail-item"><label>ZUSTAND</label><div class="val"><span class="condition-badge ${cc(c.condition)}">${cl(c.condition)}</span></div></div>
-        <div class="detail-item"><label>SPRACHE</label><div class="val">${esc(c.language||'–')}</div></div>
-        <div class="detail-item"><label>KAUFPREIS</label><div class="val">${price}</div></div>
-        <div class="detail-item"><label>FOIL</label><div class="val">${c.foil==='foil'?'✦ Foil':'Normal'}</div></div>
-      </div>
+      <div class="modal-set">${esc(c.set_name||c.set_code)}${variants.length>1?' (älteste Variante angezeigt)':''}</div>
+      ${variantsBlock}
 
       ${allDecks.length>0?`
       <div class="add-to-deck-section">
@@ -129,10 +270,12 @@ function openCardModal(id){
             <option value="Sorceries"><option value="Planeswalkers"><option value="Sonstige">
           </datalist>
           <input id="deckQty" type="number" min="1" max="99" value="1" style="max-width:60px">
-          <button class="add-deck-submit" onclick="addCardToDeck('${c.id}')">+ Hinzufügen</button>
+          <button class="add-deck-submit" onclick="addCardToDeck('${representative.id}')">+ Hinzufügen</button>
         </div>
+        ${variants.length>1?`<div style="font-size:0.7rem;color:var(--text3);margin-top:0.4rem;font-style:italic">Verwendet die älteste Variante. Über die Variantentabelle oben kannst du eine andere bearbeiten/löschen.</div>`:''}
       </div>`:'<div style="font-size:0.85rem;color:var(--text3);font-style:italic;margin-bottom:0.75rem">Erstelle zuerst ein Deck im Decks-Reiter.</div>'}
 
+      ${variants.length===1?`
       <details style="margin-top:0.75rem">
         <summary style="font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.1em;color:var(--text3);cursor:pointer;margin-bottom:0.75rem;outline:none">✎ BEARBEITEN</summary>
         <div class="edit-form">
@@ -150,9 +293,43 @@ function openCardModal(id){
             <button class="btn btn-danger" onclick="deleteCard('${c.id}')">Löschen</button>
           </div>
         </div>
-      </details>
+      </details>`:''}
     </div>`;
   document.getElementById('cardModal').classList.add('open');
+}
+
+// Bearbeiten einer einzelnen Variante (über Bleistift-Symbol in Variantentabelle).
+// Schließt das aktuelle Modal und öffnet ein dediziertes Bearbeiten-Modal für diese Variante.
+function openVariantEdit(cardId){
+  const v=allCards.find(c=>c.id===cardId);
+  if(!v)return;
+  editingCardId=cardId;
+  const r=rc(v.rarity);
+  const img=iUrl(v);
+  document.getElementById('modalInner').innerHTML=`
+    <div class="modal-img-side">
+      ${img?`<img src="${img}" alt="${esc(v.name)}">`:`<div class="modal-img-placeholder">🃏</div>`}
+    </div>
+    <div class="modal-detail">
+      <div class="modal-title">${esc(v.name)} <span style="font-size:0.7rem;color:var(--text3);font-weight:400">(Variante bearbeiten)</span></div>
+      <div class="modal-set">${esc(v.set_name||v.set_code)} · ${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}</div>
+      <div class="edit-form">
+        <div><label>NAME</label><input id="e_name" value="${esc(v.name)}"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+          <div><label>ANZAHL</label><input id="e_qty" type="number" min="1" value="${v.quantity}"></div>
+          <div><label>KAUFPREIS</label><input id="e_price" value="${esc(v.purchase_price||'')}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+          <div><label>ZUSTAND</label><select id="e_cond">${['near_mint','lightly_played','moderately_played','heavily_played','damaged'].map(x=>`<option value="${x}"${v.condition===x?' selected':''}>${x.replace(/_/g,' ')}</option>`).join('')}</select></div>
+          <div><label>FOIL</label><select id="e_foil"><option value="normal"${v.foil!=='foil'?' selected':''}>Normal</option><option value="foil"${v.foil==='foil'?' selected':''}>Foil</option></select></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveCardEdit()">Speichern</button>
+          <button class="btn" onclick="openCardModal('${esc(v.name)}')">Zurück</button>
+          <button class="btn btn-danger" onclick="deleteCard('${v.id}')">Löschen</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 async function addCardToDeck(cardId){
@@ -175,7 +352,6 @@ async function saveCardEdit(){
 }
 
 async function deleteCard(id){
-  if(!confirm('Karte wirklich löschen?'))return;
-  if(await deleteCardDB(id)){allCards=allCards.filter(c=>c.id!==id);closeModal('cardModal');renderAll();showToast('Karte gelöscht');}
+  if(!confirm('Variante wirklich löschen?'))return;
+  if(await deleteCardDB(id)){allCards=allCards.filter(c=>c.id!==id);closeModal('cardModal');renderAll();showToast('Variante gelöscht');}
 }
-
