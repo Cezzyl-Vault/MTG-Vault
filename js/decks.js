@@ -79,12 +79,17 @@ async function openDeckDetail(deckId){
 
 function renderDeckDetail(deck){
   const detailView=document.getElementById('deck-detail-view');
-  // Group by category
+  // Group by category — Karten OHNE Kategorie werden separat gehalten und oben angezeigt
   const cats={};
+  const uncategorized=[];
   currentDeckCards.forEach(dc=>{
-    const cat=dc.category||'Sonstige';
-    if(!cats[cat])cats[cat]=[];
-    cats[cat].push(dc);
+    const cat=(dc.category||'').trim();
+    if(!cat){
+      uncategorized.push(dc);
+    }else{
+      if(!cats[cat])cats[cat]=[];
+      cats[cat].push(dc);
+    }
   });
   const totalCards=currentDeckCards.reduce((s,dc)=>s+dc.quantity,0);
 
@@ -106,6 +111,7 @@ function renderDeckDetail(deck){
       </div>
     </div>
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
+    ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
     ${sortedCats.filter(c=>cats[c]).map(cat=>catSection(cat,cats[cat],deck.id)).join('')}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Öffne eine Karte in der Sammlung und füge sie hier hinzu.</p></div>`:''}
   `;
@@ -113,21 +119,40 @@ function renderDeckDetail(deck){
   if(typeof renderDeckStats==='function')renderDeckStats(deck,currentDeckCards);
 }
 
+// Sektion für Karten ohne Kategorie — visuell etwas dezenter als kategorisierte Bereiche.
+// Erscheint oben im Deck, vor allen kategorisierten Karten.
+function uncategorizedSection(dcCards,deckId){
+  const total=dcCards.reduce((s,dc)=>s+dc.quantity,0);
+  const rows=dcCards.map(dc=>deckCardRow(dc)).join('');
+  return`<div class="category-section uncategorized-section">
+    <div class="category-header">
+      <div class="category-name" style="font-style:italic;color:var(--text2)">⋯ Ohne Kategorie <span class="category-count">${total} Karten</span></div>
+      <div style="display:flex;gap:0.5rem">
+        <button class="del-cat-btn" onclick="openAddCardsModal('')" title="Weitere Karten ohne Kategorie hinzufügen">+ Karten</button>
+      </div>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+// Eine Karten-Zeile — extrahiert, damit catSection und uncategorizedSection sie teilen.
+function deckCardRow(dc){
+  const card=allCards.find(c=>c.id===dc.card_id);
+  const img=card?iUrl(card):null;
+  return`<div class="deck-card-row">
+    ${img?`<img class="dc-img" src="${img}" alt="${esc(card?.name||'')}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
+    <div style="flex:1;min-width:0">
+      <div class="dc-name">${esc(card?.name||dc.card_id)}</div>
+      <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}</div>
+    </div>
+    <span class="dc-qty">×${dc.quantity}</span>
+    <button class="dc-remove" onclick="removeDeckCard('${dc.id}')" title="Entfernen">✕</button>
+  </div>`;
+}
+
 function catSection(cat,dcCards,deckId){
   const total=dcCards.reduce((s,dc)=>s+dc.quantity,0);
-  const rows=dcCards.map(dc=>{
-    const card=allCards.find(c=>c.id===dc.card_id);
-    const img=card?iUrl(card):null;
-    return`<div class="deck-card-row">
-      ${img?`<img class="dc-img" src="${img}" alt="${esc(card?.name||'')}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
-      <div style="flex:1;min-width:0">
-        <div class="dc-name">${esc(card?.name||dc.card_id)}</div>
-        <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}</div>
-      </div>
-      <span class="dc-qty">×${dc.quantity}</span>
-      <button class="dc-remove" onclick="removeDeckCard('${dc.id}')" title="Entfernen">✕</button>
-    </div>`;
-  }).join('');
+  const rows=dcCards.map(dc=>deckCardRow(dc)).join('');
   return`<div class="category-section">
     <div class="category-header">
       <div class="category-name">◈ ${esc(cat)} <span class="category-count">${total} Karten</span></div>
@@ -286,10 +311,12 @@ function clearAddCardsSelection(){
   updateAddCardsSelectionInfo();
 }
 
-// Hinzufügen-Button: alle gewählten Karten in die Kategorie schreiben
+// Hinzufügen-Button: alle gewählten Karten in die Kategorie schreiben.
+// Leere Kategorie ist erlaubt — diese Karten erscheinen oben im Deck unter "Ohne Kategorie".
 async function confirmAddCardsToDeck(){
   const category=(document.getElementById('addCardsCategory').value||'').trim();
-  if(!category){showToast('Bitte Kategorie angeben.');return;}
+  // Leerer Kategorie-String wird als null in die DB geschrieben → Karte landet oben im Deck
+  const categoryToSave=category||null;
   if(addCardsSelected.size===0){showToast('Keine Karten ausgewählt.');return;}
 
   const btn=document.getElementById('addCardsConfirmBtn');
@@ -297,13 +324,14 @@ async function confirmAddCardsToDeck(){
 
   let ok=0,fail=0;
   for(const cardId of addCardsSelected){
-    if(await addToDeckDB(activeDeckId,cardId,category,1))ok++;else fail++;
+    if(await addToDeckDB(activeDeckId,cardId,categoryToSave,1))ok++;else fail++;
   }
   // Deck-Karten frisch laden (wegen Quantity-Updates bei Duplikaten)
   currentDeckCards=await loadDeckCards(activeDeckId);
   const deck=allDecks.find(d=>d.id===activeDeckId);
   renderDeckDetail(deck);
   closeModal('addCardsModal');
-  showToast(fail?`${ok} hinzugefügt, ${fail} Fehler`:`✓ ${ok} Karte${ok===1?'':'n'} hinzugefügt`);
+  const target=category?`zu "${category}"`:'ohne Kategorie';
+  showToast(fail?`${ok} hinzugefügt ${target}, ${fail} Fehler`:`✓ ${ok} Karte${ok===1?'':'n'} ${target} hinzugefügt`);
 }
 
