@@ -18,8 +18,11 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
 }
 .empty-cta:hover{transform:translateY(-1px);box-shadow:0 6px 25px rgba(201,168,76,0.4);}
 
-/* ── FILTERS ── */
-.filters{display:flex;gap:0.6rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;}
+/* ── FILTERS (mehrlagig: Top-Row, Standardfilter, Pills) ── */
+.filters{display:flex;flex-direction:column;gap:0.7rem;margin-bottom:1.2rem;}
+
+/* Top-Row: Suche + Filter-Toggle + Ansichts-Toggle (immer sichtbar) */
+.filter-top-row{display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;}
 .search-wrap{position:relative;flex:1;min-width:200px;}
 .search-wrap input{
   width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;
@@ -28,6 +31,31 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
 }
 .search-wrap input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,0.08);}
 .search-icon{position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);color:var(--text2);font-size:0.8rem;pointer-events:none;}
+
+/* Filter-Toggle Button: auf Desktop nur dezent, auf Mobile Hauptaktion */
+.filter-toggle-btn{
+  display:none;align-items:center;gap:0.4rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);font-family:'Cinzel',serif;font-size:0.78rem;letter-spacing:0.08em;
+  padding:0.55rem 0.9rem;cursor:pointer;transition:all 0.2s;
+  position:relative;
+}
+.filter-toggle-btn .filter-arrow{transition:transform 0.2s;font-size:0.7rem;}
+.filter-toggle-btn.open .filter-arrow{transform:rotate(180deg);}
+.filter-toggle-btn.has-active{border-color:var(--gold-dim);color:var(--gold);}
+.filter-toggle-btn.has-active::after{
+  content:attr(data-count);
+  position:absolute;top:-6px;right:-6px;
+  background:var(--gold);color:#0a0800;
+  font-size:0.65rem;font-weight:700;
+  width:18px;height:18px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* Erweiterter Filter-Bereich (Dropdowns + Pill-Reihen) */
+.filter-advanced{display:flex;flex-direction:column;gap:0.7rem;}
+.filter-row{display:flex;gap:0.5rem;flex-wrap:wrap;}
+
 .filter-select{
   background:var(--surface);border:1px solid var(--border);border-radius:8px;
   color:var(--text);font-family:'EB Garamond',serif;font-size:0.95rem;
@@ -35,6 +63,7 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
 }
 .filter-select:focus{border-color:var(--gold);}
 .filter-select option{background:var(--surface2);}
+
 .view-toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
 .view-toggle button{
   background:transparent;border:none;color:var(--text2);
@@ -44,11 +73,80 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
 .view-toggle button:last-child{border-right:none;}
 .view-toggle button.active{background:var(--surface2);color:var(--gold);}
 
+/* Pill-Zeilen (Manawert, Farben) */
+.filter-pill-row{
+  display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;
+  padding:0.4rem 0.6rem;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;
+}
+.filter-pill-label{
+  font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;
+  color:var(--text3);margin-right:0.3rem;
+}
+.filter-hint{
+  font-size:0.72rem;color:var(--text3);font-style:italic;
+  margin-left:0.4rem;
+}
+
+/* Manawert-Pills (Zahlen) */
+.filter-pill{
+  background:transparent;border:1px solid var(--border2);
+  color:var(--text2);
+  width:34px;height:34px;border-radius:50%;
+  font-size:0.85rem;cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;
+}
+.filter-pill:hover{border-color:var(--gold-dim);color:var(--text);}
+.filter-pill.active{
+  background:var(--gold);border-color:var(--gold);color:#0a0800;
+  font-weight:600;box-shadow:0 0 8px rgba(201,168,76,0.3);
+}
+
+/* Mana-Symbol-Pills (Farben) */
+.mana-pill{
+  width:34px;height:34px;border-radius:50%;
+  font-family:'Cinzel',serif;font-weight:700;font-size:0.95rem;
+  border:2px solid transparent;cursor:pointer;
+  transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0.55;
+}
+.mana-pill:hover{opacity:1;transform:scale(1.05);}
+.mana-pill.active{
+  opacity:1;
+  border-color:var(--gold);
+  box-shadow:0 0 10px rgba(201,168,76,0.4);
+}
+/* Farben gem. offizieller MTG-Farbpalette */
+.mana-w{background:#fffbd5;color:#3a2f00;}
+.mana-u{background:#aae0fa;color:#0e3a5b;}
+.mana-b{background:#cbc2bf;color:#1a1a1a;}
+.mana-r{background:#f9aa8f;color:#5b1a0e;}
+.mana-g{background:#9bd3ae;color:#0e3a1f;}
+.mana-c{background:#d8d8d8;color:#3a3a3a;}
+
+/* Reset-Button für Pill-Reihen */
+.filter-pill-clear{
+  background:transparent;border:1px solid var(--border2);color:var(--text3);
+  width:28px;height:28px;border-radius:50%;cursor:pointer;
+  margin-left:auto;font-size:0.75rem;transition:all 0.15s;
+  display:flex;align-items:center;justify-content:center;
+}
+.filter-pill-clear:hover{border-color:var(--red);color:var(--red);}
+
 .stats-bar{
   display:flex;gap:1.5rem;margin-bottom:1.2rem;flex-wrap:wrap;
   color:var(--text2);font-size:0.9rem;align-items:center;
 }
 .stats-bar strong{color:var(--gold);}
+
+/* Mobile: Filter-Bereich zusammenklappbar */
+@media(max-width:780px){
+  .filter-toggle-btn{display:flex;}
+  .filter-advanced{display:none;}
+  .filter-advanced.open{display:flex;}
+  .filter-select{flex:1;min-width:140px;}
+}
 
 /* ── CARD GRID ── */
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1.1rem;}
