@@ -178,3 +178,14 @@
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
+
+/* ── KARTEN OHNE KATEGORIE ── */
+/* Visuell etwas dezenter als kategorisierte Sektionen, damit klar ist:
+   das ist eine "Auffang-Sektion", nicht eine richtige Kategorie. */
+.uncategorized-section{
+  border-style:dashed;
+  background:rgba(255,255,255,0.015);
+}
+.uncategorized-section .category-header{
+  background:transparent;
+}
