@@ -1,7 +1,23 @@
 // ══════════════════════════════════════════════════════════
 //  CONFIG  ·  Supabase-Setup-Screen + Wechsel zwischen Bildschirmen
 // ══════════════════════════════════════════════════════════
-function loadCfg(){try{return JSON.parse(localStorage.getItem(CFG_KEY));}catch(e){return null;}}
+//
+//  Reihenfolge der Werte:
+//  1. LocalStorage (vom Setup-Bildschirm gespeichert) — Vorrang
+//  2. Hardcoded Defaults aus defaults.js — Fallback
+//  3. Wenn weder noch: Setup-Bildschirm anzeigen
+function loadCfg(){
+  // Erst LocalStorage prüfen — falls vorhanden, hat das Vorrang
+  try{
+    const stored=JSON.parse(localStorage.getItem(CFG_KEY));
+    if(stored&&stored.url&&stored.key)return stored;
+  }catch(e){/* ignorieren */}
+  // Fallback: Defaults aus defaults.js (ist optional — Datei könnte fehlen)
+  if(typeof DEFAULT_SUPABASE_URL!=='undefined'&&DEFAULT_SUPABASE_URL&&DEFAULT_SUPABASE_KEY){
+    return{url:DEFAULT_SUPABASE_URL,key:DEFAULT_SUPABASE_KEY};
+  }
+  return null;
+}
 function copySQL(){navigator.clipboard.writeText(document.getElementById('sqlCode').textContent).then(()=>showToast('✓ SQL kopiert'));}
 
 function saveConfig(){
