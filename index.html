@@ -119,7 +119,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.79</small></div>
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.5</small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -421,12 +421,29 @@ alter table cards add column if not exists type_line text;</div>
   </div>
 </div>
 
+<!-- BESTÄTIGUNGS-MODAL (für Lösch-Aktionen etc.) -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)" id="confirmTitle">BESTÄTIGEN</span>
+    </div>
+    <div class="modal-detail">
+      <p id="confirmMessage" style="font-size:0.95rem;color:var(--text);margin:0 0 1.2rem 0;line-height:1.5"></p>
+      <div class="btn-row">
+        <button class="btn" id="confirmBtnNo">Abbrechen</button>
+        <button class="btn btn-primary" id="confirmBtnYes">Bestätigen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
 <script src="js/state.js" defer></script>
 <script src="js/defaults.js" defer></script>
 <script src="js/utils.js" defer></script>
+<script src="js/ui.js" defer></script>
 <script src="js/sets.js" defer></script>
 <script src="js/db.js" defer></script>
 <script src="js/scryfall.js" defer></script>

@@ -60,8 +60,14 @@ async function saveDeck(){
 }
 
 async function deleteDeck(id){
-  if(!confirm('Deck und alle zugeordneten Karten daraus löschen?'))return;
-  if(await deleteDeckDB(id)){allDecks=allDecks.filter(d=>d.id!==id);renderDecks();showToast('Deck gelöscht');}
+  const deck=allDecks.find(d=>d.id===id);
+  const name=deck?.name||'dieses Deck';
+  if(!await confirmAction(`Deck "${name}" und alle Karten-Zuordnungen darin wirklich löschen? Die Karten selbst bleiben in deiner Sammlung.`,{
+    title:'DECK LÖSCHEN',
+    confirmLabel:'Löschen',
+    danger:true
+  }))return;
+  if(await deleteDeckDB(id)){allDecks=allDecks.filter(d=>d.id!==id);renderDecks();toastSuccess('Deck gelöscht');}
 }
 
 // ── DECK DETAIL ──
@@ -184,20 +190,31 @@ function addCategory(){
 }
 
 async function removeDeckCard(dcId){
-  if(!confirm('Karte aus Deck entfernen?'))return;
+  const dc=currentDeckCards.find(c=>c.id===dcId);
+  const card=dc?allCards.find(c=>c.id===dc.card_id):null;
+  const name=card?.name||'diese Karte';
+  if(!await confirmAction(`"${name}" aus dem Deck entfernen? Die Karte bleibt in deiner Sammlung.`,{
+    title:'KARTE ENTFERNEN',
+    confirmLabel:'Entfernen',
+    danger:true
+  }))return;
   if(await removeDeckCardDB(dcId)){
     currentDeckCards=currentDeckCards.filter(dc=>dc.id!==dcId);
     const deck=allDecks.find(d=>d.id===activeDeckId);
-    renderDeckDetail(deck);showToast('Karte entfernt');
+    renderDeckDetail(deck);toastSuccess('Karte entfernt');
   }
 }
 
 async function removeCategory(deckId,category){
-  if(!confirm(`Kategorie "${category}" und alle darin enthaltenen Karten aus dem Deck entfernen?`))return;
+  if(!await confirmAction(`Kategorie "${category}" und alle Karten-Zuordnungen darin aus dem Deck entfernen? Die Karten bleiben in deiner Sammlung.`,{
+    title:'KATEGORIE LÖSCHEN',
+    confirmLabel:'Löschen',
+    danger:true
+  }))return;
   if(await removeCategoryDB(deckId,category)){
     currentDeckCards=currentDeckCards.filter(dc=>dc.category!==category);
     const deck=allDecks.find(d=>d.id===deckId);
-    renderDeckDetail(deck);showToast(`Kategorie "${category}" entfernt`);
+    renderDeckDetail(deck);toastSuccess(`Kategorie "${category}" entfernt`);
   }
 }
 

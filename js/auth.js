@@ -12,14 +12,22 @@ async function submitAuth(){
   const email=document.getElementById('authEmail').value.trim();
   const pw=document.getElementById('authPassword').value;
   const errEl=document.getElementById('authError');
+  const submitBtn=document.getElementById('authSubmit');
   errEl.textContent='';errEl.style.color='var(--red)';
   if(!email||!pw){errEl.textContent='E-Mail und Passwort erforderlich.';return;}
-  let res=authMode==='login'
-    ?await _sb.auth.signInWithPassword({email,password:pw})
-    :await _sb.auth.signUp({email,password:pw});
-  if(res.error){errEl.textContent=res.error.message;return;}
-  if(authMode==='signup'&&!res.data.session){errEl.style.color='var(--green)';errEl.textContent='Bestätigungsmail gesendet!';return;}
-  showApp(res.data.user||res.data.session.user);
+  // Button in Lade-Zustand setzen
+  setBusy(submitBtn,true,authMode==='login'?'Anmelden…':'Registrieren…');
+  try{
+    let res=authMode==='login'
+      ?await _sb.auth.signInWithPassword({email,password:pw})
+      :await _sb.auth.signUp({email,password:pw});
+    if(res.error){errEl.textContent=res.error.message;setBusy(submitBtn,false);return;}
+    if(authMode==='signup'&&!res.data.session){errEl.style.color='var(--green)';errEl.textContent='Bestätigungsmail gesendet!';setBusy(submitBtn,false);return;}
+    showApp(res.data.user||res.data.session.user);
+  }catch(e){
+    errEl.textContent='Verbindungsfehler. Bitte erneut versuchen.';
+    setBusy(submitBtn,false);
+  }
 }
 async function signOut(){await _sb.auth.signOut();allCards=[];allDecks=[];currentUser=null;showAuth();}
 

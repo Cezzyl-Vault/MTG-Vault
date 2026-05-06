@@ -444,11 +444,15 @@ async function addCardToDeck(cardId){
   const deckId=document.getElementById('deckSelect').value;
   const category=document.getElementById('deckCategory').value.trim()||'Sonstige';
   const qty=parseInt(document.getElementById('deckQty').value)||1;
-  if(!deckId){showToast('Bitte ein Deck auswählen.');return;}
+  if(!deckId){toastError('Bitte ein Deck auswählen.');return;}
+  // Den Submit-Button finden (im Modal, "+ Hinzufügen")
+  const btn=document.querySelector('.add-deck-submit');
+  setBusy(btn,true,'Hinzufügen…');
   const ok=await addToDeckDB(deckId,cardId,category,qty);
+  setBusy(btn,false);
   if(ok){
     const deck=allDecks.find(d=>d.id===deckId);
-    showToast(`✓ Zu "${deck?.name}" hinzugefügt`);
+    toastSuccess(`Zu "${deck?.name}" hinzugefügt`);
   }
 }
 
@@ -456,10 +460,21 @@ async function saveCardEdit(){
   if(!editingCardId)return;
   const idx=allCards.findIndex(c=>c.id===editingCardId);if(idx===-1)return;
   const updated={...allCards[idx],name:document.getElementById('e_name').value.trim(),quantity:parseInt(document.getElementById('e_qty').value)||1,purchase_price:document.getElementById('e_price').value.trim(),condition:document.getElementById('e_cond').value,foil:document.getElementById('e_foil').value};
-  if(await updateCard(updated)){allCards[idx]=updated;closeModal('cardModal');renderAll();showToast('✓ Karte gespeichert');}
+  // Speichern-Button im Modal in Lade-Zustand versetzen
+  const btn=document.querySelector('#cardModal .btn-primary');
+  setBusy(btn,true,'Speichert…');
+  const ok=await updateCard(updated);
+  setBusy(btn,false);
+  if(ok){allCards[idx]=updated;closeModal('cardModal');renderAll();toastSuccess('Karte gespeichert');}
 }
 
 async function deleteCard(id){
-  if(!confirm('Variante wirklich löschen?'))return;
-  if(await deleteCardDB(id)){allCards=allCards.filter(c=>c.id!==id);closeModal('cardModal');renderAll();showToast('Variante gelöscht');}
+  const card=allCards.find(c=>c.id===id);
+  const name=card?.name||'diese Karte';
+  if(!await confirmAction(`Diese Variante von "${name}" wirklich aus deiner Sammlung löschen?`,{
+    title:'VARIANTE LÖSCHEN',
+    confirmLabel:'Löschen',
+    danger:true
+  }))return;
+  if(await deleteCardDB(id)){allCards=allCards.filter(c=>c.id!==id);closeModal('cardModal');renderAll();toastSuccess('Variante gelöscht');}
 }
