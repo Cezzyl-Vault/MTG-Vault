@@ -89,3 +89,92 @@
 }
 .dc-remove:hover{color:var(--red);}
 
+
+/* ── DECK STATISTIK PANEL ── */
+.deck-stats-panel{
+  background:linear-gradient(145deg,var(--surface),var(--bg2));
+  border:1px solid var(--border);border-radius:12px;
+  margin-bottom:1.5rem;overflow:hidden;
+}
+.deck-stats-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0.8rem 1.2rem;border-bottom:1px solid var(--border);
+  background:rgba(201,168,76,0.04);
+}
+.deck-stats-header h3{
+  font-family:'Cinzel',serif;font-size:0.78rem;letter-spacing:0.15em;
+  color:var(--gold);margin:0;
+}
+.deck-stats-toggle{
+  background:transparent;border:1px solid var(--border2);color:var(--text2);
+  font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.08em;
+  padding:0.35rem 0.7rem;border-radius:6px;cursor:pointer;transition:all 0.15s;
+}
+.deck-stats-toggle:hover{border-color:var(--gold-dim);color:var(--gold);}
+
+.deck-stats-body{padding:1.2rem;}
+.deck-stats-empty{
+  padding:1.2rem;text-align:center;color:var(--text3);font-size:0.9rem;font-style:italic;
+}
+.deck-stats-warning{
+  font-size:0.78rem;color:var(--text2);background:rgba(201,168,76,0.06);
+  border:1px solid var(--gold-dim);border-radius:6px;
+  padding:0.45rem 0.7rem;margin-bottom:0.9rem;
+}
+
+.deck-kpi-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;
+  margin-bottom:1.2rem;
+}
+@media(max-width:520px){.deck-kpi-row{grid-template-columns:1fr;}}
+
+.deck-stats-grid{
+  display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:1.2rem;
+}
+@media(max-width:900px){.deck-stats-grid{grid-template-columns:1fr;}}
+
+.deck-stats-section h4{
+  font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.12em;
+  color:var(--text2);margin:0 0 0.7rem 0;
+}
+.deck-stats-section h4 .hint{
+  font-family:'EB Garamond',serif;letter-spacing:0;text-transform:none;
+  color:var(--text3);font-size:0.85rem;font-style:italic;font-weight:400;
+}
+
+/* Mana-Kurve (vertikale Balken) */
+.mana-curve{
+  display:flex;gap:0.4rem;align-items:flex-end;
+  height:140px;padding-bottom:0.3rem;
+  border-bottom:1px solid var(--border);
+}
+.curve-col{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  height:100%;justify-content:flex-end;
+}
+.curve-bar-track{
+  width:100%;flex:1;display:flex;align-items:flex-end;
+  margin-bottom:0.25rem;
+}
+.curve-bar{
+  width:100%;
+  background:linear-gradient(180deg,var(--gold),var(--gold-dim));
+  border-radius:3px 3px 0 0;
+  min-height:2px;transition:height 0.3s ease-out;
+}
+.curve-count{
+  font-size:0.72rem;color:var(--text2);height:1em;line-height:1;
+}
+.curve-label{
+  font-family:'Cinzel',serif;font-size:0.72rem;color:var(--text3);
+  margin-top:0.3rem;
+}
+
+/* Mini-Mana-Symbole in der Farb-Legende (kleinere Variante der Filter-Pills) */
+.color-label{display:flex;align-items:center;gap:0.4rem;}
+.mana-pill-mini{
+  width:20px;height:20px;border-radius:50%;
+  font-family:'Cinzel',serif;font-weight:700;font-size:0.7rem;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
