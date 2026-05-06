@@ -119,7 +119,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.63</small></div>
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.5</small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -171,36 +171,83 @@ create policy "own deck_cards" on deck_cards for all
       </div>
       <div id="collection-content" style="display:none">
         <div class="filters">
-          <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Karte suchen…" oninput="applyFilters()">
+          <div class="filter-top-row">
+            <div class="search-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="searchInput" placeholder="Karte suchen…" oninput="applyFilters()">
+            </div>
+            <button class="filter-toggle-btn" id="filterToggleBtn" onclick="toggleAdvancedFilters()">
+              <span>Filter</span><span class="filter-arrow">▾</span>
+            </button>
+            <div class="view-toggle">
+              <button id="btnGrid" class="active" onclick="setViewMode('grid')" title="Raster">⊞</button>
+              <button id="btnList" onclick="setViewMode('list')" title="Liste">☰</button>
+            </div>
           </div>
-          <select class="filter-select" id="filterRarity" onchange="applyFilters()">
-            <option value="">Alle Seltenheiten</option>
-            <option value="mythic">Mythic</option>
-            <option value="rare">Rare</option>
-            <option value="uncommon">Uncommon</option>
-            <option value="common">Common</option>
-          </select>
-          <select class="filter-select" id="filterFoil" onchange="applyFilters()">
-            <option value="">Foil / Normal</option>
-            <option value="foil">Foil</option>
-            <option value="normal">Normal</option>
-          </select>
-          <select class="filter-select" id="filterSet" onchange="applyFilters()">
-            <option value="">Alle Sets</option>
-          </select>
-          <select class="filter-select" id="filterCondition" onchange="applyFilters()">
-            <option value="">Alle Zustände</option>
-            <option value="near_mint">Near Mint</option>
-            <option value="lightly_played">Lightly Played</option>
-            <option value="moderately_played">Moderately Played</option>
-            <option value="heavily_played">Heavily Played</option>
-            <option value="damaged">Damaged</option>
-          </select>
-          <div class="view-toggle">
-            <button id="btnGrid" class="active" onclick="setViewMode('grid')" title="Raster">⊞</button>
-            <button id="btnList" onclick="setViewMode('list')" title="Liste">☰</button>
+
+          <div class="filter-advanced" id="filterAdvanced">
+            <!-- Standardfilter (Dropdowns) -->
+            <div class="filter-row">
+              <select class="filter-select" id="filterRarity" onchange="applyFilters()">
+                <option value="">Alle Seltenheiten</option>
+                <option value="mythic">Mythic</option>
+                <option value="rare">Rare</option>
+                <option value="uncommon">Uncommon</option>
+                <option value="common">Common</option>
+              </select>
+              <select class="filter-select" id="filterFoil" onchange="applyFilters()">
+                <option value="">Foil / Normal</option>
+                <option value="foil">Foil</option>
+                <option value="normal">Normal</option>
+              </select>
+              <select class="filter-select" id="filterSet" onchange="applyFilters()">
+                <option value="">Alle Sets</option>
+              </select>
+              <select class="filter-select" id="filterCondition" onchange="applyFilters()">
+                <option value="">Alle Zustände</option>
+                <option value="near_mint">Near Mint</option>
+                <option value="lightly_played">Lightly Played</option>
+                <option value="moderately_played">Moderately Played</option>
+                <option value="heavily_played">Heavily Played</option>
+                <option value="damaged">Damaged</option>
+              </select>
+              <select class="filter-select" id="filterType" onchange="applyFilters()">
+                <option value="">Alle Typen</option>
+                <option value="creature">Creature</option>
+                <option value="instant">Instant</option>
+                <option value="sorcery">Sorcery</option>
+                <option value="enchantment">Enchantment</option>
+                <option value="artifact">Artifact</option>
+                <option value="land">Land</option>
+                <option value="planeswalker">Planeswalker</option>
+                <option value="battle">Battle</option>
+              </select>
+            </div>
+
+            <!-- Manawert: Mehrfach-Auswahl als Pills -->
+            <div class="filter-pill-row">
+              <span class="filter-pill-label">Manawert:</span>
+              <button class="filter-pill" data-mv="0" onclick="toggleManaPill(this)">0</button>
+              <button class="filter-pill" data-mv="1" onclick="toggleManaPill(this)">1</button>
+              <button class="filter-pill" data-mv="2" onclick="toggleManaPill(this)">2</button>
+              <button class="filter-pill" data-mv="3" onclick="toggleManaPill(this)">3</button>
+              <button class="filter-pill" data-mv="4" onclick="toggleManaPill(this)">4</button>
+              <button class="filter-pill" data-mv="5+" onclick="toggleManaPill(this)">5+</button>
+              <button class="filter-pill-clear" onclick="clearManaPills()" title="Manawert-Filter zurücksetzen">✕</button>
+            </div>
+
+            <!-- Farbidentität: Mana-Symbol-Buttons -->
+            <div class="filter-pill-row">
+              <span class="filter-pill-label">Farben:</span>
+              <button class="mana-pill mana-w" data-color="W" onclick="toggleColorPill(this)" title="Weiß">W</button>
+              <button class="mana-pill mana-u" data-color="U" onclick="toggleColorPill(this)" title="Blau">U</button>
+              <button class="mana-pill mana-b" data-color="B" onclick="toggleColorPill(this)" title="Schwarz">B</button>
+              <button class="mana-pill mana-r" data-color="R" onclick="toggleColorPill(this)" title="Rot">R</button>
+              <button class="mana-pill mana-g" data-color="G" onclick="toggleColorPill(this)" title="Grün">G</button>
+              <button class="mana-pill mana-c" data-color="C" onclick="toggleColorPill(this)" title="Farblos">◇</button>
+              <span class="filter-hint" id="colorFilterHint">enthält mindestens</span>
+              <button class="filter-pill-clear" onclick="clearColorPills()" title="Farb-Filter zurücksetzen">✕</button>
+            </div>
           </div>
         </div>
         <div class="stats-bar" id="statsBar"></div>
