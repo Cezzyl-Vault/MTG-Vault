@@ -105,9 +105,12 @@ function renderDeckDetail(deck){
         <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
       </div>
     </div>
+    <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${sortedCats.filter(c=>cats[c]).map(cat=>catSection(cat,cats[cat],deck.id)).join('')}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Öffne eine Karte in der Sammlung und füge sie hier hinzu.</p></div>`:''}
   `;
+  // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
+  if(typeof renderDeckStats==='function')renderDeckStats(deck,currentDeckCards);
 }
 
 function catSection(cat,dcCards,deckId){
