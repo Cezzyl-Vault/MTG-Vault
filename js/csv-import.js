@@ -130,7 +130,7 @@ async function parseCSV(text){
   setSyncing('synced');
 
   if(failed){
-    showToast('⚠ Fehler beim Import. Sammlung neu laden.');
+    toastError('Fehler beim Import. Sammlung wird neu geladen.');
     return;
   }
 
