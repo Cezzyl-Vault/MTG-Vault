@@ -118,9 +118,9 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
   box-shadow:0 0 10px rgba(201,168,76,0.4);
 }
 /* Farben gem. offizieller MTG-Farbpalette */
-.mana-w{background:#fffbd5;color:#3a2f00;}
+.mana-w{background:#fefcf0;color:#3a2f00;}
 .mana-u{background:#aae0fa;color:#0e3a5b;}
-.mana-b{background:#cbc2bf;color:#1a1a1a;}
+.mana-b{background:#968a86;color:#1a1a1a;}
 .mana-r{background:#f9aa8f;color:#5b1a0e;}
 .mana-g{background:#9bd3ae;color:#0e3a1f;}
 .mana-c{background:#d8d8d8;color:#3a3a3a;}
@@ -223,4 +223,3 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
 }
 .icon-btn:hover{border-color:var(--gold);color:var(--gold);}
 .icon-btn.danger:hover{border-color:var(--red);color:var(--red);}
-
