@@ -73,6 +73,15 @@ function applyFilters(){
   const foil=document.getElementById('filterFoil').value;
   const set=document.getElementById('filterSet').value;
   const cond=document.getElementById('filterCondition').value;
+  const type=document.getElementById('filterType').value;
+
+  // Manawert-Filter: Set aus aktiven Pills (Strings: '0','1','2','3','4','5+')
+  const manaActive=new Set();
+  document.querySelectorAll('.filter-pill[data-mv].active').forEach(b=>manaActive.add(b.dataset.mv));
+
+  // Farb-Filter: Set aus aktiven Mana-Pills (W,U,B,R,G,C)
+  const colorActive=new Set();
+  document.querySelectorAll('.mana-pill.active').forEach(b=>colorActive.add(b.dataset.color));
 
   // Filter werden auf VARIANTEN angewendet:
   // Eine Group bleibt sichtbar, wenn MINDESTENS EINE ihrer Varianten den Filter erfüllt.
@@ -84,6 +93,42 @@ function applyFilters(){
     if(foil==='normal'&&c.foil==='foil')return false;
     if(set&&c.set_code!==set)return false;
     if(cond&&!(c.condition||'').includes(cond.split('_')[0]))return false;
+
+    // Typ-Filter (z.B. "creature" matched type_line = "Creature — Human Wizard")
+    if(type){
+      const tl=(c.type_line||'').toLowerCase();
+      if(!tl.includes(type))return false;
+    }
+
+    // Manawert-Filter
+    if(manaActive.size){
+      if(c.mana_value==null)return false;
+      const mv=c.mana_value;
+      let hit=false;
+      for(const v of manaActive){
+        if(v==='5+'){if(mv>=5){hit=true;break;}}
+        else if(mv===parseInt(v,10)){hit=true;break;}
+      }
+      if(!hit)return false;
+    }
+
+    // Farb-Filter (Logik: "enthält mindestens diese Farben")
+    // Sonderfall Farblos (C): nur erfüllt, wenn die Karte tatsächlich keine Farbe hat
+    if(colorActive.size){
+      const cardColors=Array.isArray(c.colors)?c.colors:[];
+      if(colorActive.has('C')){
+        // Farblos-Filter: nur Karten mit colors=[] zählen.
+        // (Farblos und andere Farben gleichzeitig sind in der UI gegenseitig ausgeschlossen,
+        //  daher reicht hier die simple Prüfung.)
+        if(cardColors.length>0)return false;
+      }else{
+        // Reguläre Farben: alle ausgewählten müssen in der Karte enthalten sein
+        for(const col of colorActive){
+          if(!cardColors.includes(col))return false;
+        }
+      }
+    }
+
     return true;
   });
 
@@ -104,7 +149,70 @@ function applyFilters(){
     `<span>${totalValue.toFixed(2)} € <strong>Gesamtwert</strong></span>`+
     (isFiltered?`<span style="color:var(--purple)">(von ${allGroups.length} Einträgen)</span>`:'');
 
+  // Indikator am Filter-Toggle: Anzahl aktiver Filter
+  updateFilterToggleBadge();
+
   renderCards();
+}
+
+// ── Filter-UI Helpers (aufrufbar aus dem HTML) ──
+
+function toggleManaPill(btn){btn.classList.toggle('active');applyFilters();}
+function clearManaPills(){
+  document.querySelectorAll('.filter-pill[data-mv].active').forEach(b=>b.classList.remove('active'));
+  applyFilters();
+}
+
+// Toggle Farb-Pill mit Sonderlogik:
+// "Farblos" (C) und reguläre Farben sind gegenseitig ausgeschlossen,
+// damit die Filter-Semantik klar bleibt (nicht "weiße Karten ODER farblose").
+function toggleColorPill(btn){
+  const isColorless=btn.dataset.color==='C';
+  btn.classList.toggle('active');
+  if(btn.classList.contains('active')){
+    document.querySelectorAll('.mana-pill').forEach(o=>{
+      if(o===btn)return;
+      const otherIsColorless=o.dataset.color==='C';
+      if(isColorless!==otherIsColorless)o.classList.remove('active');
+    });
+  }
+  // Hinweis-Text dynamisch: "ist farblos" wenn ◇ aktiv, sonst "enthält mindestens"
+  const hint=document.getElementById('colorFilterHint');
+  if(hint){
+    const colorlessActive=document.querySelector('.mana-pill[data-color="C"]')?.classList.contains('active');
+    hint.textContent=colorlessActive?'ist farblos':'enthält mindestens';
+  }
+  applyFilters();
+}
+function clearColorPills(){
+  document.querySelectorAll('.mana-pill.active').forEach(b=>b.classList.remove('active'));
+  const hint=document.getElementById('colorFilterHint');
+  if(hint)hint.textContent='enthält mindestens';
+  applyFilters();
+}
+
+// Mobile: Filter-Bereich ein-/ausklappen
+function toggleAdvancedFilters(){
+  const adv=document.getElementById('filterAdvanced');
+  const btn=document.getElementById('filterToggleBtn');
+  adv.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
+// Badge am Filter-Button: Anzahl aktiver Filter (für mobile sichtbar)
+function updateFilterToggleBadge(){
+  let count=0;
+  if(document.getElementById('filterRarity').value)count++;
+  if(document.getElementById('filterFoil').value)count++;
+  if(document.getElementById('filterSet').value)count++;
+  if(document.getElementById('filterCondition').value)count++;
+  if(document.getElementById('filterType').value)count++;
+  count+=document.querySelectorAll('.filter-pill[data-mv].active').length>0?1:0;
+  count+=document.querySelectorAll('.mana-pill.active').length>0?1:0;
+  const btn=document.getElementById('filterToggleBtn');
+  if(!btn)return;
+  btn.classList.toggle('has-active',count>0);
+  btn.dataset.count=count||'';
 }
 
 function renderCards(){
