@@ -191,3 +191,36 @@ details summary{outline:none;}
   background:linear-gradient(90deg,var(--gold-dim),var(--gold));
   transition:width 0.25s ease-out;
 }
+
+/* ── BUTTON LADE-ZUSTAND ── */
+.btn.is-busy,button.is-busy{
+  opacity:0.7;cursor:wait;
+}
+.btn-spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid currentColor;
+  border-right-color:transparent;
+  border-radius:50%;
+  animation:btn-spin 0.7s linear infinite;
+  margin-right:0.45rem;vertical-align:-2px;
+}
+@keyframes btn-spin{to{transform:rotate(360deg);}}
+
+/* ── TOAST-VARIANTEN (success / error / info) ── */
+/* Default-Toast bleibt wie er ist (gold-akzentuiert), die Varianten unterscheiden sich nur in Border + Icon-Farbe */
+.toast.error{border-color:var(--red);}
+.toast.error::before{
+  content:'⚠';
+  color:var(--red);font-size:1rem;font-weight:600;
+  margin-right:0.5rem;vertical-align:-1px;
+}
+.toast.success::before{
+  content:'✓';
+  color:var(--green);font-size:1rem;font-weight:600;
+  margin-right:0.5rem;vertical-align:-1px;
+}
+.toast.info::before{
+  content:'ℹ';
+  color:var(--teal);font-size:1rem;font-weight:600;
+  margin-right:0.5rem;vertical-align:-1px;
+}
