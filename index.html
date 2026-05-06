@@ -119,7 +119,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.68</small></div>
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.5</small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -433,6 +433,7 @@ alter table cards add column if not exists type_line text;</div>
 <script src="js/auth.js" defer></script>
 <script src="js/csv-import.js" defer></script>
 <script src="js/collection.js" defer></script>
+<script src="js/deck-stats.js" defer></script>
 <script src="js/decks.js" defer></script>
 <script src="js/stats.js" defer></script>
 <script src="js/app.js" defer></script>
