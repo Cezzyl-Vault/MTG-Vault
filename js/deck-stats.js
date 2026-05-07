@@ -173,9 +173,9 @@ function renderDeckStats(deck,deckCards){
   target.innerHTML=`
     <div class="deck-stats-header">
       <h3>◈ DECK-STATISTIK</h3>
-      <button class="deck-stats-toggle" onclick="toggleDeckStats(this)" data-collapsed="false">Einklappen ▴</button>
+      <button class="deck-stats-toggle" onclick="toggleDeckStats(this)" data-collapsed="true">Ausklappen ▾</button>
     </div>
-    <div class="deck-stats-body">
+    <div class="deck-stats-body" style="display:none">
       ${unenrichedHint}
       <div class="deck-kpi-row">
         <div class="kpi"><div class="kpi-val">${s.totalCards}</div><div class="kpi-label">Karten</div></div>

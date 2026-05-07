@@ -1,12 +1,40 @@
 // ══════════════════════════════════════════════════════════
 //  DECKS  ·  Decks-Übersicht, Deck-Detail, Kategorien
 // ══════════════════════════════════════════════════════════
-function renderDecks(){
+async function renderDecks(){
   const grid=document.getElementById('decksGrid');
   const empty=document.getElementById('decks-empty');
   if(!allDecks.length){empty.style.display='';grid.innerHTML='';return;}
   empty.style.display='none';
-  grid.innerHTML=allDecks.map(d=>`
+
+  // Statistiken pro Deck einmalig in einem einzigen DB-Call holen.
+  // Vorher wurden n DB-Calls gemacht (1 pro Deck), das ist deutlich schneller
+  // bei mehreren Decks und liefert gleich auch die Wertberechnung mit.
+  const stats={};  // {deckId: {count, value}}
+  try{
+    const{data:deckCards,error}=await _sb.from('deck_cards').select('deck_id,card_id,quantity');
+    if(!error&&deckCards){
+      for(const dc of deckCards){
+        if(!stats[dc.deck_id])stats[dc.deck_id]={count:0,value:0};
+        stats[dc.deck_id].count+=dc.quantity;
+        const card=allCards.find(c=>c.id===dc.card_id);
+        stats[dc.deck_id].value+=(parseFloat(card?.purchase_price)||0)*dc.quantity;
+      }
+    }
+  }catch(e){
+    // Falls das fehlschlägt, rendern wir die Decks ohne Statistiken — Hauptsache,
+    // die Übersicht ist überhaupt sichtbar
+  }
+
+  grid.innerHTML=allDecks.map(d=>{
+    const s=stats[d.id]||{count:0,value:0};
+    // Stats-Reihe: erweiterbar — weitere KPIs einfach hier ergänzen
+    const statsRow=`
+      <div class="deck-card-stats">
+        <span class="dcs-item"><strong>${s.count}</strong> Karten</span>
+        ${s.value>0?`<span class="dcs-item"><strong>${s.value.toFixed(2)} €</strong> Wert</span>`:''}
+      </div>`;
+    return`
     <div class="deck-card" onclick="openDeckDetail('${d.id}')">
       <div class="deck-actions" onclick="event.stopPropagation()">
         <button class="deck-act-btn" onclick="openDeckModal('${d.id}')" title="Bearbeiten">✎</button>
@@ -14,17 +42,10 @@ function renderDecks(){
       </div>
       <div class="deck-name">${esc(d.name)}</div>
       <div class="deck-desc">${esc(d.description||'')}</div>
-      <div class="deck-meta">
-        ${d.format?`<span class="deck-tag">${esc(d.format)}</span>`:''}
-        <span class="deck-count" id="dcount-${d.id}">Lädt…</span>
-      </div>
-    </div>`).join('');
-  // Load card counts
-  allDecks.forEach(async d=>{
-    const{count}=await _sb.from('deck_cards').select('*',{count:'exact',head:true}).eq('deck_id',d.id);
-    const el=document.getElementById('dcount-'+d.id);
-    if(el)el.textContent=`${count||0} Einträge`;
-  });
+      ${statsRow}
+      ${d.format?`<div class="deck-meta"><span class="deck-tag">${esc(d.format)}</span></div>`:''}
+    </div>`;
+  }).join('');
 }
 
 function openDeckModal(id=null){
@@ -153,18 +174,22 @@ function uncategorizedSection(dcCards,deckId){
 }
 
 // Eine Karten-Zeile — extrahiert, damit catSection und uncategorizedSection sie teilen.
+// Eine Karten-Zeile im Deck-Detail.
+// Klick auf die Zeile öffnet das Kategorie-Wechsel-Modal — bessere Treffsicherheit
+// als ein kleines 📂-Icon, vor allem auf Mobile.
+// Der ✕-Button hat event.stopPropagation, damit er nicht versehentlich auch
+// das Kategorie-Modal öffnet.
 function deckCardRow(dc){
   const card=allCards.find(c=>c.id===dc.card_id);
   const img=card?iUrl(card):null;
-  return`<div class="deck-card-row">
+  return`<div class="deck-card-row" onclick="openChangeCategoryModal('${dc.id}')" title="Kategorie ändern">
     ${img?`<img class="dc-img" src="${img}" alt="${esc(card?.name||'')}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
       <div class="dc-name">${esc(card?.name||dc.card_id)}</div>
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}</div>
     </div>
     <span class="dc-qty">×${dc.quantity}</span>
-    <button class="dc-action" onclick="openChangeCategoryModal('${dc.id}')" title="Kategorie ändern">📂</button>
-    <button class="dc-remove" onclick="removeDeckCard('${dc.id}')" title="Entfernen">✕</button>
+    <button class="dc-remove" onclick="event.stopPropagation();removeDeckCard('${dc.id}')" title="Entfernen">✕</button>
   </div>`;
 }
 
