@@ -187,6 +187,13 @@ function renderDeckValidation(deck,deckCards){
   const errors=issues.filter(i=>!i.ok);
   const allOk=errors.length===0;
 
+  // Verhalten: Wenn alles ok ist, Panel standardmäßig eingeklappt — Status-Pille
+  // rechts oben verrät den Zustand auf einen Blick. Bei Problemen ausgeklappt,
+  // damit der User sofort sieht, was zu tun ist.
+  const startCollapsed=allOk;
+  const arrowIcon=startCollapsed?'▾':'▴';
+  const bodyStyleAttr=startCollapsed?' style="display:none"':'';
+
   // Status-Pille rechts oben
   const statusHTML=allOk
     ?`<span class="dv-status ok">✓ LEGAL</span>`
@@ -211,12 +218,27 @@ function renderDeckValidation(deck,deckCards){
   }).join('');
 
   target.innerHTML=`
-    <div class="dv-header">
+    <div class="dv-header" onclick="toggleDeckValidation(this)" title="Klicken zum Auf-/Zuklappen">
       <h3>◈ COMMANDER-VALIDIERUNG</h3>
-      ${statusHTML}
+      <div class="dv-header-right">
+        ${statusHTML}
+        <span class="dv-arrow">${arrowIcon}</span>
+      </div>
     </div>
-    <div class="dv-body">
+    <div class="dv-body"${bodyStyleAttr}>
       ${unenrichedHint}
       ${issueRows}
     </div>`;
+}
+
+// Header-Klick toggelt das Panel.
+// Wir schauen den aktuellen Zustand am DOM ab (display:none oder nicht) statt
+// data-Attribute zu pflegen — robuster, weil's bei Re-Render automatisch passt.
+function toggleDeckValidation(headerEl){
+  const panel=headerEl.closest('.deck-validation-panel');
+  const body=panel.querySelector('.dv-body');
+  const arrow=panel.querySelector('.dv-arrow');
+  const isHidden=body.style.display==='none';
+  body.style.display=isHidden?'':'none';
+  arrow.textContent=isHidden?'▴':'▾';
 }
