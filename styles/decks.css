@@ -303,3 +303,17 @@
   word-break:break-word;
 }
 .dv-row.err .dv-detail{color:var(--text);}
+
+/* ── COMMANDER-KATEGORIE (geschützt in Commander-Decks) ── */
+.commander-section{
+  border:1px solid var(--gold-dim);
+  background:rgba(201,168,76,0.04);
+  border-radius:10px;
+  padding:0.6rem 0.8rem;
+  margin-bottom:1.5rem;
+}
+.commander-section .category-header{
+  border-bottom-color:var(--gold-dim);
+}
+/* Pfeile sind in der Commander-Sektion zwar disabled, aber visuell noch vorhanden —
+   das ist OK, signalisiert "nicht verschiebbar". Der Lösch-Button fehlt komplett. */
