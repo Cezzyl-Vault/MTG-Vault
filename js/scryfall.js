@@ -47,6 +47,9 @@ async function enrichCards(cards, onProgress){
           card.mana_value=sf.cmc!=null?Math.floor(sf.cmc):null;
           card.colors=sf.colors||[];
           card.type_line=sf.type_line||null;
+          // Neu (für Commander-Validierung):
+          card.color_identity=sf.color_identity||[];
+          card.legal_commander=sf.legalities?.commander||null;
         }
       }
     }catch(e){
@@ -66,17 +69,22 @@ async function enrichCards(cards, onProgress){
 
 // ── Schema-Check: Existieren die neuen Spalten überhaupt? ──
 // Wenn allCards leer ist, können wir's nicht prüfen → annehmen, dass Schema OK ist.
-// Falls die SQL-Migration noch nicht gelaufen ist, fehlt mana_value komplett aus dem Objekt.
+// Falls die SQL-Migration noch nicht gelaufen ist, fehlt mana_value bzw. legal_commander
+// komplett als Property vom Karten-Objekt.
 function isSchemaMigrated(){
   if(!allCards.length)return true;
-  // Ist das Property überhaupt definiert (auch wenn null)? Wenn ja: Schema ist da.
-  return 'mana_value' in allCards[0];
+  // Beide alte UND neue Felder müssen als Property existieren (auch wenn null).
+  return 'mana_value' in allCards[0] && 'legal_commander' in allCards[0];
 }
 
 // ── Findet Karten in der Sammlung, die noch keine angereicherten Daten haben ──
+// Erweitert: deckt auch die neuen Validierungs-Felder ab.
 function findUnenrichedCards(){
   return allCards.filter(c=>
-    c.scryfall_id&&(c.type_line==null||c.mana_value==null)
+    c.scryfall_id&&(
+      c.type_line==null||c.mana_value==null||
+      c.legal_commander==null||c.color_identity==null
+    )
   );
 }
 
