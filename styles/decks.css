@@ -190,3 +190,22 @@
 .uncategorized-section .category-header{
   background:transparent;
 }
+
+/* ── KATEGORIE-VERSCHIEBE-BUTTONS (▲/▼) ── */
+.cat-move-btn{
+  background:transparent;border:1px solid var(--border2);color:var(--text3);
+  width:24px;height:24px;border-radius:4px;cursor:pointer;
+  font-size:0.65rem;line-height:1;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:all 0.15s;
+}
+.cat-move-btn:hover:not(:disabled){
+  border-color:var(--gold-dim);color:var(--gold);
+}
+.cat-move-btn:disabled{
+  opacity:0.25;cursor:not-allowed;
+}
+/* Auf Mobile: etwas größere Touch-Targets */
+@media(max-width:768px){
+  .cat-move-btn{width:30px;height:30px;font-size:0.75rem;}
+}
