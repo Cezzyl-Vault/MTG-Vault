@@ -95,7 +95,24 @@ function openDeckModal(id=null){
 async function saveDeck(){
   const name=document.getElementById('deckName').value.trim();
   if(!name){showToast('Name erforderlich.');return;}
-  const fields={name,description:document.getElementById('deckDesc').value.trim(),format:document.getElementById('deckFormat').value};
+  const format=document.getElementById('deckFormat').value;
+  const fields={name,description:document.getElementById('deckDesc').value.trim(),format};
+
+  // Commander-Format-Spezialregel: Sicherstellen, dass die Kategorie "Commander"
+  // ganz oben in der Reihenfolge steht. Wir setzen category_order beim Speichern,
+  // damit die Sortierung sofort wirkt — auch beim ersten Öffnen.
+  if(format==='Commander'){
+    let order=[];
+    if(editingDeckId){
+      const existing=allDecks.find(d=>d.id===editingDeckId);
+      if(existing&&Array.isArray(existing.category_order))order=[...existing.category_order];
+    }
+    // "Commander" voranstellen, falls noch nicht enthalten
+    order=order.filter(c=>c!=='Commander');
+    order.unshift('Commander');
+    fields.category_order=order;
+  }
+
   if(editingDeckId){
     if(await updateDeckDB(editingDeckId,fields)){
       const idx=allDecks.findIndex(d=>d.id===editingDeckId);
@@ -179,7 +196,7 @@ function renderDeckDetail(deck){
     <div class="deck-validation-panel" id="deck-validation-panel"></div>
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
-    ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length)).join('')}
+    ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length,deck.format)).join('')}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Öffne eine Karte in der Sammlung und füge sie hier hinzu.</p></div>`:''}
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
@@ -224,22 +241,38 @@ function deckCardRow(dc){
   </div>`;
 }
 
-function catSection(cat,dcCards,deckId,index,total){
+function catSection(cat,dcCards,deckId,index,total,deckFormat){
   const total_qty=dcCards.reduce((s,dc)=>s+dc.quantity,0);
   const rows=dcCards.map(dc=>deckCardRow(dc)).join('');
-  // ▲/▼ deaktivieren am Anfang/Ende
-  const upDisabled=index===0?'disabled':'';
-  const downDisabled=index===total-1?'disabled':'';
-  return`<div class="category-section">
+
+  // Sonderbehandlung: In Commander-Decks ist die "Commander"-Kategorie geschützt.
+  // Sie steht immer ganz oben (forced position), kann nicht verschoben oder gelöscht werden.
+  const isLockedCommanderCat=(deckFormat==='Commander'&&cat==='Commander');
+
+  // ▲/▼ deaktivieren am Anfang/Ende ODER für die geschützte Commander-Kategorie
+  const upDisabled=(index===0||isLockedCommanderCat)?'disabled':'';
+  const downDisabled=(index===total-1||isLockedCommanderCat)?'disabled':'';
+
+  // Lösch-Button bei der geschützten Commander-Kategorie ganz weglassen
+  const deleteBtn=isLockedCommanderCat
+    ?''
+    :`<button class="del-cat-btn" onclick="removeCategory('${deckId}','${esc(cat)}')" title="Kategorie entfernen">🗑 Kategorie</button>`;
+
+  // Visuelle Markierung für die Commander-Kategorie (kleines Krönchen)
+  const catLabel=isLockedCommanderCat
+    ?`👑 ${esc(cat)}`
+    :`◈ ${esc(cat)}`;
+
+  return`<div class="category-section${isLockedCommanderCat?' commander-section':''}">
     <div class="category-header">
       <div class="category-name">
         <button class="cat-move-btn" onclick="moveCategoryUp('${esc(cat)}')" ${upDisabled} title="Nach oben">▲</button>
         <button class="cat-move-btn" onclick="moveCategoryDown('${esc(cat)}')" ${downDisabled} title="Nach unten">▼</button>
-        ◈ ${esc(cat)} <span class="category-count">${total_qty} Karten</span>
+        ${catLabel} <span class="category-count">${total_qty} Karten</span>
       </div>
       <div style="display:flex;gap:0.5rem">
         <button class="del-cat-btn" onclick="openAddCardsModal('${esc(cat)}')" title="Karten zu dieser Kategorie hinzufügen">+ Karten</button>
-        <button class="del-cat-btn" onclick="removeCategory('${deckId}','${esc(cat)}')" title="Kategorie entfernen">🗑 Kategorie</button>
+        ${deleteBtn}
       </div>
     </div>
     ${rows}
@@ -281,6 +314,14 @@ async function removeDeckCard(dcId){
 }
 
 async function removeCategory(deckId,category){
+  // Schutz: Commander-Kategorie in Commander-Decks ist fest und darf nicht
+  // gelöscht werden — sie ist die Grundlage für die Validierung.
+  const deck=allDecks.find(d=>d.id===deckId);
+  if(deck&&deck.format==='Commander'&&category==='Commander'){
+    toastError('Die "Commander"-Kategorie ist in Commander-Decks fest und kann nicht entfernt werden.');
+    return;
+  }
+
   if(!await confirmAction(`Kategorie "${category}" und alle Karten-Zuordnungen darin aus dem Deck entfernen? Die Karten bleiben in deiner Sammlung.`,{
     title:'KATEGORIE LÖSCHEN',
     confirmLabel:'Löschen',
@@ -288,8 +329,8 @@ async function removeCategory(deckId,category){
   }))return;
   if(await removeCategoryDB(deckId,category)){
     currentDeckCards=currentDeckCards.filter(dc=>dc.category!==category);
-    const deck=allDecks.find(d=>d.id===deckId);
-    renderDeckDetail(deck);toastSuccess(`Kategorie "${category}" entfernt`);
+    const deck2=allDecks.find(d=>d.id===deckId);
+    renderDeckDetail(deck2);toastSuccess(`Kategorie "${category}" entfernt`);
   }
 }
 
@@ -511,6 +552,9 @@ async function moveCategoryDown(category){
 async function moveCategoryByOffset(category,offset){
   const deck=allDecks.find(d=>d.id===activeDeckId);
   if(!deck)return;
+
+  // Schutz: Commander-Kategorie in Commander-Decks ist fixiert
+  if(deck.format==='Commander'&&category==='Commander')return;
 
   // Aktuelle Reihenfolge berechnen — wie in renderDeckDetail
   const cats={};
