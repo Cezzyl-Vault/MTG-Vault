@@ -99,8 +99,19 @@ function renderDeckDetail(deck){
   });
   const totalCards=currentDeckCards.reduce((s,dc)=>s+dc.quantity,0);
 
-  const catOrder=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
-  const sortedCats=[...new Set([...catOrder.filter(c=>cats[c]),...Object.keys(cats)])];
+  // Reihenfolge der Kategorien: gespeicherte Reihenfolge aus deck.category_order
+  // hat Vorrang. Neue (noch nicht gespeicherte) Kategorien hängen wir hinten an.
+  // Die Default-Liste wird nur verwendet, wenn das Deck noch nie sortiert wurde
+  // — als sinnvoller Erst-Vorschlag.
+  const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const savedOrder=Array.isArray(deck.category_order)?[...deck.category_order]:[];
+  const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER;
+  // Bestehende Reihenfolge übernehmen, dann alle Kategorien aus dem Deck hinten dranhängen,
+  // die noch nicht in der Reihenfolge stehen
+  const sortedCats=[...new Set([...baseOrder.filter(c=>cats[c]),...Object.keys(cats)])];
+
+  // Pro Kategorie wissen wir den Index, damit ▲/▼-Buttons den ersten/letzten korrekt deaktivieren
+  const visibleCats=sortedCats.filter(c=>cats[c]);
 
   detailView.innerHTML=`
     <div class="deck-detail-header">
@@ -118,7 +129,7 @@ function renderDeckDetail(deck){
     </div>
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
-    ${sortedCats.filter(c=>cats[c]).map(cat=>catSection(cat,cats[cat],deck.id)).join('')}
+    ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length)).join('')}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Öffne eine Karte in der Sammlung und füge sie hier hinzu.</p></div>`:''}
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
@@ -157,12 +168,19 @@ function deckCardRow(dc){
   </div>`;
 }
 
-function catSection(cat,dcCards,deckId){
-  const total=dcCards.reduce((s,dc)=>s+dc.quantity,0);
+function catSection(cat,dcCards,deckId,index,total){
+  const total_qty=dcCards.reduce((s,dc)=>s+dc.quantity,0);
   const rows=dcCards.map(dc=>deckCardRow(dc)).join('');
+  // ▲/▼ deaktivieren am Anfang/Ende
+  const upDisabled=index===0?'disabled':'';
+  const downDisabled=index===total-1?'disabled':'';
   return`<div class="category-section">
     <div class="category-header">
-      <div class="category-name">◈ ${esc(cat)} <span class="category-count">${total} Karten</span></div>
+      <div class="category-name">
+        <button class="cat-move-btn" onclick="moveCategoryUp('${esc(cat)}')" ${upDisabled} title="Nach oben">▲</button>
+        <button class="cat-move-btn" onclick="moveCategoryDown('${esc(cat)}')" ${downDisabled} title="Nach unten">▼</button>
+        ◈ ${esc(cat)} <span class="category-count">${total_qty} Karten</span>
+      </div>
       <div style="display:flex;gap:0.5rem">
         <button class="del-cat-btn" onclick="openAddCardsModal('${esc(cat)}')" title="Karten zu dieser Kategorie hinzufügen">+ Karten</button>
         <button class="del-cat-btn" onclick="removeCategory('${deckId}','${esc(cat)}')" title="Kategorie entfernen">🗑 Kategorie</button>
@@ -414,4 +432,54 @@ async function confirmChangeCategory(){
   closeModal('changeCategoryModal');
   changingCategoryDcId=null;
   toastSuccess(newCategory?`Verschoben nach "${newCategory}"`:'In "Ohne Kategorie" verschoben');
+}
+
+// ── KATEGORIE-REIHENFOLGE ÄNDERN ──
+//
+// Verschiebt eine Kategorie eine Position rauf bzw. runter und speichert die
+// neue Reihenfolge in deck.category_order zurück in die DB.
+//
+// Funktionsweise:
+//   1. Aktuelle effektive Reihenfolge berechnen (saved order + neue Kategorien hinten)
+//   2. Position der Kategorie finden, mit Nachbar tauschen
+//   3. Neue Reihenfolge in DB speichern (decks.category_order)
+//   4. Lokales allDecks updaten und Detail neu rendern
+
+async function moveCategoryUp(category){
+  await moveCategoryByOffset(category,-1);
+}
+async function moveCategoryDown(category){
+  await moveCategoryByOffset(category,1);
+}
+
+async function moveCategoryByOffset(category,offset){
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(!deck)return;
+
+  // Aktuelle Reihenfolge berechnen — wie in renderDeckDetail
+  const cats={};
+  currentDeckCards.forEach(dc=>{
+    const cat=(dc.category||'').trim();
+    if(cat){if(!cats[cat])cats[cat]=[];cats[cat].push(dc);}
+  });
+  const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const savedOrder=Array.isArray(deck.category_order)?[...deck.category_order]:[];
+  const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER;
+  const visibleCats=[...new Set([...baseOrder.filter(c=>cats[c]),...Object.keys(cats)])].filter(c=>cats[c]);
+
+  const idx=visibleCats.indexOf(category);
+  const newIdx=idx+offset;
+  if(idx===-1||newIdx<0||newIdx>=visibleCats.length)return;
+
+  // Tauschen
+  [visibleCats[idx],visibleCats[newIdx]]=[visibleCats[newIdx],visibleCats[idx]];
+
+  // In DB speichern (lokal: zuerst, damit's instant rendern kann)
+  const{error}=await _sb.from('decks').update({category_order:visibleCats}).eq('id',deck.id);
+  if(error){
+    toastError('Konnte Reihenfolge nicht speichern: '+error.message);
+    return;
+  }
+  deck.category_order=visibleCats;
+  renderDeckDetail(deck);
 }
