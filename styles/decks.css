@@ -83,11 +83,10 @@
   color:var(--text);border-radius:5px;font-family:'Cinzel',serif;
   font-size:0.7rem;padding:0.15rem 0.45rem;white-space:nowrap;
 }
-.dc-action,.dc-remove{
+.dc-remove{
   background:transparent;border:none;color:var(--text3);font-size:0.8rem;
   cursor:pointer;padding:0.25rem;border-radius:4px;transition:color 0.2s;
 }
-.dc-action:hover{color:var(--gold);}
 .dc-remove:hover{color:var(--red);}
 
 
@@ -208,4 +207,35 @@
 /* Auf Mobile: etwas größere Touch-Targets */
 @media(max-width:768px){
   .cat-move-btn{width:30px;height:30px;font-size:0.75rem;}
+}
+
+/* ── DECK-CARD-ROW jetzt klickbar (Klick → Kategorie wechseln) ── */
+.deck-card-row{
+  cursor:pointer;transition:background 0.15s;
+}
+.deck-card-row:hover{
+  background:rgba(201,168,76,0.05);
+}
+
+/* ── DECK-CARD-STATS in der Übersicht (Wert + Karten-Anzahl) ── */
+.deck-card-stats{
+  display:flex;gap:1rem;flex-wrap:wrap;
+  margin:0.7rem 0 0.4rem 0;
+  font-size:0.8rem;color:var(--text2);
+}
+.dcs-item strong{
+  color:var(--gold);font-size:0.95rem;font-weight:600;margin-right:0.2rem;
+}
+
+/* dc-action existiert nicht mehr, dc-remove bleibt allein */
+
+/* ── DECK-CARD FARB-INDIKATOREN (kleine farbige Punkte) ── */
+.deck-card-colors{
+  display:flex;gap:0.3rem;
+  margin:0.2rem 0 0.4rem 0;
+}
+.dcs-color{
+  width:14px;height:14px;border-radius:50%;
+  border:1px solid rgba(255,255,255,0.15);
+  display:inline-block;flex-shrink:0;
 }
