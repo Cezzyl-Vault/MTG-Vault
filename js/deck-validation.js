@@ -30,10 +30,15 @@ function validateCommanderDeck(deckCards){
   const commanderEntries=deckCards.filter(dc=>(dc.category||'').toLowerCase()==='commander');
   const commanders=commanderEntries.map(dvCard).filter(Boolean);
 
-  // Hilfsdaten sammeln
-  let totalCards=0;
+  // Hilfsdaten sammeln. Wir trennen Hauptdeck und Sideboard:
+  // - Hauptdeck: alle Karten, deren Kategorie NICHT "Sideboard" ist
+  // - Sideboard: Kategorie === "Sideboard" (case-insensitive)
+  // Singleton-Regel und alle anderen Regeln gelten über beide hinweg
+  // (d.h. Sol Ring im Hauptdeck UND Sideboard ist eine Singleton-Verletzung).
+  let mainCount=0;
+  let sideboardCount=0;
   let unenriched=0;
-  const cardCounts={};       // Kartenname → Gesamtanzahl (für Singleton)
+  const cardCounts={};       // Kartenname → Gesamtanzahl (für Singleton, beide Bereiche)
   const illegalCards=[];     // Karten mit legal_commander = 'not_legal'
   const bannedCards=[];      // Karten mit legal_commander = 'banned'
   const colorViolators=[];   // Karten außerhalb der Farbidentität
@@ -48,7 +53,8 @@ function validateCommanderDeck(deckCards){
   for(const dc of deckCards){
     const card=dvCard(dc);if(!card)continue;
     const qty=dc.quantity||1;
-    totalCards+=qty;
+    const isSideboard=(dc.category||'').toLowerCase()==='sideboard';
+    if(isSideboard)sideboardCount+=qty;else mainCount+=qty;
 
     // Kann diese Karte überhaupt validiert werden?
     if(card.legal_commander==null||card.color_identity==null){
@@ -82,17 +88,18 @@ function validateCommanderDeck(deckCards){
     }
   }
 
-  // ── Regel 1: Karten-Anzahl ──
+  // ── Regel 1: Karten-Anzahl (Hauptdeck = 100, Sideboard separat ohne Limit) ──
+  const sideboardSuffix=sideboardCount>0?` + ${sideboardCount} Sideboard`:'';
   issues.push({
     rule:'count',
     label:'Karten-Anzahl',
-    ok:totalCards===100,
-    detail:totalCards===100
-      ?`100 Karten ✓`
-      :`${totalCards} Karten — sollten 100 sein (Commander + 99)`
+    ok:mainCount===100,
+    detail:mainCount===100
+      ?`100 Hauptdeck${sideboardSuffix} ✓`
+      :`${mainCount} Hauptdeck${sideboardSuffix} — Hauptdeck sollte 100 sein (Commander + 99)`
   });
 
-  // ── Regel 2: Singleton ──
+  // ── Regel 2: Singleton (Hauptdeck + Sideboard zusammen, außer Basic Lands) ──
   const duplicates=Object.entries(cardCounts).filter(([_,n])=>n>1);
   issues.push({
     rule:'singleton',
@@ -129,13 +136,16 @@ function validateCommanderDeck(deckCards){
   });
 
   // ── Regel 5: Farbidentität ──
+  // Sonderfall: Kategorie "Commander" gibt es, aber sie ist leer
+  // (in Commander-Decks ist die Kategorie ja auto-angelegt — wir merken hier nur
+  // an, dass sie befüllt werden muss)
   if(commanders.length===0){
     issues.push({
       rule:'identity',
       label:'Farbidentität',
       ok:false,
       warning:true,
-      detail:'Kein Commander zugeordnet — Karte in Kategorie "Commander" packen, damit die Farbidentität geprüft werden kann'
+      detail:'Kategorie "Commander" ist leer — Karte hineinverschieben, damit die Farbidentität geprüft werden kann'
     });
   }else{
     const colorList=[...commanderColors].sort().join('') || 'Farblos';
@@ -151,7 +161,7 @@ function validateCommanderDeck(deckCards){
     });
   }
 
-  return{issues,unenriched,totalCards};
+  return{issues,unenriched,mainCount,sideboardCount};
 }
 
 // ── Rendering ──
@@ -173,7 +183,7 @@ function renderDeckValidation(deck,deckCards){
     return;
   }
 
-  const{issues,unenriched,totalCards}=validateCommanderDeck(deckCards);
+  const{issues,unenriched,mainCount,sideboardCount}=validateCommanderDeck(deckCards);
   const errors=issues.filter(i=>!i.ok);
   const allOk=errors.length===0;
 
