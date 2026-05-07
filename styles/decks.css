@@ -317,3 +317,21 @@
 }
 /* Pfeile sind in der Commander-Sektion zwar disabled, aber visuell noch vorhanden —
    das ist OK, signalisiert "nicht verschiebbar". Der Lösch-Button fehlt komplett. */
+
+/* ── DV-HEADER klickbar machen ── */
+.dv-header{
+  cursor:pointer;
+  user-select:none;
+  transition:background 0.15s;
+}
+.dv-header:hover{
+  background:rgba(201,168,76,0.07);
+}
+.dv-header-right{
+  display:flex;align-items:center;gap:0.6rem;
+}
+.dv-arrow{
+  color:var(--text3);font-size:0.75rem;
+  transition:color 0.15s;
+}
+.dv-header:hover .dv-arrow{color:var(--gold);}
