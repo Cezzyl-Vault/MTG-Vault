@@ -176,6 +176,7 @@ function renderDeckDetail(deck){
         <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
       </div>
     </div>
+    <div class="deck-validation-panel" id="deck-validation-panel"></div>
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
     ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length)).join('')}
@@ -183,6 +184,8 @@ function renderDeckDetail(deck){
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
   if(typeof renderDeckStats==='function')renderDeckStats(deck,currentDeckCards);
+  // Validierungs-Panel füllen (eigene Funktion in deck-validation.js)
+  if(typeof renderDeckValidation==='function')renderDeckValidation(deck,currentDeckCards);
 }
 
 // Sektion für Karten ohne Kategorie — visuell etwas dezenter als kategorisierte Bereiche.
