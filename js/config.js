@@ -38,6 +38,11 @@ function showAuth(){s('configScreen','none');s('authScreen','flex');s('appScreen
 function showApp(user){
   currentUser=user;
   s('configScreen','none');s('authScreen','none');s('appScreen','block');
+  // Start-Reiter aus den Nutzer-Einstellungen anwenden (default: Sammlung)
+  if(typeof loadSettings==='function'){
+    const settings=loadSettings();
+    if(settings.startTab&&settings.startTab!=='collection')switchView(settings.startTab);
+  }
   loadAll();
 }
 function s(id,disp){document.getElementById(id).style.display=disp;}

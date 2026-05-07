@@ -152,6 +152,7 @@ function deckCardRow(dc){
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}</div>
     </div>
     <span class="dc-qty">×${dc.quantity}</span>
+    <button class="dc-action" onclick="openChangeCategoryModal('${dc.id}')" title="Kategorie ändern">📂</button>
     <button class="dc-remove" onclick="removeDeckCard('${dc.id}')" title="Entfernen">✕</button>
   </div>`;
 }
@@ -352,3 +353,65 @@ async function confirmAddCardsToDeck(){
   showToast(fail?`${ok} hinzugefügt ${target}, ${fail} Fehler`:`✓ ${ok} Karte${ok===1?'':'n'} ${target} hinzugefügt`);
 }
 
+
+// ── KATEGORIE-WECHSEL ──
+//
+// Erlaubt es, eine Karte im Deck nachträglich einer anderen Kategorie
+// zuzuordnen oder die Kategorie zu entfernen ("Ohne Kategorie").
+
+let changingCategoryDcId = null;  // welcher Deck-Card-Eintrag wird gerade verschoben
+
+function openChangeCategoryModal(dcId){
+  const dc=currentDeckCards.find(c=>c.id===dcId);
+  if(!dc)return;
+  changingCategoryDcId=dcId;
+  const card=allCards.find(c=>c.id===dc.card_id);
+
+  // Karten-Name + aktuelle Kategorie anzeigen
+  const currentCat=dc.category||'Ohne Kategorie';
+  document.getElementById('changeCategoryCardName').innerHTML=
+    `<strong>${esc(card?.name||'Karte')}</strong> — aktuell: <em style="color:var(--text2)">${esc(currentCat)}</em>`;
+
+  // Eingabefeld leer + Vorschläge aus existierenden Kategorien des Decks + Standard-Kategorien
+  document.getElementById('changeCategoryInput').value='';
+  const existingCats=[...new Set(currentDeckCards.map(c=>c.category).filter(Boolean))];
+  const standardCats=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const allCats=[...new Set([...existingCats,...standardCats])];
+  document.getElementById('changeCategorySuggestions').innerHTML=allCats.map(c=>`<option value="${esc(c)}">`).join('');
+
+  document.getElementById('changeCategoryModal').classList.add('open');
+  setTimeout(()=>document.getElementById('changeCategoryInput').focus(),50);
+}
+
+async function confirmChangeCategory(){
+  if(!changingCategoryDcId)return;
+  const newCategory=(document.getElementById('changeCategoryInput').value||'').trim();
+  // Leerer String → null in DB → Karte landet wieder bei "Ohne Kategorie"
+  const categoryToSave=newCategory||null;
+
+  const dc=currentDeckCards.find(c=>c.id===changingCategoryDcId);
+  if(!dc){closeModal('changeCategoryModal');return;}
+
+  // Wenn sich nichts ändert, einfach Modal schließen
+  if((dc.category||null)===categoryToSave){
+    closeModal('changeCategoryModal');
+    toastInfo('Kategorie unverändert.');
+    return;
+  }
+
+  // Update in DB ausführen — direkt über _sb, da wir keine bestehende
+  // Helfer-Funktion dafür haben (bisher gab es nur "hinzufügen" und "entfernen")
+  const{error}=await _sb.from('deck_cards').update({category:categoryToSave}).eq('id',changingCategoryDcId);
+  if(error){
+    toastError('Konnte Kategorie nicht ändern: '+error.message);
+    return;
+  }
+
+  // Lokal updaten + neu rendern (kein voller DB-Reload nötig)
+  dc.category=categoryToSave;
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  renderDeckDetail(deck);
+  closeModal('changeCategoryModal');
+  changingCategoryDcId=null;
+  toastSuccess(newCategory?`Verschoben nach "${newCategory}"`:'In "Ohne Kategorie" verschoben');
+}

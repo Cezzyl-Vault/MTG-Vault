@@ -119,7 +119,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.83</small></div>
+      <div class="header-logo">MTG Vault<small>COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; v0.5</small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -132,7 +132,8 @@ create policy "own deck_cards" on deck_cards for all
         </div>
         <label class="import-btn" for="fileInput">⬆ CSV</label>
         <input type="file" id="fileInput" accept=".csv">
-        <button class="user-menu-btn" onclick="signOut()">Abmelden</button>
+        <button class="user-menu-btn settings-btn" onclick="openSettingsModal()" title="Einstellungen">⚙</button>
+        <button class="user-menu-btn signout-btn" onclick="signOut()">Abmelden</button>
         <button class="hamburger" id="hamburger" onclick="toggleMobileNav()">
           <span></span><span></span><span></span>
         </button>
@@ -147,7 +148,26 @@ create policy "own deck_cards" on deck_cards for all
     <button class="mobile-nav-btn" id="mob-decks" onclick="switchView('decks');closeMobileNav()">⚔️ &nbsp;Decks</button>
     <hr class="mobile-nav-divider">
     <label class="mobile-import-btn" for="fileInput" onclick="closeMobileNav()">⬆ CSV Importieren</label>
+    <button class="mobile-import-btn" onclick="closeMobileNav();openSettingsModal()" style="text-align:left">⚙ Einstellungen</button>
     <button class="mobile-signout" onclick="signOut()">Abmelden</button>
+  </nav>
+
+  <!-- Bottom-Navigation: NUR auf Mobile sichtbar (per CSS).
+       Bietet schnellen Daumen-Zugriff auf die Haupt-Reiter — wichtig für
+       Spiele-Sessions, wo das Handy einhändig bedient wird. -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="bottom-nav-btn active" id="bot-collection" onclick="switchView('collection')">
+      <span class="bn-icon">🃏</span>
+      <span class="bn-label">Sammlung</span>
+    </button>
+    <button class="bottom-nav-btn" id="bot-stats" onclick="switchView('stats')">
+      <span class="bn-icon">📊</span>
+      <span class="bn-label">Statistik</span>
+    </button>
+    <button class="bottom-nav-btn" id="bot-decks" onclick="switchView('decks')">
+      <span class="bn-icon">⚔️</span>
+      <span class="bn-label">Decks</span>
+    </button>
   </nav>
 
   <!-- Daten-Anreicherungs-Banner (wird via JS ein-/ausgeblendet) -->
@@ -437,6 +457,53 @@ alter table cards add column if not exists type_line text;</div>
   </div>
 </div>
 
+<!-- EINSTELLUNGEN MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">EINSTELLUNGEN</span>
+      <button class="modal-close" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field">
+        <label>START-REITER</label>
+        <select id="settingStartTab">
+          <option value="collection">🃏 Sammlung</option>
+          <option value="stats">📊 Statistik</option>
+          <option value="decks">⚔️ Decks</option>
+        </select>
+        <div class="settings-hint">Welcher Reiter wird beim Öffnen der App angezeigt?</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+        <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KATEGORIE-WECHSEL MODAL (Karte einer anderen Kategorie zuordnen) -->
+<div class="modal-overlay" id="changeCategoryModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KATEGORIE ÄNDERN</span>
+      <button class="modal-close" onclick="closeModal('changeCategoryModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <p id="changeCategoryCardName" style="font-size:0.95rem;color:var(--text);margin:0 0 1rem 0"></p>
+      <div class="form-field">
+        <label>NEUE KATEGORIE</label>
+        <input id="changeCategoryInput" placeholder="z.B. Lands, Creatures… (oder leer für 'Ohne Kategorie')" list="changeCategorySuggestions">
+        <datalist id="changeCategorySuggestions"></datalist>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="confirmChangeCategory()">Verschieben</button>
+        <button class="btn" onclick="closeModal('changeCategoryModal')">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
@@ -444,6 +511,7 @@ alter table cards add column if not exists type_line text;</div>
 <script src="js/defaults.js" defer></script>
 <script src="js/utils.js" defer></script>
 <script src="js/ui.js" defer></script>
+<script src="js/settings.js" defer></script>
 <script src="js/sets.js" defer></script>
 <script src="js/db.js" defer></script>
 <script src="js/scryfall.js" defer></script>
