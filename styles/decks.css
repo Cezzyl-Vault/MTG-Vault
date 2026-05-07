@@ -83,10 +83,11 @@
   color:var(--text);border-radius:5px;font-family:'Cinzel',serif;
   font-size:0.7rem;padding:0.15rem 0.45rem;white-space:nowrap;
 }
-.dc-remove{
+.dc-action,.dc-remove{
   background:transparent;border:none;color:var(--text3);font-size:0.8rem;
   cursor:pointer;padding:0.25rem;border-radius:4px;transition:color 0.2s;
 }
+.dc-action:hover{color:var(--gold);}
 .dc-remove:hover{color:var(--red);}
 
 

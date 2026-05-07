@@ -146,3 +146,63 @@ header{
   .migration-banner{flex-wrap:wrap;}
   .migration-info{flex-basis:100%;}
 }
+
+/* ── SETTINGS-BUTTON im Header ── */
+.settings-btn{
+  font-size:1.1rem;line-height:1;padding:0.4rem 0.65rem;
+}
+.settings-btn:hover{color:var(--gold);transform:rotate(20deg);}
+
+/* ── MOBILE-OPTIMIERUNG: Header schlanker machen ── */
+@media(max-width:768px){
+  /* Untertitel auf Mobile ausblenden — spart Höhe */
+  .header-logo small{display:none;}
+  /* Sync-Pill schon bei <480px ausgeblendet, bleibt so */
+  /* Logout-Button raus aus Header — ist im Burger-Menü */
+  .signout-btn{display:none;}
+  /* Settings-Button auf Mobile auch ausblenden — geht über Burger-Menü */
+  .settings-btn{display:none;}
+}
+
+/* ── BOTTOM-NAVIGATION (nur Mobile) ── */
+.bottom-nav{display:none;}
+
+@media(max-width:768px){
+  .bottom-nav{
+    display:flex;
+    position:fixed;bottom:0;left:0;right:0;z-index:200;
+    background:linear-gradient(180deg,rgba(13,15,24,0.96),rgba(7,8,13,0.99));
+    border-top:1px solid var(--border);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    padding:0.4rem 0 max(0.5rem,env(safe-area-inset-bottom));
+  }
+  /* Damit Inhalt nicht unter der Bottom-Nav verschwindet */
+  body{padding-bottom:72px;}
+}
+
+.bottom-nav-btn{
+  flex:1;background:transparent;border:none;
+  color:var(--text2);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  gap:0.15rem;padding:0.4rem 0.2rem;
+  font-family:'EB Garamond',serif;font-size:0.72rem;
+  transition:color 0.15s;
+  position:relative;
+}
+.bottom-nav-btn:hover{color:var(--text);}
+.bottom-nav-btn.active{color:var(--gold);}
+.bottom-nav-btn.active::before{
+  content:'';position:absolute;top:0;left:25%;right:25%;
+  height:2px;background:var(--gold);border-radius:0 0 2px 2px;
+}
+.bn-icon{font-size:1.3rem;line-height:1;}
+.bn-label{letter-spacing:0.06em;}
+
+/* Burger-Menü-Items für Settings-Eintrag (kommt in mobile-nav rein) */
+.mobile-nav-divider+.mobile-import-btn~.mobile-signout{margin-top:auto;}
+
+/* Auf Desktop: Burger-Menü nicht zeigen, sondern alles sichtbar */
+@media(min-width:769px){
+  .bottom-nav{display:none !important;}
+}
