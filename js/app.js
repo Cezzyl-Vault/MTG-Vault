@@ -36,8 +36,10 @@ function switchView(name){
   document.getElementById('view-'+name).classList.add('active');
   // Desktop nav
   document.querySelectorAll('.nav-btn').forEach((t,i)=>t.classList.toggle('active',['collection','stats','decks'][i]===name));
-  // Mobile nav
+  // Mobile nav (Burger-Drawer)
   document.querySelectorAll('.mobile-nav-btn').forEach((t,i)=>t.classList.toggle('active',['collection','stats','decks'][i]===name));
+  // Bottom-Nav (immer auf Mobile sichtbar — Daumen-Reichweite)
+  document.querySelectorAll('.bottom-nav-btn').forEach((t,i)=>t.classList.toggle('active',['collection','stats','decks'][i]===name));
   if(name==='stats')renderStats();
   if(name==='decks')renderDecks();
 }
