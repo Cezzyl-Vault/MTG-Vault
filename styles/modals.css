@@ -276,3 +276,31 @@ details summary{outline:none;}
   font-size:0.75rem;color:var(--text3);
   margin-top:0.3rem;font-style:italic;
 }
+
+/* ── MOBILE-SCHLIESSEN-BUTTON UNTEN (sticky) ── */
+.modal-footer-mobile{display:none;}
+
+@media(max-width:768px){
+  /* Größeres X oben — bessere Touch-Treffsicherheit (44×44 ist iOS-Standard) */
+  .modal-close{
+    width:42px;height:42px;font-size:1.1rem;
+  }
+
+  /* Sticky-Schließen-Button am Modal-Boden */
+  .modal-footer-mobile{
+    display:block;position:sticky;bottom:0;
+    background:linear-gradient(to top,var(--bg2) 60%,transparent);
+    padding:0.8rem 1rem 1rem 1rem;
+    margin-top:-0.5rem; /* leichte Überlappung mit dem Inhalt darüber */
+    z-index:1;
+  }
+  .modal-close-bottom{
+    width:100%;
+    background:var(--surface3);border:1px solid var(--border2);
+    color:var(--text);
+    padding:0.85rem;font-size:0.95rem;
+    font-family:'Cinzel',serif;letter-spacing:0.1em;
+    border-radius:8px;
+  }
+  .modal-close-bottom:hover{border-color:var(--gold-dim);}
+}

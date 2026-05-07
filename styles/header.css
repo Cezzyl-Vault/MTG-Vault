@@ -155,8 +155,10 @@ header{
 
 /* ── MOBILE-OPTIMIERUNG: Header schlanker machen ── */
 @media(max-width:768px){
-  /* Untertitel auf Mobile ausblenden — spart Höhe */
-  .header-logo small{display:none;}
+  /* Auf Mobile: nur die "Credits" ausblenden, die Version BLEIBT sichtbar
+     (für Test-Zwecke wichtig — sonst weiß man nicht, welche App-Version live ist) */
+  .header-credits{display:none;}
+  .header-version{font-size:0.65rem;color:var(--text3);}
   /* Sync-Pill schon bei <480px ausgeblendet, bleibt so */
   /* Logout-Button raus aus Header — ist im Burger-Menü */
   .signout-btn{display:none;}
