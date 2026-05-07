@@ -122,7 +122,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.97</span></small></div>
+      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.5</span></small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -274,6 +274,11 @@ create policy "own deck_cards" on deck_cards for all
           </div>
         </div>
         <div class="stats-bar" id="statsBar"></div>
+        <div class="export-row">
+          <span class="export-label">Sammlung exportieren:</span>
+          <button class="export-btn" onclick="exportFilteredToCSV()" title="Aktuelle Auswahl als CSV-Datei herunterladen">📥 CSV</button>
+          <button class="export-btn" onclick="exportFilteredToPDF()" title="Aktuelle Auswahl als druckbare Übersicht öffnen (zum Speichern als PDF)">🖨 PDF</button>
+        </div>
         <div id="cardContainer"></div>
       </div>
     </div>
@@ -527,6 +532,7 @@ alter table cards add column if not exists type_line text;</div>
 <script src="js/auth.js" defer></script>
 <script src="js/csv-import.js" defer></script>
 <script src="js/collection.js" defer></script>
+<script src="js/export.js" defer></script>
 <script src="js/deck-stats.js" defer></script>
 <script src="js/decks.js" defer></script>
 <script src="js/stats.js" defer></script>
