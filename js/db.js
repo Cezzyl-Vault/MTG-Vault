@@ -20,6 +20,8 @@ async function loadAll(){
   setSyncing('ok');renderAll();
   // Nach jedem vollständigen Laden prüfen, ob die Anreicherungs-Aufforderung sichtbar sein soll
   if(typeof checkAndShowMigrationBanner==='function')checkAndShowMigrationBanner();
+  // Im Hintergrund den wöchentlichen Preis-Snapshot prüfen — blockiert das Rendern nicht
+  if(typeof maybeCreateWeeklySnapshot==='function')maybeCreateWeeklySnapshot();
 }
 
 async function upsertCards(cards){

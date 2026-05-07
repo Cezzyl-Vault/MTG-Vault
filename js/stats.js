@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════
 //  STATS  ·  Statistik-Berechnung und -Darstellung
 // ══════════════════════════════════════════════════════════
-function renderStats(){
+async function renderStats(){
   const sc=document.getElementById('stats-content');
   if(!allCards.length){sc.style.display='none';return;}sc.style.display='';
   const total=allCards.reduce((s,c)=>s+c.quantity,0);
@@ -19,6 +19,25 @@ function renderStats(){
   const topL=Object.entries(lC).sort((a,b)=>b[1]-a[1]).slice(0,8);const maxL=Math.max(...topL.map(l=>l[1]),1);
   const cC={};allCards.forEach(c=>{const l=c.condition||'Unbekannt';cC[l]=(cC[l]||0)+c.quantity;});
 
+  // Preis-Snapshots laden — wenn das Feature noch nicht migriert ist (Tabelle fehlt),
+  // schweigend mit leerem Chart fortfahren
+  let priceChartHTML='';
+  try{
+    if(typeof getAllSnapshots==='function'){
+      const snapshots=await getAllSnapshots();
+      priceChartHTML=`
+      <div class="stats-section">
+        <h2 style="display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap">
+          ◈ WERTENTWICKLUNG
+          <button class="btn-mini" onclick="createManualSnapshot(this)" title="Jetzt manuellen Snapshot erstellen">📸 Snapshot</button>
+        </h2>
+        <div class="price-chart-container">${renderPriceChart(snapshots)}</div>
+      </div>`;
+    }
+  }catch(e){
+    console.warn('Preis-Tracking nicht verfügbar:',e);
+  }
+
   sc.innerHTML=`
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-val">${total.toLocaleString('de')}</div><div class="kpi-label">Karten gesamt</div></div>
@@ -28,6 +47,7 @@ function renderStats(){
     <div class="kpi"><div class="kpi-val">${allDecks.length}</div><div class="kpi-label">Decks</div></div>
     <div class="kpi"><div class="kpi-val" style="font-size:1.2rem">${totalVal.toFixed(2)} €</div><div class="kpi-label">Gesamtwert</div></div>
   </div>
+  ${priceChartHTML}
   <div class="stats-section"><h2>◈ SELTENHEIT</h2><div class="bar-chart">${['mythic','rare','uncommon','common'].filter(r=>rC[r]).map(r=>`<div class="bar-row"><span class="bar-label" style="text-transform:capitalize;color:${rCol[r]}">${r}</span><div class="bar-track"><div class="bar-fill" style="width:${(rC[r]/maxR*100).toFixed(1)}%;background:${rCol[r]}">${rC[r]}</div></div></div>`).join('')}</div></div>
   <div class="stats-section"><h2>◈ TOP SETS</h2><div class="bar-chart">${topS.map(([c,n])=>`<div class="bar-row"><span class="bar-label">${c}</span><div class="bar-track"><div class="bar-fill" style="width:${(n/maxS*100).toFixed(1)}%;background:var(--purple)">${n}</div></div></div>`).join('')}</div></div>
   <div class="stats-section"><h2>◈ SPRACHEN</h2><div class="bar-chart">${topL.map(([l,n])=>`<div class="bar-row"><span class="bar-label">${l}</span><div class="bar-track"><div class="bar-fill" style="width:${(n/maxL*100).toFixed(1)}%;background:var(--teal)">${n}</div></div></div>`).join('')}</div></div>
