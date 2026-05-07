@@ -1,30 +1,32 @@
 # ══════════════════════════════════════════════════════════
-#  Auto-Versionierung  (commit-count-basiert)
+#  Auto-Versionierung + Cache-Busting  (commit-count-basiert)
 # ══════════════════════════════════════════════════════════
 #
-#  Was diese Action tut:
-#  Bei jedem Push auf den konfigurierten Branch:
+#  Was diese Action tut bei jedem Push auf den konfigurierten Branch:
 #  1. Zählt die Anzahl der "echten" Commits in der Git-Historie
 #     (Commits, die NICHT vom Auto-Bump-Job stammen — erkennbar am
 #     "[skip ci]"-Marker in der Commit-Message).
-#  2. Setzt die Versionsnummer in index.html auf v0.<count>.
-#  3. Committet zurück mit "[skip ci]" — verhindert Endlosschleife,
+#  2. Setzt die Versionsnummer im Header der index.html auf v0.<count>.
+#  3. Hängt an alle CSS- und JS-Imports einen Query-Parameter ?v=<count>
+#     an, sodass der Browser bei jedem Release frische Dateien lädt
+#     (Cache-Bust). Beispiel: js/decks.js -> js/decks.js?v=87
+#  4. Committet alles zurück mit "[skip ci]" — verhindert Endlosschleife,
 #     weil unten ein "if: !contains(...)" diesen Commit ignoriert.
 #
-#  Vorteil gegenüber der vorherigen Variante:
-#  Die Versionsnummer kommt jetzt aus der Git-Historie, nicht aus der
-#  HTML-Datei. Egal welcher Wert in einer hochgeladenen index.html steht
-#  — die Action setzt ihn beim nächsten Push immer auf den korrekten
-#  Stand. Damit kann auch ein Datei-Upload mit veralteter Version den
-#  Counter nicht zurückwerfen.
+#  Hintergrund Cache-Busting:
+#  GitHub Pages schickt Cache-Header mit max-age=600 (10 Min). Der Browser
+#  hält Dateien dadurch fest, auch wenn sie sich serverseitig geändert
+#  haben. Mit dem ?v=87-Anhängsel sieht der Browser "?v=87" als andere
+#  URL als "?v=86" und lädt sie frisch — ohne dass der User Strg+F5
+#  drücken muss.
 
 name: Auto-Version Bump
 
 on:
   push:
     branches:
-      - Sammlung-mit-Auto-Import   # Hauptbranch
-      - main                        # Fallback, falls main genutzt wird
+      - Sammlung-mit-Auto-Import   # alter Hauptbranch
+      - main                        # aktueller Hauptbranch
 
 permissions:
   contents: write
@@ -56,12 +58,45 @@ jobs:
           echo "Echte Commits auf dem Branch: $COUNT"
           echo "Neue Version: $NEW_VERSION"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=$COUNT" >> $GITHUB_OUTPUT
 
-      - name: index.html aktualisieren
+      - name: index.html aktualisieren — Versionsnummer im Header
         run: |
           # Ersetzt nur das ERSTE Vorkommen (im Header) — falls
           # später noch andere Versionsnummern im Code stehen, bleiben die unangetastet
           sed -i "0,/v0\.[0-9]\+/s//${{ steps.ver.outputs.new_version }}/" index.html
+
+      - name: index.html aktualisieren — Cache-Busting für CSS/JS
+        run: |
+          # Python statt sed — sed kommt mit den geschachtelten Patterns
+          # nicht zurecht (das | für Capture-Gruppen kollidiert mit dem
+          # s|...|...|-Delimiter). Python regex ist hier eindeutig sauberer.
+          python3 << 'PYEOF'
+          import re
+          ver = "${{ steps.ver.outputs.version_number }}"
+
+          with open('index.html') as f:
+              html = f.read()
+
+          # Schritt 1: alte ?v=NUM entfernen — sonst hängen sich die Versionen aneinander an
+          html = re.sub(r'(href="styles/[^"]+\.css)\?v=\d+', r'\1', html)
+          html = re.sub(r'(src="js/[^"]+\.js)\?v=\d+', r'\1', html)
+
+          # Schritt 2: ?v=VER an alle relativen styles/*.css und js/*.js anhängen.
+          # Externe URLs (https://...) bleiben unangetastet, weil das Pattern
+          # explizit auf "styles/" oder "js/" am Pfad-Anfang besteht.
+          html = re.sub(r'(href="styles/[^"]+\.css)"', f'\\1?v={ver}"', html)
+          html = re.sub(r'(src="js/[^"]+\.js)"', f'\\1?v={ver}"', html)
+
+          with open('index.html', 'w') as f:
+              f.write(html)
+
+          print(f"Cache-Busting auf v={ver} aktualisiert")
+          PYEOF
+
+          echo ""
+          echo "Aktuelle CSS/JS-Imports in der index.html:"
+          grep -E '<(link|script).*(\.css|\.js)' index.html | head -30 || true
 
       - name: Änderung zurück committen (nur falls etwas neu ist)
         run: |
@@ -69,7 +104,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           if git diff --quiet; then
-            echo "Versionsnummer ist bereits aktuell — kein Commit nötig."
+            echo "Keine Änderungen — kein Commit nötig."
           else
             git add index.html
             git commit -m "chore: bump version to ${{ steps.ver.outputs.new_version }} [skip ci]"
