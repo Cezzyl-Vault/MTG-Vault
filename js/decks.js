@@ -10,15 +10,32 @@ async function renderDecks(){
   // Statistiken pro Deck einmalig in einem einzigen DB-Call holen.
   // Vorher wurden n DB-Calls gemacht (1 pro Deck), das ist deutlich schneller
   // bei mehreren Decks und liefert gleich auch die Wertberechnung mit.
-  const stats={};  // {deckId: {count, value}}
+  //
+  // Berechnete Werte pro Deck:
+  //   count:        Gesamtzahl Karten (Summe der quantity)
+  //   value:        Gesamtwert in € (purchase_price × quantity)
+  //   avgMv:        Durchschnittlicher Manawert (ohne Länder)
+  //   colors:       Set der Farben, die im Deck vorkommen (ohne Länder)
+  const stats={};
   try{
     const{data:deckCards,error}=await _sb.from('deck_cards').select('deck_id,card_id,quantity');
     if(!error&&deckCards){
       for(const dc of deckCards){
-        if(!stats[dc.deck_id])stats[dc.deck_id]={count:0,value:0};
+        if(!stats[dc.deck_id])stats[dc.deck_id]={count:0,value:0,manaSum:0,nonLandCount:0,colors:new Set()};
         stats[dc.deck_id].count+=dc.quantity;
         const card=allCards.find(c=>c.id===dc.card_id);
-        stats[dc.deck_id].value+=(parseFloat(card?.purchase_price)||0)*dc.quantity;
+        if(!card)continue;
+        stats[dc.deck_id].value+=(parseFloat(card.purchase_price)||0)*dc.quantity;
+        // Manawert + Farben nur für Nicht-Länder zählen (sonst dominieren Lands die Charts)
+        if(card.type_line&&card.mana_value!=null){
+          const isLand=(card.type_line||'').toLowerCase().includes('land');
+          if(!isLand){
+            stats[dc.deck_id].manaSum+=card.mana_value*dc.quantity;
+            stats[dc.deck_id].nonLandCount+=dc.quantity;
+            const cs=Array.isArray(card.colors)?card.colors:[];
+            for(const c of cs)stats[dc.deck_id].colors.add(c);
+          }
+        }
       }
     }
   }catch(e){
@@ -27,13 +44,23 @@ async function renderDecks(){
   }
 
   grid.innerHTML=allDecks.map(d=>{
-    const s=stats[d.id]||{count:0,value:0};
+    const s=stats[d.id]||{count:0,value:0,manaSum:0,nonLandCount:0,colors:new Set()};
+    const avgMv=s.nonLandCount>0?(s.manaSum/s.nonLandCount):0;
+
     // Stats-Reihe: erweiterbar — weitere KPIs einfach hier ergänzen
-    const statsRow=`
-      <div class="deck-card-stats">
-        <span class="dcs-item"><strong>${s.count}</strong> Karten</span>
-        ${s.value>0?`<span class="dcs-item"><strong>${s.value.toFixed(2)} €</strong> Wert</span>`:''}
-      </div>`;
+    const statsItems=[
+      `<span class="dcs-item"><strong>${s.count}</strong> Karten</span>`,
+      s.value>0?`<span class="dcs-item"><strong>${s.value.toFixed(2)} €</strong></span>`:null,
+      s.nonLandCount>0?`<span class="dcs-item"><strong>${avgMv.toFixed(1)}</strong> Ø MV</span>`:null,
+    ].filter(Boolean).join('');
+
+    // Farb-Indikatoren: kleine Punkte für jede vertretene Farbe (in MTG-Reihenfolge WUBRG)
+    const colorOrder=['W','U','B','R','G'];
+    const colorDots=colorOrder
+      .filter(c=>s.colors.has(c))
+      .map(c=>`<span class="dcs-color mana-${c.toLowerCase()}" title="${({W:'Weiß',U:'Blau',B:'Schwarz',R:'Rot',G:'Grün'}[c])}"></span>`)
+      .join('');
+
     return`
     <div class="deck-card" onclick="openDeckDetail('${d.id}')">
       <div class="deck-actions" onclick="event.stopPropagation()">
@@ -42,7 +69,8 @@ async function renderDecks(){
       </div>
       <div class="deck-name">${esc(d.name)}</div>
       <div class="deck-desc">${esc(d.description||'')}</div>
-      ${statsRow}
+      <div class="deck-card-stats">${statsItems}</div>
+      ${colorDots?`<div class="deck-card-colors">${colorDots}</div>`:''}
       ${d.format?`<div class="deck-meta"><span class="deck-tag">${esc(d.format)}</span></div>`:''}
     </div>`;
   }).join('');
