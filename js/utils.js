@@ -17,6 +17,16 @@ function cl(c=''){if(c.includes('near'))return'NM';if(c.includes('light'))return
 // HTML-Escape, um XSS bei Karten-Namen etc. zu verhindern
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+// JavaScript-String-Escape für Inhalte, die in inline onclick-Attributen
+// in JS-String-Literalen landen. esc() reicht dafür nicht: ein HTML-Escape
+// (&#39;) wird vom Browser beim Parsen wieder zu '. Wenn der Karten-Name
+// einen Apostroph enthält (z.B. "Morningtide's Light"), beendet das den
+// String und der Klick passiert nichts. escJs maskiert für JS direkt.
+function escJs(s){
+  if(s==null)return'';
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
 // Modal anhand seiner ID schließen
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 

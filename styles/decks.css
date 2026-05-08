@@ -335,3 +335,161 @@
   transition:color 0.15s;
 }
 .dv-header:hover .dv-arrow{color:var(--gold);}
+
+/* ══════════════════════════════
+   DECK-DETAIL · ANSICHT-TOGGLE + EDIT-MODE
+══════════════════════════════ */
+
+/* View-Toggle (⊞ Karten / ☰ Liste) im Header */
+.deck-view-toggle{
+  display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;
+}
+.deck-view-toggle button{
+  background:transparent;border:none;color:var(--text2);
+  padding:0.45rem 0.75rem;cursor:pointer;font-size:0.95rem;
+  border-right:1px solid var(--border);transition:all 0.15s;
+}
+.deck-view-toggle button:last-child{border-right:none;}
+.deck-view-toggle button.active{background:var(--surface2);color:var(--gold);}
+
+/* Bearbeiten-Button im Edit-Mode anders aussehen lassen */
+.btn-gold.active-edit{
+  background:var(--gold);color:#0a0800;
+  border-color:var(--gold);
+}
+
+/* Pfeil neben Kategorie-Header (zum Auf-/Zuklappen) */
+.cat-collapse-arrow{
+  display:inline-block;color:var(--text3);
+  font-size:0.7rem;width:14px;text-align:center;
+  transition:color 0.15s;
+}
+.category-header{cursor:pointer;}
+.category-header:hover .cat-collapse-arrow{color:var(--gold);}
+
+/* ══════════════════════════════
+   KARTEN-GRID (Deck-Kartenansicht)
+══════════════════════════════ */
+.dc-card-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:0.6rem;
+  padding:0.4rem 0;
+}
+@media(max-width:480px){
+  .dc-card-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.4rem;}
+}
+
+.dc-card-tile{
+  position:relative;cursor:pointer;
+  border-radius:8px;overflow:hidden;
+  border:2px solid transparent;
+  transition:all 0.15s;
+  aspect-ratio:0.717;
+}
+.dc-card-tile:hover{transform:translateY(-2px);}
+.dc-card-tile img{
+  width:100%;height:100%;display:block;object-fit:cover;
+  border-radius:6px;
+}
+.dc-card-tile-noimg{
+  width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);font-size:2rem;color:var(--text3);
+}
+
+/* Auswahl-Markierung im Edit-Mode */
+.dc-card-tile.selected{
+  border-color:var(--gold);
+  box-shadow:0 0 0 2px rgba(201,168,76,0.3);
+}
+
+/* Checkbox-Overlay (rechts oben) */
+.dc-tile-checkbox{
+  position:absolute;top:6px;left:6px;
+  width:24px;height:24px;border-radius:5px;
+  background:rgba(13,15,24,0.85);border:2px solid var(--gold);
+  color:var(--gold);font-weight:700;font-size:0.85rem;
+  display:flex;align-items:center;justify-content:center;
+  z-index:2;backdrop-filter:blur(4px);
+}
+.dc-card-tile.selected .dc-tile-checkbox{
+  background:var(--gold);color:#0a0800;
+}
+
+/* Lösch-Knopf (rechts oben) */
+.dc-tile-remove{
+  position:absolute;top:6px;right:6px;
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(13,15,24,0.85);border:1px solid var(--red);
+  color:var(--red);cursor:pointer;font-size:0.85rem;
+  display:flex;align-items:center;justify-content:center;
+  z-index:2;backdrop-filter:blur(4px);transition:all 0.15s;
+}
+.dc-tile-remove:hover{background:var(--red);color:#fff;}
+
+/* Anzahl-Pille (links unten) — nur im Edit-Mode bei quantity > 1 */
+.dc-tile-qty{
+  position:absolute;left:6px;bottom:6px;
+  background:rgba(13,15,24,0.9);
+  color:var(--gold);
+  font-family:'Cinzel',serif;font-size:0.85rem;font-weight:700;
+  padding:0.18rem 0.5rem;border-radius:5px;
+  border:1px solid var(--gold-dim);
+  backdrop-filter:blur(4px);z-index:2;
+}
+
+/* ══════════════════════════════
+   LISTEN-ZEILE im EDIT-MODE
+══════════════════════════════ */
+.deck-card-row.selected{
+  background:rgba(201,168,76,0.08);
+  border-left:3px solid var(--gold);
+}
+.dc-row-checkbox{
+  width:24px;height:24px;border-radius:5px;
+  background:transparent;border:2px solid var(--gold);
+  color:var(--gold);font-weight:700;font-size:0.85rem;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.deck-card-row.selected .dc-row-checkbox{
+  background:var(--gold);color:#0a0800;
+}
+
+/* ══════════════════════════════
+   EDIT-AKTIONS-LEISTE (unten klebend)
+══════════════════════════════ */
+.edit-action-bar{
+  position:fixed;bottom:0;left:0;right:0;z-index:250;
+  display:flex;align-items:center;gap:0.6rem;
+  padding:0.7rem 1rem max(0.7rem,env(safe-area-inset-bottom)) 1rem;
+  background:linear-gradient(to top,rgba(13,15,24,0.98),rgba(13,15,24,0.95));
+  border-top:1px solid var(--gold-dim);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  flex-wrap:wrap;
+}
+.eab-count{
+  font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold);
+  margin-right:auto;
+}
+.eab-btn{
+  background:var(--surface);border:1px solid var(--border2);
+  color:var(--text);
+  font-family:'Cinzel',serif;font-size:0.78rem;letter-spacing:0.06em;
+  padding:0.55rem 0.85rem;border-radius:6px;cursor:pointer;
+  transition:all 0.15s;
+}
+.eab-btn:hover:not(:disabled){border-color:var(--gold);color:var(--gold);}
+.eab-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.eab-btn.danger{border-color:rgba(224,82,82,0.4);}
+.eab-btn.danger:hover:not(:disabled){border-color:var(--red);color:var(--red);}
+
+/* Edit-Mode: Bottom-Nav verstecken (Mobile), damit Edit-Bar nicht überlappt.
+   Wir können die nicht im JS togglen, aber CSS kann's über den Body-Marker.
+   Stattdessen verlassen wir uns darauf, dass die Edit-Bar mit höherem z-index
+   einfach drüber liegt — body bekommt unten einfach mehr padding. */
+@media(max-width:768px){
+  body:has(.edit-action-bar){padding-bottom:130px;}
+}
