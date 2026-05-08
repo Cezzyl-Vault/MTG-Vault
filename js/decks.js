@@ -167,17 +167,17 @@ function renderDeckDetail(deck){
 
   // Reihenfolge der Kategorien: gespeicherte Reihenfolge aus deck.category_order
   // hat Vorrang. Neue (noch nicht gespeicherte) Kategorien hängen wir hinten an.
-  // Die Default-Liste wird nur verwendet, wenn das Deck noch nie sortiert wurde
-  // — als sinnvoller Erst-Vorschlag.
   const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
   const savedOrder=Array.isArray(deck.category_order)?[...deck.category_order]:[];
   const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER;
-  // Bestehende Reihenfolge übernehmen, dann alle Kategorien aus dem Deck hinten dranhängen,
-  // die noch nicht in der Reihenfolge stehen
   const sortedCats=[...new Set([...baseOrder.filter(c=>cats[c]),...Object.keys(cats)])];
-
-  // Pro Kategorie wissen wir den Index, damit ▲/▼-Buttons den ersten/letzten korrekt deaktivieren
   const visibleCats=sortedCats.filter(c=>cats[c]);
+
+  // Edit-Modus / View-Modus für die Buttons im Header
+  const editLabel=deckEditMode?'✓ Fertig':'✎ Bearbeiten';
+  const editClass=deckEditMode?'btn-gold active-edit':'btn-gold';
+  const cardsActive=deckViewMode==='cards'?'active':'';
+  const listActive=deckViewMode==='list'?'active':'';
 
   detailView.innerHTML=`
     <div class="deck-detail-header">
@@ -186,8 +186,13 @@ function renderDeckDetail(deck){
         <div class="deck-detail-title">${esc(deck.name)}</div>
         ${deck.format?`<span class="deck-tag" style="font-size:0.6rem">${esc(deck.format)}</span>`:''}
       </div>
-      <div class="deck-detail-actions" style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
+      <div class="deck-detail-actions" style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
         <span style="color:var(--text2);font-size:0.85rem">${totalCards} Karten</span>
+        <div class="deck-view-toggle">
+          <button class="${cardsActive}" onclick="setDeckViewMode('cards')" title="Karten-Ansicht">⊞</button>
+          <button class="${listActive}" onclick="setDeckViewMode('list')" title="Listen-Ansicht">☰</button>
+        </div>
+        <button class="${editClass}" onclick="toggleDeckEditMode()" title="Karten markieren und bearbeiten">${editLabel}</button>
         <button class="btn-gold" onclick="openAddCardsModal()">+ Karten</button>
         <button class="btn-gold" onclick="openCatModal()">+ Kategorie</button>
         <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
@@ -198,6 +203,7 @@ function renderDeckDetail(deck){
     ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
     ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length,deck.format)).join('')}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Öffne eine Karte in der Sammlung und füge sie hier hinzu.</p></div>`:''}
+    ${deckEditMode?renderEditActionBar():''}
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
   if(typeof renderDeckStats==='function')renderDeckStats(deck,currentDeckCards);
@@ -205,35 +211,84 @@ function renderDeckDetail(deck){
   if(typeof renderDeckValidation==='function')renderDeckValidation(deck,currentDeckCards);
 }
 
+// Bottom-Aktions-Leiste, die im Edit-Modus erscheint
+function renderEditActionBar(){
+  const n=deckEditSelected.size;
+  const hasSelection=n>0;
+  return`<div class="edit-action-bar">
+    <span class="eab-count">${n} ausgewählt</span>
+    <button class="eab-btn" onclick="editModeMoveSelected()" ${hasSelection?'':'disabled'}>📂 Verschieben</button>
+    <button class="eab-btn danger" onclick="editModeRemoveSelected()" ${hasSelection?'':'disabled'}>🗑 Entfernen</button>
+    <button class="eab-btn" onclick="toggleDeckEditMode()">Abbrechen</button>
+  </div>`;
+}
+
 // Sektion für Karten ohne Kategorie — visuell etwas dezenter als kategorisierte Bereiche.
 // Erscheint oben im Deck, vor allen kategorisierten Karten.
 function uncategorizedSection(dcCards,deckId){
   const total=dcCards.reduce((s,dc)=>s+dc.quantity,0);
-  const rows=dcCards.map(dc=>deckCardRow(dc)).join('');
+  const collapsed=deckCollapsedCategories.has('__uncat__');
+  const arrowIcon=collapsed?'▸':'▾';
+  const body=collapsed?'':renderCategoryBody(dcCards);
   return`<div class="category-section uncategorized-section">
-    <div class="category-header">
-      <div class="category-name" style="font-style:italic;color:var(--text2)">⋯ Ohne Kategorie <span class="category-count">${total} Karten</span></div>
-      <div style="display:flex;gap:0.5rem">
+    <div class="category-header" onclick="toggleDeckCategoryCollapse('__uncat__')">
+      <div class="category-name" style="font-style:italic;color:var(--text2)">
+        <span class="cat-collapse-arrow">${arrowIcon}</span>
+        ⋯ Ohne Kategorie <span class="category-count">${total} Karten</span>
+      </div>
+      <div style="display:flex;gap:0.5rem" onclick="event.stopPropagation()">
         <button class="del-cat-btn" onclick="openAddCardsModal('')" title="Weitere Karten ohne Kategorie hinzufügen">+ Karten</button>
       </div>
     </div>
-    ${rows}
+    ${body}
   </div>`;
 }
 
-// Eine Karten-Zeile — extrahiert, damit catSection und uncategorizedSection sie teilen.
-// Eine Karten-Zeile im Deck-Detail.
-// Klick auf die Zeile öffnet das Kategorie-Wechsel-Modal — bessere Treffsicherheit
-// als ein kleines 📂-Icon, vor allem auf Mobile.
-// Der ✕-Button hat event.stopPropagation, damit er nicht versehentlich auch
-// das Kategorie-Modal öffnet.
+// Wählt zwischen Karten-Grid und Listen-Anzeige je nach deckViewMode
+function renderCategoryBody(dcCards){
+  if(deckViewMode==='cards'){
+    return`<div class="dc-card-grid">${dcCards.map(dc=>deckCardTile(dc)).join('')}</div>`;
+  }
+  return dcCards.map(dc=>deckCardRow(dc)).join('');
+}
+
+// Karten-Kachel für die Karten-Ansicht
+// - Ohne Edit-Mode: Klick öffnet Karten-Detail-Modal (openCardModal)
+// - Mit Edit-Mode: Klick toggelt die Auswahl. Anzahl-Pille ×N erscheint links unten,
+//   Lösch-Knopf rechts oben.
+function deckCardTile(dc){
+  const card=allCards.find(c=>c.id===dc.card_id);
+  const img=card?iUrl(card):null;
+  const cardName=card?.name||'';
+  const isSelected=deckEditSelected.has(dc.id);
+  const showQty=deckEditMode&&dc.quantity>1;
+  const onClickAttr=deckEditMode
+    ?`onclick="toggleDeckEditCard('${dc.id}')"`
+    :`onclick="openCardModal('${escJs(cardName)}')"`;
+  return`<div class="dc-card-tile${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}">
+    ${deckEditMode?`<div class="dc-tile-checkbox">${isSelected?'✓':''}</div>`:''}
+    ${deckEditMode?`<button class="dc-tile-remove" onclick="event.stopPropagation();removeDeckCard('${dc.id}')" title="Karte entfernen">🗑</button>`:''}
+    ${img?`<img src="${img}" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
+    ${showQty?`<div class="dc-tile-qty">×${dc.quantity}</div>`:''}
+  </div>`;
+}
+
+// Listen-Zeile (klassische Ansicht).
+// - Ohne Edit-Mode: Klick öffnet Karten-Detail-Modal
+// - Mit Edit-Mode: Klick toggelt Auswahl, eigene Checkbox links
 function deckCardRow(dc){
   const card=allCards.find(c=>c.id===dc.card_id);
   const img=card?iUrl(card):null;
-  return`<div class="deck-card-row" onclick="openChangeCategoryModal('${dc.id}')" title="Kategorie ändern">
-    ${img?`<img class="dc-img" src="${img}" alt="${esc(card?.name||'')}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
+  const cardName=card?.name||'';
+  const isSelected=deckEditSelected.has(dc.id);
+  const onClickAttr=deckEditMode
+    ?`onclick="toggleDeckEditCard('${dc.id}')"`
+    :`onclick="openCardModal('${escJs(cardName)}')"`;
+  return`<div class="deck-card-row${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}">
+    ${deckEditMode?`<div class="dc-row-checkbox">${isSelected?'✓':''}</div>`:''}
+    ${img?`<img class="dc-img" src="${img}" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
-      <div class="dc-name">${esc(card?.name||dc.card_id)}</div>
+      <div class="dc-name">${esc(cardName||dc.card_id)}</div>
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}</div>
     </div>
     <span class="dc-qty">×${dc.quantity}</span>
@@ -243,44 +298,126 @@ function deckCardRow(dc){
 
 function catSection(cat,dcCards,deckId,index,total,deckFormat){
   const total_qty=dcCards.reduce((s,dc)=>s+dc.quantity,0);
-  const rows=dcCards.map(dc=>deckCardRow(dc)).join('');
+  const collapsed=deckCollapsedCategories.has(cat);
+  const arrowIcon=collapsed?'▸':'▾';
+  const body=collapsed?'':renderCategoryBody(dcCards);
 
   // Sonderbehandlung: In Commander-Decks ist die "Commander"-Kategorie geschützt.
-  // Sie steht immer ganz oben (forced position), kann nicht verschoben oder gelöscht werden.
   const isLockedCommanderCat=(deckFormat==='Commander'&&cat==='Commander');
 
   // ▲/▼ deaktivieren am Anfang/Ende ODER für die geschützte Commander-Kategorie
   const upDisabled=(index===0||isLockedCommanderCat)?'disabled':'';
   const downDisabled=(index===total-1||isLockedCommanderCat)?'disabled':'';
 
+  // Sortier-Pfeile NUR im Edit-Mode sichtbar (User-Wunsch)
+  const moveBtns=deckEditMode?`
+        <button class="cat-move-btn" onclick="event.stopPropagation();moveCategoryUp('${escJs(cat)}')" ${upDisabled} title="Nach oben">▲</button>
+        <button class="cat-move-btn" onclick="event.stopPropagation();moveCategoryDown('${escJs(cat)}')" ${downDisabled} title="Nach unten">▼</button>`:'';
+
   // Lösch-Button bei der geschützten Commander-Kategorie ganz weglassen
   const deleteBtn=isLockedCommanderCat
     ?''
-    :`<button class="del-cat-btn" onclick="removeCategory('${deckId}','${esc(cat)}')" title="Kategorie entfernen">🗑 Kategorie</button>`;
+    :`<button class="del-cat-btn" onclick="event.stopPropagation();removeCategory('${deckId}','${escJs(cat)}')" title="Kategorie entfernen">🗑 Kategorie</button>`;
 
   // Visuelle Markierung für die Commander-Kategorie (kleines Krönchen)
-  const catLabel=isLockedCommanderCat
-    ?`👑 ${esc(cat)}`
-    :`◈ ${esc(cat)}`;
+  const catLabel=isLockedCommanderCat?`👑 ${esc(cat)}`:`◈ ${esc(cat)}`;
 
   return`<div class="category-section${isLockedCommanderCat?' commander-section':''}">
-    <div class="category-header">
+    <div class="category-header" onclick="toggleDeckCategoryCollapse('${escJs(cat)}')">
       <div class="category-name">
-        <button class="cat-move-btn" onclick="moveCategoryUp('${esc(cat)}')" ${upDisabled} title="Nach oben">▲</button>
-        <button class="cat-move-btn" onclick="moveCategoryDown('${esc(cat)}')" ${downDisabled} title="Nach unten">▼</button>
+        <span class="cat-collapse-arrow">${arrowIcon}</span>
+        ${moveBtns}
         ${catLabel} <span class="category-count">${total_qty} Karten</span>
       </div>
-      <div style="display:flex;gap:0.5rem">
-        <button class="del-cat-btn" onclick="openAddCardsModal('${esc(cat)}')" title="Karten zu dieser Kategorie hinzufügen">+ Karten</button>
+      <div style="display:flex;gap:0.5rem" onclick="event.stopPropagation()">
+        <button class="del-cat-btn" onclick="openAddCardsModal('${escJs(cat)}')" title="Karten zu dieser Kategorie hinzufügen">+ Karten</button>
         ${deleteBtn}
       </div>
     </div>
-    ${rows}
+    ${body}
   </div>`;
+}
+
+// ── View-/Edit-Mode Steuerung ──
+
+function setDeckViewMode(mode){
+  deckViewMode=mode;
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+}
+
+function toggleDeckEditMode(){
+  deckEditMode=!deckEditMode;
+  // Beim Verlassen des Edit-Modes Auswahl zurücksetzen
+  if(!deckEditMode)deckEditSelected.clear();
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+}
+
+function toggleDeckEditCard(dcId){
+  if(deckEditSelected.has(dcId))deckEditSelected.delete(dcId);
+  else deckEditSelected.add(dcId);
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+}
+
+function toggleDeckCategoryCollapse(cat){
+  if(deckCollapsedCategories.has(cat))deckCollapsedCategories.delete(cat);
+  else deckCollapsedCategories.add(cat);
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+}
+
+// Multi-Select: Markierte Karten verschieben
+async function editModeMoveSelected(){
+  if(deckEditSelected.size===0)return;
+  // Wir öffnen das vorhandene Kategorie-Wechsel-Modal, befüllen die Felder
+  // entsprechend für Multi-Move. Die Bestätigung läuft dann durch
+  // confirmChangeCategoryMulti, das ALLE ausgewählten verschiebt.
+  changingCategoryDcId='__multi__';  // Marker, dass es Multi ist
+  const n=deckEditSelected.size;
+  document.getElementById('changeCategoryCardName').innerHTML=
+    `<strong>${n} Karte${n===1?'':'n'}</strong> verschieben`;
+  document.getElementById('changeCategoryInput').value='';
+  // Vorschläge: existierende Kategorien
+  const existingCats=[...new Set(currentDeckCards.map(c=>c.category).filter(Boolean))];
+  const standardCats=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const allCats=[...new Set([...existingCats,...standardCats])];
+  document.getElementById('changeCategorySuggestions').innerHTML=allCats.map(c=>`<option value="${esc(c)}">`).join('');
+  document.getElementById('changeCategoryModal').classList.add('open');
+  setTimeout(()=>document.getElementById('changeCategoryInput').focus(),50);
+}
+
+// Multi-Select: Markierte Karten entfernen (mit Bestätigung)
+async function editModeRemoveSelected(){
+  if(deckEditSelected.size===0)return;
+  const n=deckEditSelected.size;
+  const ok=await confirmAction(`${n} Karte${n===1?'':'n'} aus dem Deck entfernen? Die Karten bleiben in deiner Sammlung.`,{
+    title:'KARTEN ENTFERNEN',
+    confirmLabel:'Entfernen',
+    danger:true
+  });
+  if(!ok)return;
+
+  let success=0,fail=0;
+  for(const dcId of deckEditSelected){
+    if(await removeDeckCardDB(dcId))success++;else fail++;
+  }
+  // Lokale Liste aktualisieren
+  currentDeckCards=currentDeckCards.filter(dc=>!deckEditSelected.has(dc.id));
+  deckEditSelected.clear();
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+  if(fail>0)toastError(`${success} entfernt, ${fail} Fehler`);
+  else toastSuccess(`${success} Karte${success===1?'':'n'} entfernt`);
 }
 
 function closeDeckDetail(){
   activeDeckId=null;currentDeckCards=[];
+  // Edit-Modus und Auswahl beim Verlassen zurücksetzen, damit kein Zombie-State bleibt
+  deckEditMode=false;
+  deckEditSelected.clear();
+  deckCollapsedCategories.clear();
   document.getElementById('decks-list-view').style.display='';
   document.getElementById('deck-detail-view').style.display='none';
   renderDecks();
@@ -519,6 +656,30 @@ async function confirmChangeCategory(){
   // Leerer String → null in DB → Karte landet wieder bei "Ohne Kategorie"
   const categoryToSave=newCategory||null;
 
+  // Multi-Move-Modus: alle deckEditSelected verschieben
+  if(changingCategoryDcId==='__multi__'){
+    const ids=[...deckEditSelected];
+    if(ids.length===0){closeModal('changeCategoryModal');return;}
+    let success=0,fail=0;
+    for(const dcId of ids){
+      const{error}=await _sb.from('deck_cards').update({category:categoryToSave}).eq('id',dcId);
+      if(error){fail++;continue;}
+      success++;
+      // Lokal aktualisieren
+      const dc=currentDeckCards.find(c=>c.id===dcId);
+      if(dc)dc.category=categoryToSave;
+    }
+    deckEditSelected.clear();
+    const deck=allDecks.find(d=>d.id===activeDeckId);
+    if(deck)renderDeckDetail(deck);
+    closeModal('changeCategoryModal');
+    changingCategoryDcId=null;
+    if(fail>0)toastError(`${success} verschoben, ${fail} Fehler`);
+    else toastSuccess(`${success} Karte${success===1?'':'n'} ${newCategory?`nach "${newCategory}" verschoben`:'in "Ohne Kategorie" verschoben'}`);
+    return;
+  }
+
+  // Single-Move-Modus (alter Code)
   const dc=currentDeckCards.find(c=>c.id===changingCategoryDcId);
   if(!dc){closeModal('changeCategoryModal');return;}
 
@@ -529,8 +690,6 @@ async function confirmChangeCategory(){
     return;
   }
 
-  // Update in DB ausführen — direkt über _sb, da wir keine bestehende
-  // Helfer-Funktion dafür haben (bisher gab es nur "hinzufügen" und "entfernen")
   const{error}=await _sb.from('deck_cards').update({category:categoryToSave}).eq('id',changingCategoryDcId);
   if(error){
     toastError('Konnte Kategorie nicht ändern: '+error.message);

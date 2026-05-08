@@ -244,7 +244,7 @@ function gridHTML(g){
     hasMisprint?'<span class="badge badge-misprint">⚠ MISPRINT</span>':'',
     hasAltered?'<span class="badge badge-altered">✎ ALTERED</span>':''
   ].filter(Boolean).join('');
-  return`<div class="card-item" onclick="openCardModal('${esc(g.name)}')">
+  return`<div class="card-item" onclick="openCardModal('${escJs(g.name)}')">
     <div class="img-wrap">
       ${img?`<img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" data-src="${img}" alt="${esc(c.name)}">`:`<div class="img-placeholder">🃏<span>${esc(c.name)}</span></div>`}
       ${g.totalQty>1?`<span class="qty-badge">×${g.totalQty}</span>`:''}
@@ -267,7 +267,7 @@ function listHTML(g){
   // Sprachen kompakt zusammenfassen
   const languages=[...new Set(g.cards.map(v=>v.language).filter(Boolean))];
   const langLabel=languages.length===0?'–':languages.length===1?languages[0]:languages.length+' Sprachen';
-  return`<div class="list-row" onclick="openCardModal('${esc(g.name)}')">
+  return`<div class="list-row" onclick="openCardModal('${escJs(g.name)}')">
     <span class="name-col"><span class="rarity-dot ${r}" style="margin-right:5px"></span>${esc(c.name)}</span>
     <span class="col">${esc(c.set_name||c.set_code)}${g.cards.length>1?' …':''}</span>
     <span class="col" style="text-transform:capitalize">${esc(c.rarity)}</span>
@@ -277,7 +277,7 @@ function listHTML(g){
     <span class="col">${price}</span>
     <span class="col">${esc(langLabel)}</span>
     <div class="list-actions" onclick="event.stopPropagation()">
-      <button class="icon-btn" onclick="openCardModal('${esc(g.name)}')">👁</button>
+      <button class="icon-btn" onclick="openCardModal('${escJs(g.name)}')">👁</button>
     </div>
   </div>`;
 }
@@ -421,7 +421,7 @@ function openVariantEdit(cardId){
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" onclick="saveCardEdit()">Speichern</button>
-          <button class="btn" onclick="openCardModal('${esc(v.name)}')">Zurück</button>
+          <button class="btn" onclick="openCardModal('${escJs(v.name)}')">Zurück</button>
           <button class="btn btn-danger" onclick="deleteCard('${v.id}')">Löschen</button>
         </div>
       </div>
