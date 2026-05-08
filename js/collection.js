@@ -318,42 +318,30 @@ function openCardModal(name){
   const totalValue=variants.reduce((s,v)=>s+((parseFloat(v.purchase_price)||0)*(v.quantity||1)),0);
   const decksOptions=allDecks.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
 
-  // Tabelle aller Varianten (oder einzelnes Detail-Panel falls nur 1 Variante)
-  let variantsBlock='';
-  if(variants.length===1){
-    const price=c.purchase_price?`${parseFloat(c.purchase_price).toFixed(2)} ${c.currency||'€'}`:'–';
-    variantsBlock=`<div class="detail-grid">
-      <div class="detail-item"><label>SELTENHEIT</label><div class="val" style="text-transform:capitalize;color:var(--${r})">${esc(c.rarity)}</div></div>
-      <div class="detail-item"><label>ANZAHL</label><div class="val">×${c.quantity}</div></div>
-      <div class="detail-item"><label>ZUSTAND</label><div class="val"><span class="condition-badge ${cc(c.condition)}">${cl(c.condition)}</span></div></div>
-      <div class="detail-item"><label>SPRACHE</label><div class="val">${esc(c.language||'–')}</div></div>
-      <div class="detail-item"><label>KAUFPREIS</label><div class="val">${price}</div></div>
-      <div class="detail-item"><label>FOIL</label><div class="val">${c.foil==='foil'?'✦ Foil':'Normal'}</div></div>
-    </div>`;
-  }else{
-    // Mehrere Varianten: Tabelle
-    const rows=variants.map(v=>{
-      const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
-      return`<div class="variant-row">
-        <div class="variant-set">
-          <strong>${esc(v.set_name||v.set_code)}</strong>
-          <span class="variant-meta">${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>
-        </div>
-        <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
-        <span class="variant-qty">×${v.quantity}</span>
-        <span class="variant-price">${vPrice}</span>
-        <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante bearbeiten">✎</button>
-        <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante löschen">🗑</button>
-      </div>`;
-    }).join('');
-    variantsBlock=`
-      <div class="variants-summary">
-        <span><strong>${variants.length}</strong> Varianten</span>
-        <span><strong>${totalQty}</strong> Karten gesamt</span>
-        ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Gesamtwert</span>`:''}
+  // Tabelle aller Varianten — auch bei nur 1 Variante zeigen wir die Tabelle,
+  // damit Bearbeiten und Löschen direkt zugänglich sind ohne Umweg über das
+  // Detail-Grid.
+  const rows=variants.map(v=>{
+    const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
+    return`<div class="variant-row">
+      <div class="variant-set">
+        <strong>${esc(v.set_name||v.set_code)}</strong>
+        <span class="variant-meta">${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>
       </div>
-      <div class="variants-list">${rows}</div>`;
-  }
+      <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
+      <span class="variant-qty">×${v.quantity}</span>
+      <span class="variant-price">${vPrice}</span>
+      <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante bearbeiten">✎</button>
+      <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante löschen">🗑</button>
+    </div>`;
+  }).join('');
+  const variantsBlock=`
+    <div class="variants-summary">
+      <span><strong>${variants.length}</strong> ${variants.length===1?'Variante':'Varianten'}</span>
+      <span><strong>${totalQty}</strong> Karten gesamt</span>
+      ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Gesamtwert</span>`:''}
+    </div>
+    <div class="variants-list">${rows}</div>`;
 
   document.getElementById('modalInner').innerHTML=`
     <div class="modal-img-side">
