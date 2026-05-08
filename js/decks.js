@@ -444,6 +444,21 @@ function clearAddCardsSelection(){
   updateAddCardsSelectionInfo();
 }
 
+// Alle aktuell sichtbaren (= gefilterten) Karten in der Liste markieren.
+// "Sichtbar" heißt: was renderAddCardsList tatsächlich ins DOM geschrieben hat,
+// also nach aktuellem Suchfilter und unter dem 200er-Cap.
+function selectAllAddCards(){
+  const rows=document.querySelectorAll('.add-card-row[data-id]');
+  rows.forEach(row=>{
+    const id=row.dataset.id;
+    addCardsSelected.add(id);
+    row.classList.add('selected');
+    const cb=row.querySelector('input[type=checkbox]');
+    if(cb)cb.checked=true;
+  });
+  updateAddCardsSelectionInfo();
+}
+
 // Hinzufügen-Button: alle gewählten Karten in die Kategorie schreiben.
 // Leere Kategorie ist erlaubt — diese Karten erscheinen oben im Deck unter "Ohne Kategorie".
 async function confirmAddCardsToDeck(){
