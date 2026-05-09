@@ -267,22 +267,33 @@ function renderCategoryBody(dcCards){
 // Ergebnis pro Gruppe: representative (erster dc-Eintrag), alle dcIds,
 // die zur Gruppe gehören (wichtig für Multi-Operationen wie Verschieben/Löschen),
 // und die Summe der Anzahlen.
+//
+// Robust gegen:
+// - Unterschiedliche Schreibweisen ("Island" vs " island ") via lowercase+trim
+// - Quantity als String aus der DB (parseInt-Cast)
+// - Karten ohne card-Eintrag in allCards (Fallback auf card_id; gruppiert dann nicht — ist OK)
 function groupDcByCardName(dcCards){
   const groups={};
   for(const dc of dcCards){
     const card=allCards.find(c=>c.id===dc.card_id);
-    const name=card?.name||dc.card_id;
-    if(!groups[name]){
-      groups[name]={
-        name,
+    const displayName=card?.name||dc.card_id;
+    // Gruppierungsschlüssel ist lowercase + trim, damit "Island", "island", " Island "
+    // und Co. zur selben Gruppe gehören
+    const key=String(displayName).toLowerCase().trim();
+    if(!groups[key]){
+      groups[key]={
+        name:displayName,         // Anzeige-Name kommt vom ersten Eintrag
         representative:dc,
         repCard:card,
         dcIds:[],
         quantity:0
       };
     }
-    groups[name].dcIds.push(dc.id);
-    groups[name].quantity+=dc.quantity||1;
+    groups[key].dcIds.push(dc.id);
+    // Quantity als Number sicherstellen — Supabase liefert numeric als Number,
+    // aber bei Edge-Cases (string aus altem Bestand) wäre 1 + "1" = "11" der Bug
+    const q=parseInt(dc.quantity,10);
+    groups[key].quantity+=isNaN(q)?1:q;
   }
   return Object.values(groups);
 }
@@ -316,7 +327,7 @@ function deckCardTile(g){
     ${checkbox}
     ${removeBtn}
     ${img?`<img src="${img}" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
-    <div class="dc-tile-qty">×${g.quantity}</div>
+    ${g.quantity>1?`<div class="dc-tile-qty">×${g.quantity}</div>`:''}
   </div>`;
 }
 
