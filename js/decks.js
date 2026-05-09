@@ -288,54 +288,58 @@ function groupDcByCardName(dcCards){
 }
 
 // Karten-Kachel für die Karten-Ansicht
-// - Ohne Edit-Mode: Klick öffnet Karten-Detail-Modal (openCardModal mit Namen)
-// - Mit Edit-Mode: Klick toggelt die Auswahl. Da Gruppen ggf. mehrere dcIds
-//   enthalten, werden alle dcIds dieser Gruppe an/aus gemarkiert
 //
-// Anzahl-Pille (×N) wird IMMER gezeigt wenn quantity > 1, nicht mehr nur im Edit-Mode.
-// Lösch-Knopf nur im Edit-Mode (und entfernt alle dcIds der Gruppe).
+// Click-Verhalten:
+//  - Karten-Hauptfläche (Bild + Info): IMMER → Karten-Modal mit Deck-Kontext.
+//    So sieht der User Varianten und kann auch im Edit-Mode bequem rein/raus.
+//  - Checkbox-Overlay (nur im Edit-Mode): toggelt Auswahl der Gruppe.
+//  - Trash-Knopf (nur im Edit-Mode): entfernt alle Druckungen aus dem Deck.
+//
+// Anzahl-Pille (×N) wird IMMER gezeigt — auch ×1, damit man die Anzahl
+// jeder Karte im Deck sofort sieht ohne reinklicken zu müssen.
 function deckCardTile(g){
   const card=g.repCard;
   const img=card?iUrl(card):null;
   const cardName=g.name;
   // Eine Gruppe ist "selected", wenn ALLE zugehörigen dcIds markiert sind
   const isSelected=g.dcIds.every(id=>deckEditSelected.has(id));
-  const showQty=g.quantity>1;
-  const onClickAttr=deckEditMode
-    ?`onclick="toggleDeckEditGroup('${g.dcIds.join(',')}')"`
-    :`onclick="openCardModal('${escJs(cardName)}')"`;
-  // Für Multi-Lösch übergeben wir die kommaseparierten dcIds
+  const dcIdsCsv=g.dcIds.join(',');
+  // Hauptfläche-Klick öffnet immer das Karten-Modal mit Deck-Kontext
+  const tileClick=`onclick="openCardModal('${escJs(cardName)}','${dcIdsCsv}')"`;
+  // Checkbox: stoppt Propagation, togglet stattdessen die Auswahl
+  const checkbox=deckEditMode?`<div class="dc-tile-checkbox" onclick="event.stopPropagation();toggleDeckEditGroup('${dcIdsCsv}')" title="Auswählen">${isSelected?'✓':''}</div>`:'';
+  // Trash: entfernt aus Deck (mit Bestätigung)
   const removeBtn=deckEditMode
-    ?`<button class="dc-tile-remove" onclick="event.stopPropagation();removeDeckCardGroup('${g.dcIds.join(',')}')" title="Alle ${g.quantity} Karten entfernen">🗑</button>`
+    ?`<button class="dc-tile-remove" onclick="event.stopPropagation();removeDeckCardGroup('${dcIdsCsv}')" title="Aus Deck entfernen">🗑</button>`
     :'';
-  return`<div class="dc-card-tile${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}${g.quantity>1?` (×${g.quantity})`:''}">
-    ${deckEditMode?`<div class="dc-tile-checkbox">${isSelected?'✓':''}</div>`:''}
+  return`<div class="dc-card-tile${isSelected?' selected':''}" ${tileClick} title="${esc(cardName)}${g.quantity>1?` (×${g.quantity})`:''}">
+    ${checkbox}
     ${removeBtn}
     ${img?`<img src="${img}" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
-    ${showQty?`<div class="dc-tile-qty">×${g.quantity}</div>`:''}
+    <div class="dc-tile-qty">×${g.quantity}</div>
   </div>`;
 }
 
 // Listen-Zeile (klassische Ansicht).
-// Erhält ebenfalls eine Karten-Gruppe (zusammengefasste Anzahl).
-// Lösch-Button entfernt die ganze Gruppe (alle dcIds).
+// Gleiche Click-Logik wie der Tile: Hauptfläche öffnet Karten-Modal,
+// Checkbox togglet Auswahl, Trash entfernt aus Deck.
 function deckCardRow(g){
   const card=g.repCard;
   const img=card?iUrl(card):null;
   const cardName=g.name;
   const isSelected=g.dcIds.every(id=>deckEditSelected.has(id));
-  const onClickAttr=deckEditMode
-    ?`onclick="toggleDeckEditGroup('${g.dcIds.join(',')}')"`
-    :`onclick="openCardModal('${escJs(cardName)}')"`;
-  return`<div class="deck-card-row${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}">
-    ${deckEditMode?`<div class="dc-row-checkbox">${isSelected?'✓':''}</div>`:''}
+  const dcIdsCsv=g.dcIds.join(',');
+  const rowClick=`onclick="openCardModal('${escJs(cardName)}','${dcIdsCsv}')"`;
+  const checkbox=deckEditMode?`<div class="dc-row-checkbox" onclick="event.stopPropagation();toggleDeckEditGroup('${dcIdsCsv}')" title="Auswählen">${isSelected?'✓':''}</div>`:'';
+  return`<div class="deck-card-row${isSelected?' selected':''}" ${rowClick} title="${esc(cardName)}">
+    ${checkbox}
     ${img?`<img class="dc-img" src="${img}" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
       <div class="dc-name">${esc(cardName||g.representative.card_id)}</div>
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}${g.dcIds.length>1?` · ${g.dcIds.length} Druckungen`:''}</div>
     </div>
     <span class="dc-qty">×${g.quantity}</span>
-    <button class="dc-remove" onclick="event.stopPropagation();removeDeckCardGroup('${g.dcIds.join(',')}')" title="Alle ${g.quantity} Karten entfernen">✕</button>
+    <button class="dc-remove" onclick="event.stopPropagation();removeDeckCardGroup('${dcIdsCsv}')" title="Alle ${g.quantity} Karten entfernen">✕</button>
   </div>`;
 }
 
@@ -482,24 +486,10 @@ async function removeDeckCardGroup(dcIdsCsv){
   else toastSuccess(`${success===1?'Karte':success+' Einträge'} entfernt`);
 }
 
-// Multi-Select: Markierte Karten verschieben
+// Multi-Select: Markierte Karten verschieben — öffnet den neuen Move-Picker
 async function editModeMoveSelected(){
   if(deckEditSelected.size===0)return;
-  // Wir öffnen das vorhandene Kategorie-Wechsel-Modal, befüllen die Felder
-  // entsprechend für Multi-Move. Die Bestätigung läuft dann durch
-  // confirmChangeCategoryMulti, das ALLE ausgewählten verschiebt.
-  changingCategoryDcId='__multi__';  // Marker, dass es Multi ist
-  const n=deckEditSelected.size;
-  document.getElementById('changeCategoryCardName').innerHTML=
-    `<strong>${n} Karte${n===1?'':'n'}</strong> verschieben`;
-  document.getElementById('changeCategoryInput').value='';
-  // Vorschläge: existierende Kategorien
-  const existingCats=[...new Set(currentDeckCards.map(c=>c.category).filter(Boolean))];
-  const standardCats=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
-  const allCats=[...new Set([...existingCats,...standardCats])];
-  document.getElementById('changeCategorySuggestions').innerHTML=allCats.map(c=>`<option value="${esc(c)}">`).join('');
-  document.getElementById('changeCategoryModal').classList.add('open');
-  setTimeout(()=>document.getElementById('changeCategoryInput').focus(),50);
+  openMovePicker([...deckEditSelected].join(','));
 }
 
 // Multi-Select: Markierte Karten entfernen (mit Bestätigung)
@@ -740,83 +730,122 @@ async function confirmAddCardsToDeck(){
 // Erlaubt es, eine Karte im Deck nachträglich einer anderen Kategorie
 // zuzuordnen oder die Kategorie zu entfernen ("Ohne Kategorie").
 
-let changingCategoryDcId = null;  // welcher Deck-Card-Eintrag wird gerade verschoben
+// ══════════════════════════════════════════════════════════
+//  MOVE-PICKER  ·  Visueller Kategorie-Wähler
+// ══════════════════════════════════════════════════════════
+//
+//  Zeigt eine Liste der existierenden Kategorien des aktiven Decks als
+//  klickbare Zeilen. Klick auf eine Kategorie verschiebt die Karte(n) sofort
+//  dorthin (kein extra Bestätigen). Optional kann unten eine neue Kategorie
+//  via Texteingabe erstellt werden.
+//
+//  Eintrittspunkte:
+//  - Tile/Row-Klick im Edit-Mode bei Single-Card → openMovePicker(dcId)
+//  - Edit-Action-Bar "Verschieben" → editModeMoveSelected → openMovePicker(...)
+//  - Karten-Modal "Verschieben"-Button → openMovePicker(dcIdsCsv)
+//
+//  movePickerDcIds enthält die zu verschiebenden dc-IDs (auch bei Single als 1-Element-Array).
 
-function openChangeCategoryModal(dcId){
-  const dc=currentDeckCards.find(c=>c.id===dcId);
-  if(!dc)return;
-  changingCategoryDcId=dcId;
-  const card=allCards.find(c=>c.id===dc.card_id);
+let movePickerDcIds = [];
 
-  // Karten-Name + aktuelle Kategorie anzeigen
-  const currentCat=dc.category||'Ohne Kategorie';
-  document.getElementById('changeCategoryCardName').innerHTML=
-    `<strong>${esc(card?.name||'Karte')}</strong> — aktuell: <em style="color:var(--text2)">${esc(currentCat)}</em>`;
+function openMovePicker(dcIdsCsv){
+  movePickerDcIds=dcIdsCsv?String(dcIdsCsv).split(','):[];
+  if(!movePickerDcIds.length)return;
 
-  // Eingabefeld leer + Vorschläge aus existierenden Kategorien des Decks + Standard-Kategorien
-  document.getElementById('changeCategoryInput').value='';
-  const existingCats=[...new Set(currentDeckCards.map(c=>c.category).filter(Boolean))];
-  const standardCats=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
-  const allCats=[...new Set([...existingCats,...standardCats])];
-  document.getElementById('changeCategorySuggestions').innerHTML=allCats.map(c=>`<option value="${esc(c)}">`).join('');
+  // Subject-Zeile: was wird verschoben? Karten-Name(n) + Anzahl.
+  const dcs=movePickerDcIds.map(id=>currentDeckCards.find(c=>c.id===id)).filter(Boolean);
+  const totalQty=dcs.reduce((s,d)=>s+(d.quantity||1),0);
+  // Eindeutige Kartennamen sammeln
+  const names=[...new Set(dcs.map(dc=>{
+    const card=allCards.find(c=>c.id===dc.card_id);
+    return card?.name||'Karte';
+  }))];
+  const subject=names.length===1
+    ?`<strong>${esc(names[0])}</strong>${totalQty>1?` (×${totalQty})`:''} verschieben nach…`
+    :`<strong>${dcs.length} Einträge</strong> (${totalQty} Karten) verschieben nach…`;
+  document.getElementById('movePickerSubject').innerHTML=subject;
 
-  document.getElementById('changeCategoryModal').classList.add('open');
-  setTimeout(()=>document.getElementById('changeCategoryInput').focus(),50);
+  // Liste der existierenden Kategorien rendern. Pro Kategorie: Anzahl Karten.
+  // "Ohne Kategorie" als Pseudo-Eintrag, falls Karten ohne Kategorie existieren oder
+  // damit der User dorthin verschieben kann.
+  const cats={};
+  let uncatCount=0;
+  for(const dc of currentDeckCards){
+    const cat=(dc.category||'').trim();
+    if(!cat)uncatCount+=dc.quantity||1;
+    else cats[cat]=(cats[cat]||0)+(dc.quantity||1);
+  }
+
+  // Reihenfolge respektieren wie im Deck
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  const savedOrder=Array.isArray(deck?.category_order)?[...deck.category_order]:[];
+  const orderedCats=[...new Set([...savedOrder.filter(c=>cats[c]),...Object.keys(cats)])];
+
+  // Aktuelle Kategorie der ausgewählten Karten — zum Hervorheben/Disable
+  const currentCats=new Set(dcs.map(dc=>dc.category||'__uncat__'));
+
+  let html='';
+  // "Ohne Kategorie"-Option immer anbieten — nützlich, um Karten "auszuparken"
+  const isCurrentUncat=currentCats.has('__uncat__');
+  html+=`<button class="move-picker-row${isCurrentUncat?' current':''}" onclick="moveToCategory('__uncat__')" ${isCurrentUncat?'disabled':''}>
+    <span class="mp-arrow">→</span>
+    <span class="mp-name"><em>⋯ Ohne Kategorie</em></span>
+    ${uncatCount>0?`<span class="mp-count">${uncatCount}</span>`:''}
+  </button>`;
+  for(const cat of orderedCats){
+    const isCurrent=currentCats.has(cat);
+    html+=`<button class="move-picker-row${isCurrent?' current':''}" onclick="moveToCategory('${escJs(cat)}')" ${isCurrent?'disabled':''}>
+      <span class="mp-arrow">→</span>
+      <span class="mp-name">${esc(cat)}</span>
+      <span class="mp-count">${cats[cat]}</span>
+    </button>`;
+  }
+  document.getElementById('movePickerList').innerHTML=html;
+  document.getElementById('movePickerNewInput').value='';
+
+  document.getElementById('movePickerModal').classList.add('open');
 }
 
-async function confirmChangeCategory(){
-  if(!changingCategoryDcId)return;
-  const newCategory=(document.getElementById('changeCategoryInput').value||'').trim();
-  // Leerer String → null in DB → Karte landet wieder bei "Ohne Kategorie"
-  const categoryToSave=newCategory||null;
+function closeMovePicker(){
+  closeModal('movePickerModal');
+  movePickerDcIds=[];
+}
 
-  // Multi-Move-Modus: alle deckEditSelected verschieben
-  if(changingCategoryDcId==='__multi__'){
-    const ids=[...deckEditSelected];
-    if(ids.length===0){closeModal('changeCategoryModal');return;}
-    let success=0,fail=0;
-    for(const dcId of ids){
-      const{error}=await _sb.from('deck_cards').update({category:categoryToSave}).eq('id',dcId);
-      if(error){fail++;continue;}
-      success++;
-      // Lokal aktualisieren
-      const dc=currentDeckCards.find(c=>c.id===dcId);
-      if(dc)dc.category=categoryToSave;
-    }
-    deckEditSelected.clear();
-    const deck=allDecks.find(d=>d.id===activeDeckId);
-    if(deck)renderDeckDetail(deck);
-    closeModal('changeCategoryModal');
-    changingCategoryDcId=null;
-    if(fail>0)toastError(`${success} verschoben, ${fail} Fehler`);
-    else toastSuccess(`${success} Karte${success===1?'':'n'} ${newCategory?`nach "${newCategory}" verschoben`:'in "Ohne Kategorie" verschoben'}`);
-    return;
+// Karten verschieben: zu existierender Kategorie ('__uncat__' = Ohne Kategorie).
+async function moveToCategory(cat){
+  if(!movePickerDcIds.length)return;
+  const categoryToSave=cat==='__uncat__'?null:cat;
+  await performCategoryMove(movePickerDcIds,categoryToSave);
+}
+
+// Karten verschieben: zu einer NEU eingegebenen Kategorie.
+async function moveToNewCategory(){
+  if(!movePickerDcIds.length)return;
+  const newName=(document.getElementById('movePickerNewInput').value||'').trim();
+  if(!newName){toastError('Bitte einen Namen eingeben.');return;}
+  await performCategoryMove(movePickerDcIds,newName);
+}
+
+// Gemeinsame DB-Update-Logik für beide Move-Wege.
+async function performCategoryMove(dcIds,categoryToSave){
+  let success=0,fail=0;
+  for(const dcId of dcIds){
+    const{error}=await _sb.from('deck_cards').update({category:categoryToSave}).eq('id',dcId);
+    if(error){fail++;continue;}
+    success++;
+    const dc=currentDeckCards.find(c=>c.id===dcId);
+    if(dc)dc.category=categoryToSave;
   }
-
-  // Single-Move-Modus (alter Code)
-  const dc=currentDeckCards.find(c=>c.id===changingCategoryDcId);
-  if(!dc){closeModal('changeCategoryModal');return;}
-
-  // Wenn sich nichts ändert, einfach Modal schließen
-  if((dc.category||null)===categoryToSave){
-    closeModal('changeCategoryModal');
-    toastInfo('Kategorie unverändert.');
-    return;
-  }
-
-  const{error}=await _sb.from('deck_cards').update({category:categoryToSave}).eq('id',changingCategoryDcId);
-  if(error){
-    toastError('Konnte Kategorie nicht ändern: '+error.message);
-    return;
-  }
-
-  // Lokal updaten + neu rendern (kein voller DB-Reload nötig)
-  dc.category=categoryToSave;
+  // Edit-Selektion zurücksetzen, falls von dort verschoben wurde
+  deckEditSelected.clear();
+  closeMovePicker();
   const deck=allDecks.find(d=>d.id===activeDeckId);
-  renderDeckDetail(deck);
-  closeModal('changeCategoryModal');
-  changingCategoryDcId=null;
-  toastSuccess(newCategory?`Verschoben nach "${newCategory}"`:'In "Ohne Kategorie" verschoben');
+  if(deck)renderDeckDetail(deck);
+  if(fail>0)toastError(`${success} verschoben, ${fail} Fehler`);
+  else{
+    const label=categoryToSave?`nach "${categoryToSave}"`:'in "Ohne Kategorie"';
+    toastSuccess(`${success===1?'Karte':success+' Einträge'} ${label} verschoben`);
+  }
 }
 
 // ── KATEGORIE-REIHENFOLGE ÄNDERN ──
