@@ -325,29 +325,74 @@ function openCardModal(name,deckContextDcIds){
   const totalValue=variants.reduce((s,v)=>s+((parseFloat(v.purchase_price)||0)*(v.quantity||1)),0);
   const decksOptions=allDecks.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
 
+  // Deck-Kontext: berechnen, wie viele Karten dieser Gruppe im Deck sind
+  // und welche Sammlungs-Varianten konkret dort verwendet werden.
+  // cardModalDeckContext enthält die dc-IDs der angeklickten Gruppe (z.B. alle
+  // dc-Einträge "Mountain" in Kategorie "Lands"). Aus diesen können wir die
+  // tatsächlich im Deck verwendeten Varianten ableiten.
+  let deckTotalQty=0;
+  const variantsInDeck=new Map();  // card.id (=variant.id) → quantity im Deck
+  if(cardModalDeckContext&&cardModalDeckContext.length){
+    for(const dcId of cardModalDeckContext){
+      const dc=currentDeckCards.find(d=>d.id===dcId);
+      if(!dc)continue;
+      const q=parseInt(dc.quantity,10)||1;
+      deckTotalQty+=q;
+      variantsInDeck.set(dc.card_id,(variantsInDeck.get(dc.card_id)||0)+q);
+    }
+  }
+
   // Tabelle aller Varianten — auch bei nur 1 Variante zeigen wir die Tabelle,
   // damit Bearbeiten und Löschen direkt zugänglich sind ohne Umweg über das
   // Detail-Grid.
+  // Im Deck-Kontext bekommen Zeilen, deren Variante im aktiven Deck genutzt wird,
+  // einen visuellen Marker "im Deck" — sonst sind sie ausgegraut/normal.
   const rows=variants.map(v=>{
     const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
-    return`<div class="variant-row">
+    const inDeckQty=variantsInDeck.get(v.id)||0;
+    const inDeckMarker=cardModalDeckContext
+      ?(inDeckQty>0
+        ?`<span class="variant-in-deck" title="Diese Variante ist im Deck">✓ im Deck ×${inDeckQty}</span>`
+        :`<span class="variant-not-in-deck" title="Diese Variante ist nur in der Sammlung">— nur Sammlung</span>`)
+      :'';
+    return`<div class="variant-row${cardModalDeckContext&&inDeckQty>0?' is-in-deck':''}">
       <div class="variant-set">
         <strong>${esc(v.set_name||v.set_code)}</strong>
         <span class="variant-meta">${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>
       </div>
+      ${inDeckMarker}
       <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
       <span class="variant-qty">×${v.quantity}</span>
       <span class="variant-price">${vPrice}</span>
-      <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante bearbeiten">✎</button>
-      <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante löschen">🗑</button>
+      <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante in Sammlung bearbeiten">✎</button>
+      <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante aus Sammlung löschen">🗑</button>
     </div>`;
   }).join('');
+
+  // Summary-Zeile über der Tabelle: im Deck-Kontext zwei Zeilen (Deck + Sammlung).
+  // In Sammlungs-Kontext nur eine (Sammlung).
+  const summaryHTML=cardModalDeckContext
+    ?`<div class="variants-summary deck-context-summary">
+        <span class="summary-row primary">
+          <strong>Im aktiven Deck:</strong>
+          <span><strong>${deckTotalQty}</strong> Karten</span>
+          <span><strong>${cardModalDeckContext.length}</strong> ${cardModalDeckContext.length===1?'Variante':'Varianten'}</span>
+        </span>
+        <span class="summary-row secondary">
+          <strong>In Sammlung:</strong>
+          <span>${totalQty} Karten</span>
+          <span>${variants.length} ${variants.length===1?'Variante':'Varianten'}</span>
+          ${totalValue>0?`<span>${totalValue.toFixed(2)} € Gesamtwert</span>`:''}
+        </span>
+      </div>`
+    :`<div class="variants-summary">
+        <span><strong>${variants.length}</strong> ${variants.length===1?'Variante':'Varianten'}</span>
+        <span><strong>${totalQty}</strong> Karten gesamt</span>
+        ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Gesamtwert</span>`:''}
+      </div>`;
+
   const variantsBlock=`
-    <div class="variants-summary">
-      <span><strong>${variants.length}</strong> ${variants.length===1?'Variante':'Varianten'}</span>
-      <span><strong>${totalQty}</strong> Karten gesamt</span>
-      ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Gesamtwert</span>`:''}
-    </div>
+    ${summaryHTML}
     <div class="variants-list">${rows}</div>`;
 
   document.getElementById('modalInner').innerHTML=`
@@ -358,16 +403,19 @@ function openCardModal(name,deckContextDcIds){
     <div class="modal-detail">
       <div class="modal-title">${esc(c.name)}</div>
       <div class="modal-set">${esc(c.set_name||c.set_code)}${variants.length>1?' (älteste Variante angezeigt)':''}</div>
+      ${cardModalDeckContext?`<div class="modal-deck-badge">⚔️ ${deckTotalQty} im aktiven Deck</div>`:''}
       ${variantsBlock}
 
       ${cardModalDeckContext?`
       <div class="add-to-deck-section deck-actions-section">
-        <h4>⚔️ AKTIONEN IM DECK</h4>
+        <h4>⚔️ AKTIONEN IM AKTIVEN DECK</h4>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="openMovePicker('${cardModalDeckContext.join(',')}')">📂 Verschieben</button>
           <button class="btn btn-danger" onclick="removeFromDeckFromCardModal()">🗑 Aus Deck entfernen</button>
         </div>
-        <div style="font-size:0.7rem;color:var(--text3);margin-top:0.5rem;font-style:italic">Wirkt auf ${cardModalDeckContext.length===1?'diese Karte':`alle ${cardModalDeckContext.length} Druckungen`} im aktiven Deck. Die Sammlung bleibt unberührt.</div>
+        <div style="font-size:0.72rem;color:var(--text3);margin-top:0.5rem;font-style:italic">
+          Wirkt nur auf die ${deckTotalQty} ${deckTotalQty===1?'Karte':'Karten'} im aktiven Deck. Die ${variants.length} ${variants.length===1?'Variante':'Varianten'} in deiner Sammlung bleiben unberührt.
+        </div>
       </div>
       `:(allDecks.length>0?`
       <div class="add-to-deck-section">
