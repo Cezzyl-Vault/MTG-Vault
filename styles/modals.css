@@ -368,3 +368,63 @@ details summary{outline:none;}
   border-color:var(--gold-dim);
   background:rgba(201,168,76,0.04);
 }
+
+/* ══════════════════════════════
+   KARTEN-MODAL · DECK-KONTEXT MARKER
+   Zeigt klar getrennt was zur Sammlung und was zum Deck gehört
+══════════════════════════════ */
+
+/* Badge unter dem Kartennamen: zeigt prominent wie viele im aktiven Deck sind */
+.modal-deck-badge{
+  display:inline-block;
+  background:rgba(201,168,76,0.15);
+  border:1px solid var(--gold);
+  color:var(--gold);
+  font-family:'Cinzel',serif;
+  font-size:0.85rem;font-weight:600;letter-spacing:0.05em;
+  padding:0.3rem 0.7rem;border-radius:6px;
+  margin:0.5rem 0;
+}
+
+/* Zwei-Zeilen-Summary über der Variantentabelle (Deck + Sammlung getrennt) */
+.deck-context-summary{
+  display:flex !important;flex-direction:column;gap:0.4rem;
+  align-items:flex-start !important;
+}
+.deck-context-summary .summary-row{
+  display:flex;gap:0.7rem;flex-wrap:wrap;align-items:center;
+}
+.deck-context-summary .summary-row.primary{
+  color:var(--gold);
+  font-size:0.95rem;
+}
+.deck-context-summary .summary-row.secondary{
+  color:var(--text2);
+  font-size:0.85rem;
+  border-top:1px dashed var(--border);
+  padding-top:0.4rem;width:100%;
+}
+.deck-context-summary .summary-row strong{font-weight:600;}
+
+/* Variantentabelle: pro Zeile zeigen ob im Deck */
+.variant-row.is-in-deck{
+  border-left:3px solid var(--gold);
+  background:rgba(201,168,76,0.04);
+}
+.variant-in-deck{
+  background:rgba(201,168,76,0.15);
+  color:var(--gold);
+  border:1px solid var(--gold-dim);
+  border-radius:5px;
+  font-size:0.72rem;
+  font-weight:600;
+  padding:0.18rem 0.5rem;
+  white-space:nowrap;
+}
+.variant-not-in-deck{
+  color:var(--text3);
+  font-size:0.72rem;
+  font-style:italic;
+  padding:0.18rem 0.5rem;
+  white-space:nowrap;
+}
