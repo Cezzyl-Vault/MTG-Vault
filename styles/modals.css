@@ -428,3 +428,31 @@ details summary{outline:none;}
   padding:0.18rem 0.5rem;
   white-space:nowrap;
 }
+
+/* "+ Deck"-Button in der Variantentabelle (Sammlung) */
+.deck-add-btn{
+  background:rgba(201,168,76,0.1);
+  border:1px solid var(--gold-dim) !important;
+  color:var(--gold) !important;
+  font-family:'Cinzel',serif;
+  font-size:0.7rem;letter-spacing:0.05em;
+  padding:0.28rem 0.55rem !important;
+  border-radius:5px;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.deck-add-btn:hover{
+  background:var(--gold);
+  color:#0a0800 !important;
+  border-color:var(--gold) !important;
+}
+
+/* Hinweis-Zeile, die statt des alten "Add to Deck"-Blocks erscheint */
+.add-to-deck-hint{
+  margin:0.6rem 0;
+  padding:0.5rem 0.8rem;
+  background:rgba(201,168,76,0.04);
+  border-left:2px solid var(--gold-dim);
+  border-radius:4px;
+}
