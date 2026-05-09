@@ -347,8 +347,10 @@ function openCardModal(name,deckContextDcIds){
   // Detail-Grid.
   // Im Deck-Kontext bekommen Zeilen, deren Variante im aktiven Deck genutzt wird,
   // einen visuellen Marker "im Deck" — sonst sind sie ausgegraut/normal.
-  // PRO ZEILE gibt's einen "+ Deck"-Button: damit kann jede Variante einzeln zu
-  // einem Deck hinzugefügt werden (öffnet das Add-Variant-Modal).
+  // Aktions-Buttons sind kontextabhängig:
+  //   Sammlungs-Kontext        → [+ Deck] [✎] [🗑]   (Deck-Add + Sammlungs-Bearbeiten/Löschen)
+  //   Deck-Kontext, im Deck    → [−1] [+1] [🗑 Deck]  (Anzahl ändern + ganze Variante raus)
+  //   Deck-Kontext, nicht drin → [+ Deck]              (Variante zum Deck hinzufügen)
   const rows=variants.map(v=>{
     const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
     const inDeckQty=variantsInDeck.get(v.id)||0;
@@ -357,9 +359,34 @@ function openCardModal(name,deckContextDcIds){
         ?`<span class="variant-in-deck" title="Diese Variante ist im Deck">✓ im Deck ×${inDeckQty}</span>`
         :`<span class="variant-not-in-deck" title="Diese Variante ist nur in der Sammlung">— nur Sammlung</span>`)
       :'';
-    const addToDeckBtn=allDecks.length>0
-      ?`<button class="icon-btn deck-add-btn" onclick="event.stopPropagation();openAddVariantToDeckModal('${v.id}')" title="Diese Variante zu einem Deck hinzufügen">+ Deck</button>`
-      :'';
+
+    let actionButtons='';
+    if(cardModalDeckContext){
+      // Deck-Kontext
+      if(inDeckQty>0){
+        // −1 reduziert Anzahl um 1; bei Quantity=1 wird die Variante komplett entfernt.
+        // +1 erhöht die Anzahl um 1.
+        // 🗑 Deck nur sichtbar wenn >1, weil bei =1 das −1 dasselbe macht.
+        actionButtons=`
+          <button class="icon-btn deck-minus-btn" onclick="event.stopPropagation();decrementVariantInDeck('${v.id}')" title="Eine Karte dieser Variante aus dem Deck entfernen">−1</button>
+          <button class="icon-btn deck-plus-btn" onclick="event.stopPropagation();incrementVariantInDeck('${v.id}')" title="Eine weitere Karte dieser Variante zum Deck hinzufügen">+1</button>
+          ${inDeckQty>1?`<button class="icon-btn danger" onclick="event.stopPropagation();removeVariantFromDeck('${v.id}')" title="Alle ${inDeckQty} Karten dieser Variante aus dem Deck entfernen">🗑 Deck</button>`:''}
+        `;
+      }else if(allDecks.length>0){
+        // Variante nicht im Deck → kann hinzugefügt werden
+        actionButtons=`<button class="icon-btn deck-add-btn" onclick="event.stopPropagation();openAddVariantToDeckModal('${v.id}')" title="Diese Variante zum Deck hinzufügen">+ Deck</button>`;
+      }
+    }else{
+      // Sammlungs-Kontext: + Deck (falls Decks da) + Sammlung-Bearbeiten/Löschen
+      if(allDecks.length>0){
+        actionButtons+=`<button class="icon-btn deck-add-btn" onclick="event.stopPropagation();openAddVariantToDeckModal('${v.id}')" title="Diese Variante zu einem Deck hinzufügen">+ Deck</button>`;
+      }
+      actionButtons+=`
+        <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante in Sammlung bearbeiten">✎</button>
+        <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante aus Sammlung löschen">🗑</button>
+      `;
+    }
+
     return`<div class="variant-row${cardModalDeckContext&&inDeckQty>0?' is-in-deck':''}">
       <div class="variant-set">
         <strong>${esc(v.set_name||v.set_code)}</strong>
@@ -369,9 +396,7 @@ function openCardModal(name,deckContextDcIds){
       <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
       <span class="variant-qty">×${v.quantity}</span>
       <span class="variant-price">${vPrice}</span>
-      ${addToDeckBtn}
-      <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante in Sammlung bearbeiten">✎</button>
-      <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante aus Sammlung löschen">🗑</button>
+      ${actionButtons}
     </div>`;
   }).join('');
 
@@ -464,6 +489,100 @@ async function removeFromDeckFromCardModal(){
     await removeDeckCardGroup(csv);
   }
   cardModalDeckContext=null;
+}
+
+// ── VARIANTE IM DECK BEARBEITEN ──
+//
+// Buttons "−1", "+1" und "🗑 Deck" pro Variantenzeile (im Deck-Kontext).
+// Sie operieren auf der dc-row, deren card_id der Varianten-ID entspricht
+// und die Teil von cardModalDeckContext ist (= zur geklickten Gruppe gehört).
+
+// Hilfsfunktion: zur Variante die zugehörige dc-ID im Kontext finden
+function findDcIdForVariant(variantId){
+  if(!cardModalDeckContext||!cardModalDeckContext.length)return null;
+  return cardModalDeckContext.find(id=>{
+    const dc=currentDeckCards.find(d=>d.id===id);
+    return dc&&dc.card_id===variantId;
+  })||null;
+}
+
+// −1: eine Karte dieser Variante aus dem Deck entfernen.
+// Wenn quantity dadurch auf 0 fällt, wird der dc-Eintrag komplett gelöscht.
+async function decrementVariantInDeck(variantId){
+  const dcId=findDcIdForVariant(variantId);
+  if(!dcId)return;
+  const dc=currentDeckCards.find(d=>d.id===dcId);
+  if(!dc)return;
+
+  const newQty=(parseInt(dc.quantity,10)||1)-1;
+  if(newQty<=0){
+    // Letzte Karte → Eintrag löschen
+    if(!await removeDeckCardDB(dcId)){toastError('Konnte nicht entfernen');return;}
+    currentDeckCards=currentDeckCards.filter(d=>d.id!==dcId);
+    cardModalDeckContext=cardModalDeckContext.filter(id=>id!==dcId);
+    toastSuccess('Letzte Karte dieser Variante aus dem Deck entfernt');
+  }else{
+    const{error}=await _sb.from('deck_cards').update({quantity:newQty}).eq('id',dcId);
+    if(error){toastError('Fehler: '+error.message);return;}
+    dc.quantity=newQty;
+    toastSuccess(`Eine Karte entfernt (jetzt ${newQty}× im Deck)`);
+  }
+  await refreshAfterDeckEdit(variantId);
+}
+
+// +1: eine weitere Karte dieser Variante zum Deck hinzufügen.
+// Funktioniert nur wenn die Variante schon im Deck ist (sonst ist es "+ Deck").
+async function incrementVariantInDeck(variantId){
+  const dcId=findDcIdForVariant(variantId);
+  if(!dcId)return;
+  const dc=currentDeckCards.find(d=>d.id===dcId);
+  if(!dc)return;
+
+  const newQty=(parseInt(dc.quantity,10)||1)+1;
+  const{error}=await _sb.from('deck_cards').update({quantity:newQty}).eq('id',dcId);
+  if(error){toastError('Fehler: '+error.message);return;}
+  dc.quantity=newQty;
+  toastSuccess(`Eine Karte hinzugefügt (jetzt ${newQty}× im Deck)`);
+  await refreshAfterDeckEdit(variantId);
+}
+
+// 🗑 Deck: ganze Variante aus dem Deck entfernen (alle Kopien).
+async function removeVariantFromDeck(variantId){
+  const dcId=findDcIdForVariant(variantId);
+  if(!dcId)return;
+  const dc=currentDeckCards.find(d=>d.id===dcId);
+  if(!dc)return;
+
+  const ok=await confirmAction(
+    `Alle ${dc.quantity} Karten dieser Variante aus dem Deck entfernen?`,
+    {title:'VARIANTE ENTFERNEN',confirmLabel:'Entfernen',danger:true}
+  );
+  if(!ok)return;
+
+  if(!await removeDeckCardDB(dcId)){toastError('Konnte nicht entfernen');return;}
+  currentDeckCards=currentDeckCards.filter(d=>d.id!==dcId);
+  cardModalDeckContext=cardModalDeckContext.filter(id=>id!==dcId);
+  toastSuccess('Variante aus Deck entfernt');
+  await refreshAfterDeckEdit(variantId);
+}
+
+// Nach einer Deck-Änderung im Karten-Modal: Modal neu rendern oder schließen,
+// und das Deck-Detail (falls aktiv) aktualisieren.
+async function refreshAfterDeckEdit(variantId){
+  const v=allCards.find(c=>c.id===variantId);
+
+  // Wenn Karte gar nicht mehr im Deck ist (alle Druckungen entfernt), Modal schließen
+  if(!cardModalDeckContext||cardModalDeckContext.length===0){
+    closeModal('cardModal');
+    cardModalDeckContext=null;
+  }else if(v&&document.getElementById('cardModal').classList.contains('open')){
+    // Karten-Modal mit aktualisiertem Kontext neu rendern (zeigt neue ×N-Werte)
+    openCardModal(v.name,cardModalDeckContext.join(','));
+  }
+
+  // Deck-Detail neu rendern, damit Anzahl-Pillen, Validierung etc. aktualisiert sind
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck&&typeof renderDeckDetail==='function')renderDeckDetail(deck);
 }
 
 // Bearbeiten einer einzelnen Variante (über Bleistift-Symbol in Variantentabelle).

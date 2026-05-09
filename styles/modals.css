@@ -456,3 +456,37 @@ details summary{outline:none;}
   border-left:2px solid var(--gold-dim);
   border-radius:4px;
 }
+
+/* −1 / +1 Buttons im Deck-Kontext der Variantentabelle */
+.deck-minus-btn{
+  background:rgba(224,82,82,0.08) !important;
+  border:1px solid rgba(224,82,82,0.4) !important;
+  color:var(--red) !important;
+  font-family:'Cinzel',serif;
+  font-size:0.78rem !important;font-weight:700 !important;
+  padding:0.28rem 0.6rem !important;
+  border-radius:5px;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.deck-minus-btn:hover{
+  background:var(--red) !important;
+  color:#fff !important;
+}
+.deck-plus-btn{
+  background:rgba(110,167,128,0.08) !important;
+  border:1px solid rgba(110,167,128,0.4) !important;
+  color:var(--green) !important;
+  font-family:'Cinzel',serif;
+  font-size:0.78rem !important;font-weight:700 !important;
+  padding:0.28rem 0.6rem !important;
+  border-radius:5px;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.deck-plus-btn:hover{
+  background:var(--green) !important;
+  color:#fff !important;
+}
