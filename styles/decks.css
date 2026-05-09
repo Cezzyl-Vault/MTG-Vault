@@ -369,15 +369,30 @@
 
 /* ══════════════════════════════
    KARTEN-GRID (Deck-Kartenansicht)
+   Karten-Größe ist konfigurierbar (Settings) — drei Stufen über CSS-Variable.
+   --tile-min-width steuert die minimale Spaltenbreite.
 ══════════════════════════════ */
 .dc-card-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  --tile-min-width:150px;  /* default = medium */
+  grid-template-columns:repeat(auto-fill,minmax(var(--tile-min-width),1fr));
   gap:0.6rem;
   padding:0.4rem 0;
 }
+.dc-card-grid.size-small{--tile-min-width:115px;}
+.dc-card-grid.size-medium{--tile-min-width:150px;}
+.dc-card-grid.size-large{--tile-min-width:200px;}
+
+/* Auf Mobile (< 480px) ignorieren wir das Setting und nutzen eine harte Untergrenze,
+   damit Karten dort nicht winzig werden */
 @media(max-width:480px){
-  .dc-card-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.4rem;}
+  .dc-card-grid,
+  .dc-card-grid.size-small,
+  .dc-card-grid.size-medium,
+  .dc-card-grid.size-large{
+    --tile-min-width:110px;
+    gap:0.4rem;
+  }
 }
 
 .dc-card-tile{
