@@ -25,7 +25,10 @@ let authMode = 'login';
 // Hilfsvariable für Kategorie-Modal (aktuell ungenutzt, für künftige Erweiterungen)
 let pendingCatDeckId = null;
 
-// Deck-Detail Anzeige- und Editiermodus
+// Deck-Kontext für das Karten-Modal: wenn aus einem Deck heraus geöffnet,
+// stehen hier die dc-IDs (Array). Sonst null. Steuert, ob "Zu Deck hinzufügen"
+// oder "Aus Deck entfernen / Verschieben"-Buttons erscheinen.
+let cardModalDeckContext = null;
 // deckViewMode: 'cards' (Bilder-Grid) oder 'list' (klassische Listen-Zeilen)
 // deckEditMode: zeigt Checkboxen, Lösch-Buttons pro Karte, Multi-Select-Aktionen
 // deckEditSelected: Set der dc-IDs, die im Edit-Modus markiert sind

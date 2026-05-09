@@ -21,12 +21,15 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
   - **Listen-Ansicht**: kompakte Zeilen
 - **Karten-Größe konfigurierbar** (Klein/Mittel/Groß) — siehe Settings
 - **Karten gleichen Namens werden zusammengefasst** dargestellt (z.B. 4× Insel aus 3 Sets = ein Tile mit ×4)
-- **Anzahl-Pille** auf Karten immer sichtbar wenn Karte mehrfach im Deck ist
+- **Anzahl-Pille** auf jeder Karte immer sichtbar (×N)
 - **Bearbeiten-Modus** mit Multi-Select für Verschieben/Entfernen mehrerer Karten gleichzeitig
+- **Klick auf Karte** öffnet immer das Karten-Modal (auch im Edit-Modus). Auswahl im Edit-Modus erfolgt nur über die Checkbox-Overlay
 - **"Alle markieren"-Button** pro Kategorie im Edit-Modus (Toggle)
 - Kategorien sortierbar via ▲▼-Pfeile (nur im Edit-Modus sichtbar)
 - Kategorien einklappbar via Klick auf Header
 - Karten ohne Kategorie landen in "Ohne Kategorie"-Sektion oben
+- **Visueller Move-Picker**: Karten verschieben über klickbare Kategorien-Liste (statt Texteingabe)
+- **Karten-Modal mit Deck-Kontext**: Bei Klick auf Karte aus dem Deck zeigt das Modal "📂 Verschieben" und "🗑 Aus Deck entfernen" statt "Zu Deck hinzufügen"
 
 **Statistik pro Deck** (einklappbar)
 - KPIs: Karten / Ø Manawert / Deckwert

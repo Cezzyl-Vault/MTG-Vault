@@ -291,9 +291,16 @@ function listHTML(g){
 //  gefilterte Variante) und rechts eine Liste aller Varianten mit
 //  ihren individuellen Eigenschaften (Set, Zustand, Foil, Sprache, Preis).
 //  Bearbeiten und Löschen geht jetzt PRO Variante.
-function openCardModal(name){
+// openCardModal kann in zwei Kontexten aufgerufen werden:
+// - Sammlung (deckContextDcIds=null): zeigt "Zu Deck hinzufügen"-Block
+// - Deck-Detail (deckContextDcIds='dc1,dc2,...'): zeigt stattdessen
+//   "📂 Verschieben" + "🗑 Aus Deck entfernen" Buttons, die auf die übergebenen
+//   Deck-Card-Einträge wirken. Variantentabelle bleibt informativ sichtbar.
+function openCardModal(name,deckContextDcIds){
   const variants=allCards.filter(c=>(c.name||'').toLowerCase()===(name||'').toLowerCase());
   if(!variants.length)return;
+  // Deck-Kontext im State merken — wird von den Buttons abgegriffen
+  cardModalDeckContext=deckContextDcIds?deckContextDcIds.split(','):null;
 
   // Repräsentative Variante: berücksichtigt aktuell aktiven Set-Filter
   const activeSet=document.getElementById('filterSet').value;
@@ -353,7 +360,16 @@ function openCardModal(name){
       <div class="modal-set">${esc(c.set_name||c.set_code)}${variants.length>1?' (älteste Variante angezeigt)':''}</div>
       ${variantsBlock}
 
-      ${allDecks.length>0?`
+      ${cardModalDeckContext?`
+      <div class="add-to-deck-section deck-actions-section">
+        <h4>⚔️ AKTIONEN IM DECK</h4>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="openMovePicker('${cardModalDeckContext.join(',')}')">📂 Verschieben</button>
+          <button class="btn btn-danger" onclick="removeFromDeckFromCardModal()">🗑 Aus Deck entfernen</button>
+        </div>
+        <div style="font-size:0.7rem;color:var(--text3);margin-top:0.5rem;font-style:italic">Wirkt auf ${cardModalDeckContext.length===1?'diese Karte':`alle ${cardModalDeckContext.length} Druckungen`} im aktiven Deck. Die Sammlung bleibt unberührt.</div>
+      </div>
+      `:(allDecks.length>0?`
       <div class="add-to-deck-section">
         <h4>⚔️ ZU DECK HINZUFÜGEN</h4>
         <div class="add-deck-row">
@@ -369,7 +385,7 @@ function openCardModal(name){
           <button class="add-deck-submit" onclick="addCardToDeck('${representative.id}')">+ Hinzufügen</button>
         </div>
         ${variants.length>1?`<div style="font-size:0.7rem;color:var(--text3);margin-top:0.4rem;font-style:italic">Verwendet die älteste Variante. Über die Variantentabelle oben kannst du eine andere bearbeiten/löschen.</div>`:''}
-      </div>`:'<div style="font-size:0.85rem;color:var(--text3);font-style:italic;margin-bottom:0.75rem">Erstelle zuerst ein Deck im Decks-Reiter.</div>'}
+      </div>`:'<div style="font-size:0.85rem;color:var(--text3);font-style:italic;margin-bottom:0.75rem">Erstelle zuerst ein Deck im Decks-Reiter.</div>')}
 
       ${variants.length===1?`
       <details style="margin-top:0.75rem">
@@ -392,6 +408,20 @@ function openCardModal(name){
       </details>`:''}
     </div>`;
   document.getElementById('cardModal').classList.add('open');
+}
+
+// Wird aus dem Karten-Modal aufgerufen, wenn der Benutzer im Deck-Kontext
+// auf "Aus Deck entfernen" klickt. Ruft die bestehende Gruppen-Lösch-Funktion
+// in decks.js auf und schließt das Modal danach.
+async function removeFromDeckFromCardModal(){
+  if(!cardModalDeckContext||!cardModalDeckContext.length)return;
+  const csv=cardModalDeckContext.join(',');
+  // Modal schließen, damit der confirmAction-Dialog davor liegt
+  closeModal('cardModal');
+  if(typeof removeDeckCardGroup==='function'){
+    await removeDeckCardGroup(csv);
+  }
+  cardModalDeckContext=null;
 }
 
 // Bearbeiten einer einzelnen Variante (über Bleistift-Symbol in Variantentabelle).
