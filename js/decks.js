@@ -230,13 +230,17 @@ function uncategorizedSection(dcCards,deckId){
   const collapsed=deckCollapsedCategories.has('__uncat__');
   const arrowIcon=collapsed?'▸':'▾';
   const body=collapsed?'':renderCategoryBody(dcCards);
+  const selectAllBtn=deckEditMode
+    ?`<button class="del-cat-btn" onclick="event.stopPropagation();selectAllInCategory('__uncat__')" title="Alle Karten in dieser Kategorie markieren / abwählen">☑ Alle</button>`
+    :'';
   return`<div class="category-section uncategorized-section">
     <div class="category-header" onclick="toggleDeckCategoryCollapse('__uncat__')">
       <div class="category-name" style="font-style:italic;color:var(--text2)">
         <span class="cat-collapse-arrow">${arrowIcon}</span>
         ⋯ Ohne Kategorie <span class="category-count">${total} Karten</span>
       </div>
-      <div style="display:flex;gap:0.5rem" onclick="event.stopPropagation()">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${selectAllBtn}
         <button class="del-cat-btn" onclick="openAddCardsModal('')" title="Weitere Karten ohne Kategorie hinzufügen">+ Karten</button>
       </div>
     </div>
@@ -244,55 +248,94 @@ function uncategorizedSection(dcCards,deckId){
   </div>`;
 }
 
-// Wählt zwischen Karten-Grid und Listen-Anzeige je nach deckViewMode
+// Wählt zwischen Karten-Grid und Listen-Anzeige je nach deckViewMode.
+// Karten gleichen Namens werden zusammengefasst dargestellt — eine Zeile/Tile
+// pro Karten-Name, mit Summe der Anzahlen darüber. So wirkt das Deck wie
+// "ein Deck", nicht wie eine DB-Liste mit Sammler-Variantenzeilen.
 function renderCategoryBody(dcCards){
+  // Karten gleichen Namens innerhalb dieser Kategorie zu Gruppen zusammenfassen
+  const groups=groupDcByCardName(dcCards);
+  // Nutzer-Einstellung "deckCardSize" als Klasse mitgeben (klein/mittel/groß)
+  const sizeClass=loadSettings().deckCardSize||'medium';
   if(deckViewMode==='cards'){
-    return`<div class="dc-card-grid">${dcCards.map(dc=>deckCardTile(dc)).join('')}</div>`;
+    return`<div class="dc-card-grid size-${sizeClass}">${groups.map(g=>deckCardTile(g)).join('')}</div>`;
   }
-  return dcCards.map(dc=>deckCardRow(dc)).join('');
+  return groups.map(g=>deckCardRow(g)).join('');
+}
+
+// Gruppiert Deck-Card-Einträge nach Karten-Namen.
+// Ergebnis pro Gruppe: representative (erster dc-Eintrag), alle dcIds,
+// die zur Gruppe gehören (wichtig für Multi-Operationen wie Verschieben/Löschen),
+// und die Summe der Anzahlen.
+function groupDcByCardName(dcCards){
+  const groups={};
+  for(const dc of dcCards){
+    const card=allCards.find(c=>c.id===dc.card_id);
+    const name=card?.name||dc.card_id;
+    if(!groups[name]){
+      groups[name]={
+        name,
+        representative:dc,
+        repCard:card,
+        dcIds:[],
+        quantity:0
+      };
+    }
+    groups[name].dcIds.push(dc.id);
+    groups[name].quantity+=dc.quantity||1;
+  }
+  return Object.values(groups);
 }
 
 // Karten-Kachel für die Karten-Ansicht
-// - Ohne Edit-Mode: Klick öffnet Karten-Detail-Modal (openCardModal)
-// - Mit Edit-Mode: Klick toggelt die Auswahl. Anzahl-Pille ×N erscheint links unten,
-//   Lösch-Knopf rechts oben.
-function deckCardTile(dc){
-  const card=allCards.find(c=>c.id===dc.card_id);
+// - Ohne Edit-Mode: Klick öffnet Karten-Detail-Modal (openCardModal mit Namen)
+// - Mit Edit-Mode: Klick toggelt die Auswahl. Da Gruppen ggf. mehrere dcIds
+//   enthalten, werden alle dcIds dieser Gruppe an/aus gemarkiert
+//
+// Anzahl-Pille (×N) wird IMMER gezeigt wenn quantity > 1, nicht mehr nur im Edit-Mode.
+// Lösch-Knopf nur im Edit-Mode (und entfernt alle dcIds der Gruppe).
+function deckCardTile(g){
+  const card=g.repCard;
   const img=card?iUrl(card):null;
-  const cardName=card?.name||'';
-  const isSelected=deckEditSelected.has(dc.id);
-  const showQty=deckEditMode&&dc.quantity>1;
+  const cardName=g.name;
+  // Eine Gruppe ist "selected", wenn ALLE zugehörigen dcIds markiert sind
+  const isSelected=g.dcIds.every(id=>deckEditSelected.has(id));
+  const showQty=g.quantity>1;
   const onClickAttr=deckEditMode
-    ?`onclick="toggleDeckEditCard('${dc.id}')"`
+    ?`onclick="toggleDeckEditGroup('${g.dcIds.join(',')}')"`
     :`onclick="openCardModal('${escJs(cardName)}')"`;
-  return`<div class="dc-card-tile${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}">
+  // Für Multi-Lösch übergeben wir die kommaseparierten dcIds
+  const removeBtn=deckEditMode
+    ?`<button class="dc-tile-remove" onclick="event.stopPropagation();removeDeckCardGroup('${g.dcIds.join(',')}')" title="Alle ${g.quantity} Karten entfernen">🗑</button>`
+    :'';
+  return`<div class="dc-card-tile${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}${g.quantity>1?` (×${g.quantity})`:''}">
     ${deckEditMode?`<div class="dc-tile-checkbox">${isSelected?'✓':''}</div>`:''}
-    ${deckEditMode?`<button class="dc-tile-remove" onclick="event.stopPropagation();removeDeckCard('${dc.id}')" title="Karte entfernen">🗑</button>`:''}
+    ${removeBtn}
     ${img?`<img src="${img}" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
-    ${showQty?`<div class="dc-tile-qty">×${dc.quantity}</div>`:''}
+    ${showQty?`<div class="dc-tile-qty">×${g.quantity}</div>`:''}
   </div>`;
 }
 
 // Listen-Zeile (klassische Ansicht).
-// - Ohne Edit-Mode: Klick öffnet Karten-Detail-Modal
-// - Mit Edit-Mode: Klick toggelt Auswahl, eigene Checkbox links
-function deckCardRow(dc){
-  const card=allCards.find(c=>c.id===dc.card_id);
+// Erhält ebenfalls eine Karten-Gruppe (zusammengefasste Anzahl).
+// Lösch-Button entfernt die ganze Gruppe (alle dcIds).
+function deckCardRow(g){
+  const card=g.repCard;
   const img=card?iUrl(card):null;
-  const cardName=card?.name||'';
-  const isSelected=deckEditSelected.has(dc.id);
+  const cardName=g.name;
+  const isSelected=g.dcIds.every(id=>deckEditSelected.has(id));
   const onClickAttr=deckEditMode
-    ?`onclick="toggleDeckEditCard('${dc.id}')"`
+    ?`onclick="toggleDeckEditGroup('${g.dcIds.join(',')}')"`
     :`onclick="openCardModal('${escJs(cardName)}')"`;
   return`<div class="deck-card-row${isSelected?' selected':''}" ${onClickAttr} title="${esc(cardName)}">
     ${deckEditMode?`<div class="dc-row-checkbox">${isSelected?'✓':''}</div>`:''}
     ${img?`<img class="dc-img" src="${img}" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
-      <div class="dc-name">${esc(cardName||dc.card_id)}</div>
-      <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}</div>
+      <div class="dc-name">${esc(cardName||g.representative.card_id)}</div>
+      <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}${g.dcIds.length>1?` · ${g.dcIds.length} Druckungen`:''}</div>
     </div>
-    <span class="dc-qty">×${dc.quantity}</span>
-    <button class="dc-remove" onclick="event.stopPropagation();removeDeckCard('${dc.id}')" title="Entfernen">✕</button>
+    <span class="dc-qty">×${g.quantity}</span>
+    <button class="dc-remove" onclick="event.stopPropagation();removeDeckCardGroup('${g.dcIds.join(',')}')" title="Alle ${g.quantity} Karten entfernen">✕</button>
   </div>`;
 }
 
@@ -314,6 +357,12 @@ function catSection(cat,dcCards,deckId,index,total,deckFormat){
         <button class="cat-move-btn" onclick="event.stopPropagation();moveCategoryUp('${escJs(cat)}')" ${upDisabled} title="Nach oben">▲</button>
         <button class="cat-move-btn" onclick="event.stopPropagation();moveCategoryDown('${escJs(cat)}')" ${downDisabled} title="Nach unten">▼</button>`:'';
 
+  // "Alle markieren"-Button NUR im Edit-Mode (Multi-Select-Helfer pro Kategorie).
+  // Toggelt zwischen "alle markieren" und "alle abwählen".
+  const selectAllBtn=deckEditMode
+    ?`<button class="del-cat-btn" onclick="event.stopPropagation();selectAllInCategory('${escJs(cat)}')" title="Alle Karten in dieser Kategorie markieren / abwählen">☑ Alle</button>`
+    :'';
+
   // Lösch-Button bei der geschützten Commander-Kategorie ganz weglassen
   const deleteBtn=isLockedCommanderCat
     ?''
@@ -329,7 +378,8 @@ function catSection(cat,dcCards,deckId,index,total,deckFormat){
         ${moveBtns}
         ${catLabel} <span class="category-count">${total_qty} Karten</span>
       </div>
-      <div style="display:flex;gap:0.5rem" onclick="event.stopPropagation()">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${selectAllBtn}
         <button class="del-cat-btn" onclick="openAddCardsModal('${escJs(cat)}')" title="Karten zu dieser Kategorie hinzufügen">+ Karten</button>
         ${deleteBtn}
       </div>
@@ -354,9 +404,39 @@ function toggleDeckEditMode(){
   if(deck)renderDeckDetail(deck);
 }
 
-function toggleDeckEditCard(dcId){
-  if(deckEditSelected.has(dcId))deckEditSelected.delete(dcId);
-  else deckEditSelected.add(dcId);
+// Edit-Mode: Auswahl pro Gruppe toggeln.
+// Eine "Gruppe" sind alle deck_cards-Einträge mit demselben Karten-Namen
+// in derselben Kategorie (z.B. 4× "Insel" aus 4 Sets — ein Tile, 4 dcIds).
+// Logik: Wenn alle dcIds der Gruppe schon markiert sind → alle deselektieren.
+// Sonst → alle markieren.
+function toggleDeckEditGroup(dcIdsCsv){
+  const ids=dcIdsCsv.split(',');
+  const allSelected=ids.every(id=>deckEditSelected.has(id));
+  if(allSelected){
+    ids.forEach(id=>deckEditSelected.delete(id));
+  }else{
+    ids.forEach(id=>deckEditSelected.add(id));
+  }
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+}
+
+// "Alle markieren in dieser Kategorie" Button.
+// Toggelt: wenn schon alle markiert sind → alle deselektieren. Sonst alle markieren.
+function selectAllInCategory(category){
+  // Kategorie-Filter: leerer String = "Ohne Kategorie"
+  const dcsInCat=currentDeckCards.filter(dc=>{
+    const cat=(dc.category||'').trim();
+    if(category==='__uncat__')return !cat;
+    return cat===category;
+  });
+  const allIds=dcsInCat.map(dc=>dc.id);
+  const allSelected=allIds.length>0&&allIds.every(id=>deckEditSelected.has(id));
+  if(allSelected){
+    allIds.forEach(id=>deckEditSelected.delete(id));
+  }else{
+    allIds.forEach(id=>deckEditSelected.add(id));
+  }
   const deck=allDecks.find(d=>d.id===activeDeckId);
   if(deck)renderDeckDetail(deck);
 }
@@ -366,6 +446,40 @@ function toggleDeckCategoryCollapse(cat){
   else deckCollapsedCategories.add(cat);
   const deck=allDecks.find(d=>d.id===activeDeckId);
   if(deck)renderDeckDetail(deck);
+}
+
+// Eine ganze Karten-Gruppe entfernen (z.B. "alle 4 Inseln" auf einmal).
+// Geht nur mit Bestätigung — destruktive Aktion.
+async function removeDeckCardGroup(dcIdsCsv){
+  const ids=dcIdsCsv.split(',');
+  const totalQty=ids.reduce((s,id)=>{
+    const dc=currentDeckCards.find(d=>d.id===id);
+    return s+(dc?.quantity||0);
+  },0);
+  // Karten-Name herausfinden für die Bestätigung
+  const firstDc=currentDeckCards.find(d=>d.id===ids[0]);
+  const card=firstDc?allCards.find(c=>c.id===firstDc.card_id):null;
+  const name=card?.name||'diese Karte';
+  const ok=await confirmAction(
+    ids.length>1
+      ?`Alle ${totalQty} "${name}" (in ${ids.length} Druckungen) aus dem Deck entfernen?`
+      :`"${name}"${totalQty>1?` (×${totalQty})`:''} aus dem Deck entfernen?`,
+    {title:'KARTE ENTFERNEN',confirmLabel:'Entfernen',danger:true}
+  );
+  if(!ok)return;
+
+  let success=0,fail=0;
+  for(const id of ids){
+    if(await removeDeckCardDB(id))success++;else fail++;
+  }
+  // Lokale Liste aktualisieren
+  currentDeckCards=currentDeckCards.filter(dc=>!ids.includes(dc.id));
+  // Aus Edit-Selektion entfernen, falls dort
+  ids.forEach(id=>deckEditSelected.delete(id));
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(deck)renderDeckDetail(deck);
+  if(fail>0)toastError(`${success} entfernt, ${fail} Fehler`);
+  else toastSuccess(`${success===1?'Karte':success+' Einträge'} entfernt`);
 }
 
 // Multi-Select: Markierte Karten verschieben
