@@ -192,9 +192,16 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
 .badge-altered{background:rgba(124,111,205,0.15);color:#a090e0;border:1px solid rgba(124,111,205,0.2);}
 .qty-badge{
   position:absolute;top:0.5rem;right:0.5rem;
-  background:rgba(0,0,0,0.8);border:1px solid var(--border2);color:var(--text);
-  border-radius:5px;font-family:'Cinzel',serif;font-size:0.68rem;
-  padding:0.12rem 0.45rem;backdrop-filter:blur(6px);
+  background:rgba(0,0,0,0.85);
+  border:2px solid var(--gold);
+  color:var(--gold);
+  border-radius:6px;
+  font-family:'Cinzel',serif;
+  font-size:0.95rem;
+  font-weight:700;
+  padding:0.25rem 0.6rem;
+  backdrop-filter:blur(6px);
+  box-shadow:0 2px 6px rgba(0,0,0,0.3);
 }
 
 /* ── LIST VIEW ── */
