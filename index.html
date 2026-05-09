@@ -9,13 +9,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <!-- Stylesheets -->
-<link rel="stylesheet" href="styles/base.css?v=125">
-<link rel="stylesheet" href="styles/auth.css?v=125">
-<link rel="stylesheet" href="styles/header.css?v=125">
-<link rel="stylesheet" href="styles/collection.css?v=125">
-<link rel="stylesheet" href="styles/stats.css?v=125">
-<link rel="stylesheet" href="styles/decks.css?v=125">
-<link rel="stylesheet" href="styles/modals.css?v=125">
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/auth.css">
+<link rel="stylesheet" href="styles/header.css">
+<link rel="stylesheet" href="styles/collection.css">
+<link rel="stylesheet" href="styles/stats.css">
+<link rel="stylesheet" href="styles/decks.css">
+<link rel="stylesheet" href="styles/modals.css">
 </head>
 <body>
 
@@ -140,7 +140,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.125</span></small></div>
+      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.5</span></small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -539,23 +539,31 @@ create policy "own snapshots" on price_snapshots for all
   </div>
 </div>
 
-<!-- KATEGORIE-WECHSEL MODAL (Karte einer anderen Kategorie zuordnen) -->
-<div class="modal-overlay" id="changeCategoryModal">
+<!-- VERSCHIEBE-PICKER MODAL (klickbare Kategorien-Liste) -->
+<div class="modal-overlay" id="movePickerModal">
   <div class="modal small-modal">
     <div class="modal-header">
-      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KATEGORIE ÄNDERN</span>
-      <button class="modal-close" onclick="closeModal('changeCategoryModal')">✕</button>
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KARTE VERSCHIEBEN</span>
+      <button class="modal-close" onclick="closeMovePicker()">✕</button>
     </div>
     <div class="modal-detail">
-      <p id="changeCategoryCardName" style="font-size:0.95rem;color:var(--text);margin:0 0 1rem 0"></p>
-      <div class="form-field">
-        <label>NEUE KATEGORIE</label>
-        <input id="changeCategoryInput" placeholder="z.B. Lands, Creatures… (oder leer für 'Ohne Kategorie')" list="changeCategorySuggestions">
-        <datalist id="changeCategorySuggestions"></datalist>
+      <p id="movePickerSubject" style="font-size:0.95rem;color:var(--text);margin:0 0 1rem 0"></p>
+      <div class="move-picker-list" id="movePickerList"></div>
+      <div class="form-field" style="margin-top:0.8rem">
+        <label style="font-size:0.65rem;color:var(--text3)">ODER NEUE KATEGORIE</label>
+        <div style="display:flex;gap:0.4rem">
+          <input id="movePickerNewInput" placeholder="z.B. Tutoren, Combo…" list="movePickerNewSuggestions">
+          <datalist id="movePickerNewSuggestions">
+            <option value="Lands"><option value="Ramp"><option value="Creatures">
+            <option value="Removal"><option value="Card Draw"><option value="Enchantments">
+            <option value="Artifacts"><option value="Instants"><option value="Sorceries">
+            <option value="Planeswalkers"><option value="Sideboard"><option value="Sonstige">
+          </datalist>
+          <button class="btn btn-primary" onclick="moveToNewCategory()" style="flex-shrink:0">→</button>
+        </div>
       </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="confirmChangeCategory()">Verschieben</button>
-        <button class="btn" onclick="closeModal('changeCategoryModal')">Abbrechen</button>
+      <div class="btn-row" style="margin-top:0.8rem">
+        <button class="btn" onclick="closeMovePicker()">Abbrechen</button>
       </div>
     </div>
   </div>
@@ -564,24 +572,24 @@ create policy "own snapshots" on price_snapshots for all
 <div class="toast" id="toast"></div>
 
 <!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
-<script src="js/state.js?v=125" defer></script>
-<script src="js/defaults.js?v=125" defer></script>
-<script src="js/utils.js?v=125" defer></script>
-<script src="js/ui.js?v=125" defer></script>
-<script src="js/settings.js?v=125" defer></script>
-<script src="js/sets.js?v=125" defer></script>
-<script src="js/db.js?v=125" defer></script>
-<script src="js/scryfall.js?v=125" defer></script>
-<script src="js/config.js?v=125" defer></script>
-<script src="js/auth.js?v=125" defer></script>
-<script src="js/csv-import.js?v=125" defer></script>
-<script src="js/collection.js?v=125" defer></script>
-<script src="js/export.js?v=125" defer></script>
-<script src="js/deck-stats.js?v=125" defer></script>
-<script src="js/deck-validation.js?v=125" defer></script>
-<script src="js/decks.js?v=125" defer></script>
-<script src="js/price-tracking.js?v=125" defer></script>
-<script src="js/stats.js?v=125" defer></script>
-<script src="js/app.js?v=125" defer></script>
+<script src="js/state.js" defer></script>
+<script src="js/defaults.js" defer></script>
+<script src="js/utils.js" defer></script>
+<script src="js/ui.js" defer></script>
+<script src="js/settings.js" defer></script>
+<script src="js/sets.js" defer></script>
+<script src="js/db.js" defer></script>
+<script src="js/scryfall.js" defer></script>
+<script src="js/config.js" defer></script>
+<script src="js/auth.js" defer></script>
+<script src="js/csv-import.js" defer></script>
+<script src="js/collection.js" defer></script>
+<script src="js/export.js" defer></script>
+<script src="js/deck-stats.js" defer></script>
+<script src="js/deck-validation.js" defer></script>
+<script src="js/decks.js" defer></script>
+<script src="js/price-tracking.js" defer></script>
+<script src="js/stats.js" defer></script>
+<script src="js/app.js" defer></script>
 </body>
 </html>
