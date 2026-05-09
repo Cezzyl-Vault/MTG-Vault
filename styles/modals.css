@@ -304,3 +304,67 @@ details summary{outline:none;}
   }
   .modal-close-bottom:hover{border-color:var(--gold-dim);}
 }
+
+/* ══════════════════════════════
+   MOVE-PICKER MODAL (Kategorien-Wähler)
+══════════════════════════════ */
+.move-picker-list{
+  display:flex;flex-direction:column;gap:0.3rem;
+  max-height:50vh;overflow-y:auto;
+  margin-bottom:0.4rem;
+}
+.move-picker-row{
+  display:flex;align-items:center;gap:0.7rem;
+  padding:0.7rem 0.9rem;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  cursor:pointer;
+  text-align:left;
+  font-family:inherit;font-size:0.92rem;
+  color:var(--text);
+  transition:all 0.12s;
+}
+.move-picker-row:hover:not(:disabled){
+  background:rgba(201,168,76,0.1);
+  border-color:var(--gold-dim);
+  transform:translateX(2px);
+}
+.move-picker-row:disabled,
+.move-picker-row.current{
+  opacity:0.5;
+  cursor:not-allowed;
+  background:transparent;
+}
+.move-picker-row.current::after{
+  content:'(aktuell)';
+  font-size:0.7rem;
+  color:var(--text3);
+  font-style:italic;
+  margin-left:auto;
+}
+.mp-arrow{
+  color:var(--gold);
+  font-weight:700;
+  flex-shrink:0;
+  font-size:1.1rem;
+}
+.mp-name{
+  flex:1;
+  word-break:break-word;
+}
+.mp-count{
+  background:rgba(201,168,76,0.12);
+  color:var(--gold);
+  font-size:0.78rem;
+  padding:0.2rem 0.55rem;
+  border-radius:10px;
+  font-weight:600;
+  flex-shrink:0;
+}
+
+/* Deck-Aktionen-Section im Karten-Modal (statt "Zu Deck hinzufügen") */
+.deck-actions-section{
+  border-color:var(--gold-dim);
+  background:rgba(201,168,76,0.04);
+}
