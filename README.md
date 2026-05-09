@@ -11,7 +11,8 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Erweiterte Filter: Manawert (Pills 0–5+), Farben (Mana-Symbole WUBRG + ◇), Kartentyp, Foil, Set, Zustand, Seltenheit
 - Karten-Gruppierung: gleiche Namen werden zu einem Tile zusammengefasst
 - Stats-Bar mit Einträge/Karten/Wert
-- Klick auf Karte → Modal mit allen Varianten als Tabelle (Bearbeiten + Löschen direkt zugänglich)
+- Klick auf Karte → Modal mit allen Varianten als Tabelle
+- **Pro Variante einen "+ Deck"-Button**: jede einzelne Druckung kann gezielt zu einem Deck hinzugefügt werden (mit Mengen-Eingabe)
 - Export als CSV oder druckbares PDF (respektiert aktive Filter)
 
 **Decks**

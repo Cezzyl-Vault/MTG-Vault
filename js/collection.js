@@ -347,6 +347,8 @@ function openCardModal(name,deckContextDcIds){
   // Detail-Grid.
   // Im Deck-Kontext bekommen Zeilen, deren Variante im aktiven Deck genutzt wird,
   // einen visuellen Marker "im Deck" — sonst sind sie ausgegraut/normal.
+  // PRO ZEILE gibt's einen "+ Deck"-Button: damit kann jede Variante einzeln zu
+  // einem Deck hinzugefügt werden (öffnet das Add-Variant-Modal).
   const rows=variants.map(v=>{
     const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
     const inDeckQty=variantsInDeck.get(v.id)||0;
@@ -354,6 +356,9 @@ function openCardModal(name,deckContextDcIds){
       ?(inDeckQty>0
         ?`<span class="variant-in-deck" title="Diese Variante ist im Deck">✓ im Deck ×${inDeckQty}</span>`
         :`<span class="variant-not-in-deck" title="Diese Variante ist nur in der Sammlung">— nur Sammlung</span>`)
+      :'';
+    const addToDeckBtn=allDecks.length>0
+      ?`<button class="icon-btn deck-add-btn" onclick="event.stopPropagation();openAddVariantToDeckModal('${v.id}')" title="Diese Variante zu einem Deck hinzufügen">+ Deck</button>`
       :'';
     return`<div class="variant-row${cardModalDeckContext&&inDeckQty>0?' is-in-deck':''}">
       <div class="variant-set">
@@ -364,6 +369,7 @@ function openCardModal(name,deckContextDcIds){
       <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
       <span class="variant-qty">×${v.quantity}</span>
       <span class="variant-price">${vPrice}</span>
+      ${addToDeckBtn}
       <button class="icon-btn" onclick="event.stopPropagation();openVariantEdit('${v.id}')" title="Variante in Sammlung bearbeiten">✎</button>
       <button class="icon-btn danger" onclick="event.stopPropagation();deleteCard('${v.id}')" title="Variante aus Sammlung löschen">🗑</button>
     </div>`;
@@ -416,23 +422,11 @@ function openCardModal(name,deckContextDcIds){
         <div style="font-size:0.72rem;color:var(--text3);margin-top:0.5rem;font-style:italic">
           Wirkt nur auf die ${deckTotalQty} ${deckTotalQty===1?'Karte':'Karten'} im aktiven Deck. Die ${variants.length} ${variants.length===1?'Variante':'Varianten'} in deiner Sammlung bleiben unberührt.
         </div>
+        ${allDecks.length>0?`<div style="font-size:0.72rem;color:var(--text3);margin-top:0.4rem;font-style:italic">Über den <strong>+ Deck</strong>-Button in der Variantentabelle kannst du weitere Druckungen zu einem Deck hinzufügen.</div>`:''}
       </div>
       `:(allDecks.length>0?`
-      <div class="add-to-deck-section">
-        <h4>⚔️ ZU DECK HINZUFÜGEN</h4>
-        <div class="add-deck-row">
-          <select id="deckSelect">${decksOptions}</select>
-          <input id="deckCategory" placeholder="Kategorie" list="catSuggestions2" value="Creatures">
-          <datalist id="catSuggestions2">
-            <option value="Commander"><option value="Lands"><option value="Ramp">
-            <option value="Creatures"><option value="Removal"><option value="Card Draw">
-            <option value="Enchantments"><option value="Artifacts"><option value="Instants">
-            <option value="Sorceries"><option value="Planeswalkers"><option value="Sonstige">
-          </datalist>
-          <input id="deckQty" type="number" min="1" max="99" value="1" style="max-width:60px">
-          <button class="add-deck-submit" onclick="addCardToDeck('${representative.id}')">+ Hinzufügen</button>
-        </div>
-        ${variants.length>1?`<div style="font-size:0.7rem;color:var(--text3);margin-top:0.4rem;font-style:italic">Verwendet die älteste Variante. Über die Variantentabelle oben kannst du eine andere bearbeiten/löschen.</div>`:''}
+      <div class="add-to-deck-hint">
+        <span style="font-size:0.78rem;color:var(--text3);font-style:italic">Klicke <strong>+ Deck</strong> in der Variantentabelle, um eine Variante zu einem Deck hinzuzufügen.</span>
       </div>`:'<div style="font-size:0.85rem;color:var(--text3);font-style:italic;margin-bottom:0.75rem">Erstelle zuerst ein Deck im Decks-Reiter.</div>')}
 
       ${variants.length===1?`
@@ -506,19 +500,65 @@ function openVariantEdit(cardId){
     </div>`;
 }
 
-async function addCardToDeck(cardId){
-  const deckId=document.getElementById('deckSelect').value;
-  const category=document.getElementById('deckCategory').value.trim()||'Sonstige';
-  const qty=parseInt(document.getElementById('deckQty').value)||1;
-  if(!deckId){toastError('Bitte ein Deck auswählen.');return;}
-  // Den Submit-Button finden (im Modal, "+ Hinzufügen")
-  const btn=document.querySelector('.add-deck-submit');
-  setBusy(btn,true,'Hinzufügen…');
-  const ok=await addToDeckDB(deckId,cardId,category,qty);
-  setBusy(btn,false);
-  if(ok){
-    const deck=allDecks.find(d=>d.id===deckId);
-    toastSuccess(`Zu "${deck?.name}" hinzugefügt`);
+// ── VARIANTE ZU DECK HINZUFÜGEN ──
+//
+// Wird vom "+ Deck"-Button in der Variantentabelle aufgerufen. Speichert die
+// gewünschte Variant-ID, befüllt das Modal mit Defaults und öffnet's.
+let pendingAddVariantId = null;
+
+function openAddVariantToDeckModal(variantId){
+  if(!allDecks.length){toastError('Erstelle zuerst ein Deck im Decks-Reiter.');return;}
+  const v=allCards.find(c=>c.id===variantId);
+  if(!v){toastError('Variante nicht gefunden.');return;}
+  pendingAddVariantId=variantId;
+
+  // Subject: zeigt eindeutig welche Variante hinzugefügt wird
+  document.getElementById('addVariantSubject').innerHTML=
+    `<strong>${esc(v.name||'Karte')}</strong><br>
+     <span style="color:var(--text2);font-size:0.85rem">${esc(v.set_name||v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>`;
+
+  // Deck-Dropdown füllen — wenn ein aktives Deck offen ist, das vorauswählen
+  const decksHtml=allDecks.map(d=>
+    `<option value="${d.id}"${d.id===activeDeckId?' selected':''}>${esc(d.name)}</option>`
+  ).join('');
+  document.getElementById('addVariantDeckSelect').innerHTML=decksHtml;
+
+  // Kategorie und Anzahl resetten
+  document.getElementById('addVariantCategory').value='';
+  document.getElementById('addVariantQty').value=1;
+
+  document.getElementById('addVariantToDeckModal').classList.add('open');
+  setTimeout(()=>document.getElementById('addVariantQty').focus(),50);
+}
+
+async function confirmAddVariantToDeck(){
+  if(!pendingAddVariantId){closeModal('addVariantToDeckModal');return;}
+  const deckId=document.getElementById('addVariantDeckSelect').value;
+  const category=(document.getElementById('addVariantCategory').value||'').trim()||null;
+  const qty=parseInt(document.getElementById('addVariantQty').value,10)||1;
+  if(!deckId){toastError('Kein Deck ausgewählt.');return;}
+  if(qty<1||qty>99){toastError('Anzahl muss zwischen 1 und 99 liegen.');return;}
+
+  const v=allCards.find(c=>c.id===pendingAddVariantId);
+  const result=await addToDeckDB(deckId,pendingAddVariantId,category,qty);
+  if(!result){toastError('Hinzufügen fehlgeschlagen.');return;}
+
+  const deck=allDecks.find(d=>d.id===deckId);
+  closeModal('addVariantToDeckModal');
+  toastSuccess(`${qty}× "${v?.name||'Karte'}" zu "${deck?.name||'Deck'}" hinzugefügt`);
+
+  // Wenn das Deck, zu dem hinzugefügt wurde, gerade offen ist, neu laden
+  // damit die Anzahl-Pille und Validierung sich aktualisieren
+  if(activeDeckId===deckId&&typeof loadDeckCards==='function'){
+    currentDeckCards=await loadDeckCards(activeDeckId);
+    if(typeof renderDeckDetail==='function'&&deck)renderDeckDetail(deck);
+  }
+  pendingAddVariantId=null;
+
+  // Wenn das Karten-Modal noch offen ist (Sammlung-Kontext oder Deck-Kontext mit Mehr-Hinzufügen),
+  // dort das angereicherte Modell neu rendern, damit "im Deck"-Marker sich aktualisieren
+  if(document.getElementById('cardModal').classList.contains('open')&&v){
+    openCardModal(v.name,cardModalDeckContext?cardModalDeckContext.join(','):null);
   }
 }
 
