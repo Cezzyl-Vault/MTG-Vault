@@ -9,13 +9,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <!-- Stylesheets -->
-<link rel="stylesheet" href="styles/base.css?v=135">
-<link rel="stylesheet" href="styles/auth.css?v=135">
-<link rel="stylesheet" href="styles/header.css?v=135">
-<link rel="stylesheet" href="styles/collection.css?v=135">
-<link rel="stylesheet" href="styles/stats.css?v=135">
-<link rel="stylesheet" href="styles/decks.css?v=135">
-<link rel="stylesheet" href="styles/modals.css?v=135">
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/auth.css">
+<link rel="stylesheet" href="styles/header.css">
+<link rel="stylesheet" href="styles/collection.css">
+<link rel="stylesheet" href="styles/stats.css">
+<link rel="stylesheet" href="styles/decks.css">
+<link rel="stylesheet" href="styles/modals.css">
 </head>
 <body>
 
@@ -140,7 +140,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.135</span></small></div>
+      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.5</span></small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -539,6 +539,41 @@ create policy "own snapshots" on price_snapshots for all
   </div>
 </div>
 
+<!-- VARIANTE ZU DECK HINZUFÜGEN MODAL -->
+<div class="modal-overlay" id="addVariantToDeckModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">VARIANTE ZU DECK HINZUFÜGEN</span>
+      <button class="modal-close" onclick="closeModal('addVariantToDeckModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <p id="addVariantSubject" style="font-size:0.95rem;color:var(--text);margin:0 0 1rem 0;line-height:1.4"></p>
+      <div class="form-field">
+        <label>DECK</label>
+        <select id="addVariantDeckSelect"></select>
+      </div>
+      <div class="form-field">
+        <label>KATEGORIE</label>
+        <input id="addVariantCategory" placeholder="z.B. Lands, Creatures… (oder leer für 'Ohne Kategorie')" list="addVariantCatSuggestions">
+        <datalist id="addVariantCatSuggestions">
+          <option value="Commander"><option value="Lands"><option value="Ramp">
+          <option value="Creatures"><option value="Removal"><option value="Card Draw">
+          <option value="Enchantments"><option value="Artifacts"><option value="Instants">
+          <option value="Sorceries"><option value="Planeswalkers"><option value="Sideboard"><option value="Sonstige">
+        </datalist>
+      </div>
+      <div class="form-field">
+        <label>ANZAHL</label>
+        <input id="addVariantQty" type="number" min="1" max="99" value="1">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="confirmAddVariantToDeck()">Hinzufügen</button>
+        <button class="btn" onclick="closeModal('addVariantToDeckModal')">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- VERSCHIEBE-PICKER MODAL (klickbare Kategorien-Liste) -->
 <div class="modal-overlay" id="movePickerModal">
   <div class="modal small-modal">
@@ -572,24 +607,24 @@ create policy "own snapshots" on price_snapshots for all
 <div class="toast" id="toast"></div>
 
 <!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
-<script src="js/state.js?v=135" defer></script>
-<script src="js/defaults.js?v=135" defer></script>
-<script src="js/utils.js?v=135" defer></script>
-<script src="js/ui.js?v=135" defer></script>
-<script src="js/settings.js?v=135" defer></script>
-<script src="js/sets.js?v=135" defer></script>
-<script src="js/db.js?v=135" defer></script>
-<script src="js/scryfall.js?v=135" defer></script>
-<script src="js/config.js?v=135" defer></script>
-<script src="js/auth.js?v=135" defer></script>
-<script src="js/csv-import.js?v=135" defer></script>
-<script src="js/collection.js?v=135" defer></script>
-<script src="js/export.js?v=135" defer></script>
-<script src="js/deck-stats.js?v=135" defer></script>
-<script src="js/deck-validation.js?v=135" defer></script>
-<script src="js/decks.js?v=135" defer></script>
-<script src="js/price-tracking.js?v=135" defer></script>
-<script src="js/stats.js?v=135" defer></script>
-<script src="js/app.js?v=135" defer></script>
+<script src="js/state.js" defer></script>
+<script src="js/defaults.js" defer></script>
+<script src="js/utils.js" defer></script>
+<script src="js/ui.js" defer></script>
+<script src="js/settings.js" defer></script>
+<script src="js/sets.js" defer></script>
+<script src="js/db.js" defer></script>
+<script src="js/scryfall.js" defer></script>
+<script src="js/config.js" defer></script>
+<script src="js/auth.js" defer></script>
+<script src="js/csv-import.js" defer></script>
+<script src="js/collection.js" defer></script>
+<script src="js/export.js" defer></script>
+<script src="js/deck-stats.js" defer></script>
+<script src="js/deck-validation.js" defer></script>
+<script src="js/decks.js" defer></script>
+<script src="js/price-tracking.js" defer></script>
+<script src="js/stats.js" defer></script>
+<script src="js/app.js" defer></script>
 </body>
 </html>
