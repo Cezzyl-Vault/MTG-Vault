@@ -19,7 +19,11 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Karten-Detail mit zwei Ansichten:
   - **Karten-Ansicht** (Standard): Bilder als Grid, klickbar für Detail-Modal
   - **Listen-Ansicht**: kompakte Zeilen
+- **Karten-Größe konfigurierbar** (Klein/Mittel/Groß) — siehe Settings
+- **Karten gleichen Namens werden zusammengefasst** dargestellt (z.B. 4× Insel aus 3 Sets = ein Tile mit ×4)
+- **Anzahl-Pille** auf Karten immer sichtbar wenn Karte mehrfach im Deck ist
 - **Bearbeiten-Modus** mit Multi-Select für Verschieben/Entfernen mehrerer Karten gleichzeitig
+- **"Alle markieren"-Button** pro Kategorie im Edit-Modus (Toggle)
 - Kategorien sortierbar via ▲▼-Pfeile (nur im Edit-Modus sichtbar)
 - Kategorien einklappbar via Klick auf Header
 - Karten ohne Kategorie landen in "Ohne Kategorie"-Sektion oben
@@ -51,7 +55,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Semantische Toasts (✓/⚠/ℹ)
 - Hardcoded Supabase-Config in `js/defaults.js`
 - Auto-Cache-Busting bei jedem Release
-- Settings-Modal: Start-Reiter konfigurierbar
+- Settings-Modal: Start-Reiter und Karten-Größe im Deck konfigurierbar
 
 ## Projektstruktur
 
