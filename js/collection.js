@@ -388,15 +388,19 @@ function openCardModal(name,deckContextDcIds){
     }
 
     return`<div class="variant-row${cardModalDeckContext&&inDeckQty>0?' is-in-deck':''}">
-      <div class="variant-set">
-        <strong>${esc(v.set_name||v.set_code)}</strong>
-        <span class="variant-meta">${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>
+      <div class="variant-info">
+        <div class="variant-set">
+          <strong>${esc(v.set_name||v.set_code)}</strong>
+          <span class="variant-meta">${esc(v.set_code)}${v.collector_number?' #'+esc(v.collector_number):''}${v.foil==='foil'?' · ✦ Foil':''}${v.language?' · '+esc(v.language):''}</span>
+        </div>
+        <div class="variant-stats">
+          ${inDeckMarker}
+          <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
+          <span class="variant-qty">×${v.quantity}</span>
+          <span class="variant-price">${vPrice}</span>
+        </div>
       </div>
-      ${inDeckMarker}
-      <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
-      <span class="variant-qty">×${v.quantity}</span>
-      <span class="variant-price">${vPrice}</span>
-      ${actionButtons}
+      <div class="variant-actions">${actionButtons}</div>
     </div>`;
   }).join('');
 
