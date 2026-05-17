@@ -122,23 +122,53 @@ details summary{outline:none;}
 }
 .variants-summary strong{color:var(--text);}
 .variants-list{
-  display:flex;flex-direction:column;gap:0.35rem;
+  display:flex;flex-direction:column;gap:0.4rem;
   margin-bottom:1.2rem;
-  max-height:300px;overflow-y:auto;
+  max-height:380px;overflow-y:auto;
   padding-right:0.3rem;
 }
+
+/* Variant-Row in zwei Reihen aufgeteilt:
+   1. .variant-info  — Set-Info links + Stats (Marker, Zustand, ×N, Preis) rechts
+   2. .variant-actions — Buttons rechtsbündig in eigener Zeile
+   So gibt's auf jedem Bildschirm genug Platz, ohne dass Inhalte abgeschnitten
+   oder überstauchtnur werden. */
 .variant-row{
-  display:flex;align-items:center;gap:0.6rem;
-  padding:0.55rem 0.7rem;
+  display:flex;flex-direction:column;gap:0.5rem;
+  padding:0.65rem 0.8rem;
   background:var(--surface2);border:1px solid var(--border);
   border-radius:6px;font-size:0.85rem;
 }
 .variant-row:hover{border-color:var(--gold-dim);}
-.variant-set{flex:1;min-width:0;}
-.variant-set strong{color:var(--text);font-size:0.9rem;display:block;}
-.variant-meta{color:var(--text3);font-size:0.72rem;display:block;margin-top:0.1rem;}
-.variant-qty{color:var(--text2);font-weight:600;min-width:40px;text-align:right;}
-.variant-price{color:var(--text2);min-width:80px;text-align:right;font-size:0.78rem;}
+
+.variant-info{
+  display:flex;align-items:center;gap:0.7rem;
+  flex-wrap:wrap;
+}
+.variant-set{
+  flex:1 1 200px;min-width:0;
+}
+.variant-set strong{color:var(--text);font-size:0.92rem;display:block;line-height:1.25;word-break:break-word;}
+.variant-meta{color:var(--text3);font-size:0.72rem;display:block;margin-top:0.15rem;line-height:1.3;}
+
+.variant-stats{
+  display:flex;align-items:center;gap:0.6rem;
+  flex-wrap:wrap;
+}
+.variant-qty{color:var(--text2);font-weight:600;text-align:right;white-space:nowrap;}
+.variant-price{color:var(--text2);text-align:right;font-size:0.78rem;white-space:nowrap;}
+
+.variant-actions{
+  display:flex;gap:0.4rem;flex-wrap:wrap;
+  justify-content:flex-end;align-items:center;
+  border-top:1px dashed var(--border);
+  padding-top:0.5rem;
+}
+/* Auf wirklich schmalen Bildschirmen sollen Buttons linksbündig sein, damit sie
+   nicht alle in eine winzige Ecke gequetscht werden */
+@media(max-width:480px){
+  .variant-actions{justify-content:flex-start;}
+}
 
 /* ── ADD CARDS TO DECK MODAL ── */
 .add-cards-meta{
