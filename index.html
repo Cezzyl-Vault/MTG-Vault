@@ -9,13 +9,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <!-- Stylesheets -->
-<link rel="stylesheet" href="styles/base.css">
-<link rel="stylesheet" href="styles/auth.css">
-<link rel="stylesheet" href="styles/header.css">
-<link rel="stylesheet" href="styles/collection.css">
-<link rel="stylesheet" href="styles/stats.css">
-<link rel="stylesheet" href="styles/decks.css">
-<link rel="stylesheet" href="styles/modals.css">
+<link rel="stylesheet" href="styles/base.css?v=145">
+<link rel="stylesheet" href="styles/auth.css?v=145">
+<link rel="stylesheet" href="styles/header.css?v=145">
+<link rel="stylesheet" href="styles/collection.css?v=145">
+<link rel="stylesheet" href="styles/stats.css?v=145">
+<link rel="stylesheet" href="styles/decks.css?v=145">
+<link rel="stylesheet" href="styles/modals.css?v=145">
 </head>
 <body>
 
@@ -140,7 +140,7 @@ create policy "own deck_cards" on deck_cards for all
 <div id="appScreen">
   <header>
     <div class="header-inner">
-      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.5</span></small></div>
+      <div class="header-logo">MTG Vault<small><span class="header-credits">COLLECTION MANAGER &nbsp;·&nbsp; @to &nbsp;·&nbsp; © 2026 &nbsp;·&nbsp; </span><span class="header-version">v0.145</span></small></div>
       <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchView('collection')">Sammlung</button>
         <button class="nav-btn" onclick="switchView('stats')">Statistiken</button>
@@ -607,24 +607,24 @@ create policy "own snapshots" on price_snapshots for all
 <div class="toast" id="toast"></div>
 
 <!-- App-Logik: Reihenfolge ist wichtig! state.js zuerst, app.js zuletzt -->
-<script src="js/state.js" defer></script>
-<script src="js/defaults.js" defer></script>
-<script src="js/utils.js" defer></script>
-<script src="js/ui.js" defer></script>
-<script src="js/settings.js" defer></script>
-<script src="js/sets.js" defer></script>
-<script src="js/db.js" defer></script>
-<script src="js/scryfall.js" defer></script>
-<script src="js/config.js" defer></script>
-<script src="js/auth.js" defer></script>
-<script src="js/csv-import.js" defer></script>
-<script src="js/collection.js" defer></script>
-<script src="js/export.js" defer></script>
-<script src="js/deck-stats.js" defer></script>
-<script src="js/deck-validation.js" defer></script>
-<script src="js/decks.js" defer></script>
-<script src="js/price-tracking.js" defer></script>
-<script src="js/stats.js" defer></script>
-<script src="js/app.js" defer></script>
+<script src="js/state.js?v=145" defer></script>
+<script src="js/defaults.js?v=145" defer></script>
+<script src="js/utils.js?v=145" defer></script>
+<script src="js/ui.js?v=145" defer></script>
+<script src="js/settings.js?v=145" defer></script>
+<script src="js/sets.js?v=145" defer></script>
+<script src="js/db.js?v=145" defer></script>
+<script src="js/scryfall.js?v=145" defer></script>
+<script src="js/config.js?v=145" defer></script>
+<script src="js/auth.js?v=145" defer></script>
+<script src="js/csv-import.js?v=145" defer></script>
+<script src="js/collection.js?v=145" defer></script>
+<script src="js/export.js?v=145" defer></script>
+<script src="js/deck-stats.js?v=145" defer></script>
+<script src="js/deck-validation.js?v=145" defer></script>
+<script src="js/decks.js?v=145" defer></script>
+<script src="js/price-tracking.js?v=145" defer></script>
+<script src="js/stats.js?v=145" defer></script>
+<script src="js/app.js?v=145" defer></script>
 </body>
 </html>
