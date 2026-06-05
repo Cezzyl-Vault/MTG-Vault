@@ -105,7 +105,7 @@ async function parseCSV(text){
     // Das ist optional — wenn Scryfall nicht erreichbar ist, gehen die Karten ohne diese Daten rein
     // und können später per Banner nachgezogen werden.
     showToast(`⬇ Lade Karten-Daten von Scryfall…`);
-    await enrichCards(toInsert);
+    await enrichCards(toInsert,(done,total)=>showToast(`⬇ Lade Karten-Daten von Scryfall… ${done}/${total}`));
 
     if(await upsertCards(toInsert)){
       added=toInsert.length;
@@ -127,14 +127,16 @@ async function parseCSV(text){
     }
   }
 
-  setSyncing('synced');
-
   if(failed){
-    toastError('Fehler beim Import. Sammlung wird neu geladen.');
+    // Bei (Teil-)Fehler ehrlich neu laden, damit die Anzeige dem echten DB-Stand entspricht
+    toastError('Import unvollständig. Sammlung wird neu geladen.');
+    await loadAll();
+    renderAll();
     return;
   }
 
-  // Phase 6 — lokalen State updaten und neu rendern
+  // Phase 6 — Erfolg: Status auf "ok", lokalen State updaten und neu rendern
+  setSyncing('ok');
   await loadAll();
   renderAll();
 
