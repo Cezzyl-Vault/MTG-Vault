@@ -204,6 +204,21 @@
       b.addEventListener('click', openModal);
       emptyCta.parentNode.insertBefore(b, emptyCta.nextSibling);
     }
+    // Prominent in der gefüllten Sammlung — oben über der Kartenliste,
+    // im goldenen Stil der „+ Neues Deck“-Buttons, damit es klar sichtbar ist.
+    const collContent = el('collection-content');
+    if(collContent && !el('acsCollBtn')){
+      const bar=document.createElement('div');
+      bar.id='acsCollBar';
+      bar.style.cssText='display:flex;justify-content:flex-end;align-items:center;margin:0 0 0.9rem;';
+      const b=document.createElement('button');
+      b.id='acsCollBtn'; b.className='btn-gold'; b.type='button';
+      b.textContent='＋ Karte hinzufügen';
+      b.title='Karte per Suche zur Sammlung hinzufügen';
+      b.addEventListener('click', openModal);
+      bar.appendChild(b);
+      collContent.insertBefore(bar, collContent.firstChild);
+    }
   }
 
   // ── Vorschläge (Autocomplete) ──
