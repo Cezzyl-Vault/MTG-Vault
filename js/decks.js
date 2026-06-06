@@ -194,6 +194,8 @@ function renderDeckDetail(deck){
         </div>
         <button class="${editClass}" onclick="toggleDeckEditMode()" title="Karten markieren und bearbeiten">${editLabel}</button>
         <button class="btn-gold" onclick="openAddCardsModal()">+ Karten</button>
+        <button class="btn-gold" onclick="openDeckSearchModal()" title="Karte per Suche hinzufügen — auch Karten, die du noch nicht besitzt">+ Suche</button>
+        <button class="back-btn" onclick="openMissingModal(activeDeckId)" title="Liste der Karten in diesem Deck, die du nicht besitzt">✦ Fehlende</button>
         <button class="btn-gold" onclick="openCatModal()">+ Kategorie</button>
         <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
       </div>
@@ -202,7 +204,7 @@ function renderDeckDetail(deck){
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
     ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length,deck.format)).join('')}
-    ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Öffne eine Karte in der Sammlung und füge sie hier hinzu.</p></div>`:''}
+    ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Füge Karten über „+ Karten“ (aus deiner Sammlung) oder „+ Suche“ (beliebige Karte, auch was dir noch fehlt) hinzu.</p></div>`:''}
     ${deckEditMode?renderEditActionBar():''}
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
@@ -274,8 +276,9 @@ function renderCategoryBody(dcCards){
 // - Karten ohne card-Eintrag in allCards (Fallback auf card_id; gruppiert dann nicht — ist OK)
 function groupDcByCardName(dcCards){
   const groups={};
+  const ownedMap=buildOwnedNameMap();
   for(const dc of dcCards){
-    const card=allCards.find(c=>c.id===dc.card_id);
+    const card=resolveDeckCard(dc);
     const displayName=card?.name||dc.card_id;
     // Gruppierungsschlüssel ist lowercase + trim, damit "Island", "island", " Island "
     // und Co. zur selben Gruppe gehören
@@ -285,6 +288,7 @@ function groupDcByCardName(dcCards){
         name:displayName,         // Anzeige-Name kommt vom ersten Eintrag
         representative:dc,
         repCard:card,
+        owned:(ownedMap.get(String(displayName).toLowerCase().trim())||0)>0,
         dcIds:[],
         quantity:0
       };
@@ -323,9 +327,10 @@ function deckCardTile(g){
   const removeBtn=deckEditMode
     ?`<button class="dc-tile-remove" onclick="event.stopPropagation();removeDeckCardGroup('${dcIdsCsv}')" title="Aus Deck entfernen">🗑</button>`
     :'';
-  return`<div class="dc-card-tile${isSelected?' selected':''}" ${tileClick} title="${esc(cardName)}${g.quantity>1?` (×${g.quantity})`:''}">
+  return`<div class="dc-card-tile${isSelected?' selected':''}${g.owned?'':' dc-not-owned'}" ${tileClick} title="${esc(cardName)}${g.quantity>1?` (×${g.quantity})`:''}${g.owned?'':' — nicht in Sammlung'}">
     ${checkbox}
     ${removeBtn}
+    ${g.owned?'':`<div class="dc-miss-badge" title="Nicht in deiner Sammlung">fehlt</div>`}
     ${img?`<img src="${img}" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
     ${g.quantity>1?`<div class="dc-tile-qty">×${g.quantity}</div>`:''}
   </div>`;
@@ -342,11 +347,11 @@ function deckCardRow(g){
   const dcIdsCsv=g.dcIds.join(',');
   const rowClick=`onclick="openCardModal('${escJs(cardName)}','${dcIdsCsv}')"`;
   const checkbox=deckEditMode?`<div class="dc-row-checkbox" onclick="event.stopPropagation();toggleDeckEditGroup('${dcIdsCsv}')" title="Auswählen">${isSelected?'✓':''}</div>`:'';
-  return`<div class="deck-card-row${isSelected?' selected':''}" ${rowClick} title="${esc(cardName)}">
+  return`<div class="deck-card-row${isSelected?' selected':''}${g.owned?'':' dc-not-owned'}" ${rowClick} title="${esc(cardName)}">
     ${checkbox}
     ${img?`<img class="dc-img" src="${img}" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
-      <div class="dc-name">${esc(cardName||g.representative.card_id)}</div>
+      <div class="dc-name">${esc(cardName||g.representative.card_id)}${g.owned?'':`<span class="dc-miss-tag">fehlt</span>`}</div>
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}${g.dcIds.length>1?` · ${g.dcIds.length} Druckungen`:''}</div>
     </div>
     <span class="dc-qty">×${g.quantity}</span>
@@ -910,4 +915,375 @@ async function moveCategoryByOffset(category,offset){
   }
   deck.category_order=visibleCats;
   renderDeckDetail(deck);
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  DECK-ERWEITERUNG · Nicht besessene Karten + Fehlt-Liste
+// ══════════════════════════════════════════════════════════
+//
+//  Macht ein Deck zu einer eigenständigen Wunschliste:
+//   - Karten können per Suche hinzugefügt werden — auch welche, die man
+//     NICHT besitzt. Solche deck_cards tragen ihre Identität selbst
+//     (card_name, scryfall_id, set_code, … plus mana_value/colors/
+//     color_identity/type_line/legal_commander für Statistik+Validierung)
+//     und haben card_id = null.
+//   - Ob eine Karte "besessen" ist, wird LIVE per Namensabgleich mit der
+//     Sammlung bestimmt: kaufst du sie später und importierst sie, stimmt
+//     die Markierung automatisch.
+//   - Fehlt-Liste: alle Kartennamen in einem Deck (oder über ALLE Decks),
+//     die nicht in der Sammlung sind — kopierbar + als .txt herunterladbar.
+//
+//  Voraussetzung: einmalige SQL-Erweiterung an deck_cards (siehe Anleitung).
+
+// ── Auflösung einer Deck-Karte ──
+// Besessene Karte (card_id triff in der Sammlung)? → die Sammlungskarte,
+// exakt wie bisher. Sonst → karten-ähnliche Struktur aus den am deck_card
+// gespeicherten Feldern (für Suche hinzugefügte / nicht besessene Karten).
+function resolveDeckCard(dc){
+  if(dc.card_id){
+    const c=allCards.find(x=>x.id===dc.card_id);
+    if(c)return c;
+  }
+  return {
+    id:'dc:'+dc.id,
+    name:dc.card_name||dc.card_id||'Unbekannt',
+    scryfall_id:dc.scryfall_id||null,
+    set_code:dc.set_code||'',
+    set_name:dc.set_name||'',
+    collector_number:dc.collector_number||'',
+    rarity:dc.rarity||'',
+    mana_value:(dc.mana_value!=null?dc.mana_value:null),
+    colors:Array.isArray(dc.colors)?dc.colors:[],
+    color_identity:Array.isArray(dc.color_identity)?dc.color_identity:[],
+    type_line:dc.type_line||null,
+    legal_commander:dc.legal_commander||null,
+    purchase_price:null,
+    foil:null
+  };
+}
+
+// Map: Kartenname (lowercase) → besessene Gesamtmenge. Einmal pro Aufruf gebaut.
+function buildOwnedNameMap(){
+  const m=new Map();
+  for(const c of allCards){
+    const n=(c.name||'').toLowerCase().trim();
+    if(!n)continue;
+    m.set(n,(m.get(n)||0)+(c.quantity||0));
+  }
+  return m;
+}
+function ownedQtyByName(name){
+  if(!name)return 0;
+  return buildOwnedNameMap().get(name.toLowerCase().trim())||0;
+}
+
+// Statistik & Validierung sollen nicht besessene Karten MITZÄHLEN:
+// Wir leiten ihre Karten-Auflösung auf den Resolver um. (Override der globalen
+// Helfer aus deck-stats.js / deck-validation.js — decks.js lädt danach,
+// daher greift die Umleitung zur Laufzeit.)
+if(typeof dcCard!=='undefined'){ dcCard=function(dc){return resolveDeckCard(dc);}; }
+if(typeof dvCard!=='undefined'){ dvCard=function(dc){return resolveDeckCard(dc);}; }
+
+// ── DB: Karte mit eigenen Feldern (denormalisiert) ins Deck schreiben ──
+async function addToDeckDenorm(deckId,cardData,category,quantity){
+  const{data:rows}=await _sb.from('deck_cards').select('*').eq('deck_id',deckId);
+  const catNorm=category||null;
+  const nameNorm=(cardData.card_name||'').toLowerCase().trim();
+  // Gleiche per-Suche-Karte (Name + Kategorie) schon da? → Menge erhöhen.
+  const match=(rows||[]).find(r=>
+    !r.card_id &&
+    ((r.card_name||'').toLowerCase().trim()===nameNorm) &&
+    ((r.category||null)===catNorm)
+  );
+  if(match){
+    const{error}=await _sb.from('deck_cards').update({quantity:(match.quantity||0)+quantity}).eq('id',match.id);
+    if(error){toastError('Fehler: '+error.message);return false;}
+    return true;
+  }
+  const row=Object.assign({
+    deck_id:deckId,
+    card_id:null,
+    category:catNorm,
+    quantity:quantity,
+    user_id:currentUser.id
+  },cardData);
+  const{error}=await _sb.from('deck_cards').insert(row);
+  if(error){toastError('Fehler: '+error.message);return false;}
+  return true;
+}
+
+// ── Styles + Modals einmalig einfügen ──
+(function injectDeckExtras(){
+  if(!document.getElementById('dx-styles')){
+    const css=[
+      '.dc-card-tile.dc-not-owned{opacity:0.5;filter:grayscale(0.4);}',
+      '.dc-card-tile.dc-not-owned img{outline:1px dashed var(--border2);outline-offset:-3px;}',
+      ".dc-miss-badge{position:absolute;top:4px;left:4px;z-index:3;background:var(--red);color:#fff;font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.06em;padding:0.1rem 0.35rem;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.5);}",
+      '.deck-card-row.dc-not-owned{opacity:0.72;}',
+      ".dc-miss-tag{display:inline-block;margin-left:0.5rem;background:var(--red);color:#fff;font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.05em;padding:0.05rem 0.35rem;border-radius:4px;vertical-align:middle;}",
+      '#deckSearchModal .modal{max-width:560px;width:100%;}',
+      '.dxm-list{max-height:34vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0.3rem 0.7rem;margin:0.6rem 0;}',
+      '.dxm-row{display:flex;justify-content:space-between;gap:0.6rem;padding:0.3rem 0;border-bottom:1px solid var(--border);font-family:\'EB Garamond\',serif;color:var(--text);}',
+      '.dxm-row:last-child{border-bottom:none;}',
+      ".dxm-qty{color:var(--gold2);font-family:'Cinzel',serif;font-size:0.8rem;flex-shrink:0;}",
+      ".dxm-text{width:100%;min-height:130px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.6rem;font-family:'EB Garamond',serif;font-size:0.95rem;resize:vertical;box-sizing:border-box;}",
+      '.dxm-empty{padding:1.2rem;text-align:center;color:var(--text2);}'
+    ].join('\n');
+    const s=document.createElement('style');s.id='dx-styles';s.textContent=css;document.head.appendChild(s);
+  }
+
+  if(!document.getElementById('deckSearchModal')){
+    const w=document.createElement('div');
+    w.innerHTML=`
+<div class="modal-overlay" id="deckSearchModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KARTE PER SUCHE INS DECK</span>
+      <button class="modal-close" onclick="closeModal('deckSearchModal')">✕</button>
+    </div>
+    <div class="modal-detail">
+      <div class="form-field acs-search-wrap">
+        <label>KARTE SUCHEN</label>
+        <input id="dxsSearch" placeholder="Kartenname tippen…" autocomplete="off" spellcheck="false">
+        <div class="acs-suggestions" id="dxsSuggestions"></div>
+      </div>
+      <div class="acs-printings" id="dxsPrintings"></div>
+      <div class="acs-detail" id="dxsDetail" style="display:none">
+        <img class="acs-detail-img" id="dxsImg" alt="">
+        <div class="acs-detail-controls">
+          <div id="dxsTitle" style="font-family:'EB Garamond',serif;font-size:1.05rem;color:var(--text);margin-bottom:0.1rem;"></div>
+          <div id="dxsSub" style="font-size:0.8rem;color:var(--text2);margin-bottom:0.7rem;"></div>
+          <div class="acs-row2" style="display:flex;gap:0.6rem;">
+            <div class="form-field" style="flex:0 0 90px"><label>ANZAHL</label><input type="number" id="dxsQty" min="1" max="99" value="1"></div>
+            <div class="form-field" style="flex:1"><label>KATEGORIE</label><input id="dxsCat" placeholder="optional" list="dxsCatList" autocomplete="off"><datalist id="dxsCatList"></datalist></div>
+          </div>
+          <div id="dxsOwnHint" style="font-size:0.78rem;margin:-0.1rem 0 0.6rem;"></div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="dxsAdd">Ins Deck aufnehmen</button>
+            <button class="btn" onclick="closeModal('deckSearchModal')">Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="missingModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)" id="missingTitle">FEHLENDE KARTEN</span>
+      <button class="modal-close" onclick="closeModal('missingModal')">✕</button>
+    </div>
+    <div class="modal-detail" id="missingBody"></div>
+  </div>
+</div>`;
+    while(w.firstElementChild){ document.body.appendChild(w.firstElementChild); }
+  }
+
+  // "Fehlende Karten (alle Decks)"-Button in die Decks-Übersicht hängen
+  const hdr=document.querySelector('.decks-header');
+  if(hdr && !document.getElementById('dxAllMissingBtn')){
+    const b=document.createElement('button');
+    b.id='dxAllMissingBtn';b.className='back-btn';b.type='button';
+    b.textContent='✦ Fehlende Karten';
+    b.title='Alle Karten aus deinen Decks, die du nicht besitzt';
+    b.style.marginLeft='0.5rem';
+    b.addEventListener('click',function(){ openMissingModal(null); });
+    hdr.appendChild(b);
+  }
+})();
+
+// ── Deck-Suche: Status + Logik ──
+let _dxsPrintings=[], _dxsSelected=null, _dxsDebounce=null;
+
+function openDeckSearchModal(){
+  if(!activeDeckId){toastError('Bitte zuerst ein Deck öffnen.');return;}
+  _dxsPrintings=[];_dxsSelected=null;
+  document.getElementById('dxsSearch').value='';
+  document.getElementById('dxsSuggestions').innerHTML='';
+  document.getElementById('dxsPrintings').innerHTML='';
+  document.getElementById('dxsDetail').style.display='none';
+  document.getElementById('dxsQty').value=1;
+  document.getElementById('dxsCat').value='';
+  const cats=[...new Set(currentDeckCards.map(dc=>dc.category).filter(Boolean))];
+  const defs=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const all=[...new Set([...cats,...defs])];
+  document.getElementById('dxsCatList').innerHTML=all.map(c=>`<option value="${esc(c)}">`).join('');
+  document.getElementById('deckSearchModal').classList.add('open');
+  setTimeout(()=>{const e=document.getElementById('dxsSearch');if(e)e.focus();},60);
+}
+
+async function dxsFetchSuggestions(q){
+  try{
+    const res=await fetch('https://api.scryfall.com/cards/autocomplete?q='+encodeURIComponent(q));
+    if(!res.ok)throw 0;
+    const data=await res.json();
+    const box=document.getElementById('dxsSuggestions');
+    const names=data.data||[];
+    if(!names.length){box.innerHTML='';return;}
+    box.innerHTML='';
+    names.forEach(name=>{
+      const d=document.createElement('div');d.className='acs-suggestion';d.textContent=name;
+      d.addEventListener('mousedown',ev=>{ev.preventDefault();dxsChoose(name);});
+      box.appendChild(d);
+    });
+  }catch(e){ const b=document.getElementById('dxsSuggestions');if(b)b.innerHTML=''; }
+}
+
+function dxsChoose(name){
+  document.getElementById('dxsSearch').value=name;
+  document.getElementById('dxsSuggestions').innerHTML='';
+  dxsLoadPrintings(name);
+}
+
+async function dxsLoadPrintings(name){
+  _dxsSelected=null;document.getElementById('dxsDetail').style.display='none';
+  const box=document.getElementById('dxsPrintings');
+  box.innerHTML='<div class="acs-msg">Lade Druckungen…</div>';
+  try{
+    const q='!"'+name.replace(/"/g,'')+'"';
+    const res=await fetch('https://api.scryfall.com/cards/search?order=released&dir=asc&unique=prints&q='+encodeURIComponent(q));
+    if(res.status===404){box.innerHTML='<div class="acs-msg">Keine Karte mit diesem Namen gefunden.</div>';return;}
+    if(!res.ok)throw 0;
+    const data=await res.json();
+    _dxsPrintings=data.data||[];
+    if(!_dxsPrintings.length){box.innerHTML='<div class="acs-msg">Keine Druckungen gefunden.</div>';return;}
+    box.innerHTML='';
+    _dxsPrintings.forEach((c,idx)=>{
+      const img=(c.image_uris&&c.image_uris.small)||(c.card_faces&&c.card_faces[0]&&c.card_faces[0].image_uris&&c.card_faces[0].image_uris.small)||'';
+      const price=(c.prices&&c.prices.eur)?'€'+c.prices.eur:((c.prices&&c.prices.eur_foil)?'€'+c.prices.eur_foil+' (Foil)':'–');
+      const row=document.createElement('div');row.className='acs-print-row';
+      row.innerHTML='<img class="acs-thumb" loading="lazy" alt="" src="'+img+'">'+
+        '<div class="acs-print-info"><div class="acs-print-name">'+esc(c.name)+'</div>'+
+        '<div class="acs-print-meta">'+esc(c.set_name||'')+' ('+(c.set||'').toUpperCase()+') · #'+esc(c.collector_number||'?')+'</div></div>'+
+        '<div class="acs-print-price">'+price+'</div>';
+      row.addEventListener('click',()=>dxsSelect(idx));
+      box.appendChild(row);
+    });
+  }catch(e){ box.innerHTML='<div class="acs-msg">Fehler beim Laden der Druckungen.</div>'; }
+}
+
+function dxsSelect(idx){
+  _dxsSelected=_dxsPrintings[idx];
+  const c=_dxsSelected;
+  document.querySelectorAll('#dxsPrintings .acs-print-row').forEach((r,i)=>r.classList.toggle('selected',i===idx));
+  const img=(c.image_uris&&c.image_uris.normal)||(c.card_faces&&c.card_faces[0]&&c.card_faces[0].image_uris&&c.card_faces[0].image_uris.normal)||'';
+  document.getElementById('dxsImg').src=img;
+  document.getElementById('dxsTitle').textContent=c.name;
+  document.getElementById('dxsSub').textContent=(c.set_name||'')+' ('+(c.set||'').toUpperCase()+') · #'+(c.collector_number||'?');
+  const owned=ownedQtyByName(c.name)>0;
+  const hint=document.getElementById('dxsOwnHint');
+  hint.textContent=owned?'✓ In deiner Sammlung vorhanden.':'✦ Nicht in deiner Sammlung — wird im Deck als „fehlt" markiert.';
+  hint.style.color=owned?'var(--green)':'var(--text2)';
+  document.getElementById('dxsDetail').style.display='flex';
+  document.getElementById('dxsDetail').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+async function dxsAddToDeck(){
+  if(!_dxsSelected||!activeDeckId)return;
+  const c=_dxsSelected;
+  const qty=Math.max(1,parseInt(document.getElementById('dxsQty').value,10)||1);
+  const category=(document.getElementById('dxsCat').value||'').trim()||null;
+  const cardData={
+    card_name:c.name,
+    scryfall_id:c.id,
+    set_code:(c.set||'').toUpperCase(),
+    set_name:c.set_name||'',
+    collector_number:c.collector_number||'',
+    rarity:(c.rarity||'').toLowerCase(),
+    mana_value:(c.cmc!=null?Math.floor(c.cmc):null),
+    colors:c.colors||[],
+    color_identity:c.color_identity||[],
+    type_line:c.type_line||null,
+    legal_commander:(c.legalities&&c.legalities.commander)||null
+  };
+  const btn=document.getElementById('dxsAdd');
+  if(typeof setBusy==='function')setBusy(btn,true);else btn.disabled=true;
+  const ok=await addToDeckDenorm(activeDeckId,cardData,category,qty);
+  if(typeof setBusy==='function')setBusy(btn,false);else btn.disabled=false;
+  if(!ok)return;
+  currentDeckCards=await loadDeckCards(activeDeckId);
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  renderDeckDetail(deck);
+  closeModal('deckSearchModal');
+  const owned=ownedQtyByName(c.name)>0;
+  if(typeof toastSuccess==='function')toastSuccess('✓ '+qty+'× '+c.name+' ins Deck'+(owned?'':' (fehlt in Sammlung)'));
+}
+
+// Verdrahtung der Deck-Suche (Elemente wurden oben injiziert)
+(function wireDeckSearch(){
+  const s=document.getElementById('dxsSearch');
+  if(!s)return;
+  const addBtn=document.getElementById('dxsAdd');
+  if(addBtn)addBtn.addEventListener('click',dxsAddToDeck);
+  const ov=document.getElementById('deckSearchModal');
+  if(ov)ov.addEventListener('click',function(ev){ if(ev.target===this)closeModal('deckSearchModal'); });
+  s.addEventListener('input',function(){
+    clearTimeout(_dxsDebounce);
+    const q=s.value.trim();
+    _dxsSelected=null;document.getElementById('dxsDetail').style.display='none';
+    if(q.length<2){document.getElementById('dxsSuggestions').innerHTML='';return;}
+    _dxsDebounce=setTimeout(()=>dxsFetchSuggestions(q),300);
+  });
+  s.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ev.preventDefault();const v=s.value.trim();if(v.length>=2)dxsChoose(v);} });
+})();
+
+// ── Fehlt-Liste ──
+// deckId (string) → genau dieses Deck; null → ALLE Decks zusammen.
+async function openMissingModal(deckId){
+  const titleEl=document.getElementById('missingTitle');
+  const body=document.getElementById('missingBody');
+  body.innerHTML='<div class="dxm-empty">Wird berechnet…</div>';
+  document.getElementById('missingModal').classList.add('open');
+
+  let dcs=[];
+  if(deckId){
+    const deck=allDecks.find(d=>d.id===deckId);
+    titleEl.textContent='FEHLENDE KARTEN · '+(((deck&&deck.name)||'Deck').toUpperCase());
+    dcs=(deckId===activeDeckId&&currentDeckCards.length)?currentDeckCards:await loadDeckCards(deckId);
+  }else{
+    titleEl.textContent='FEHLENDE KARTEN · ALLE DECKS';
+    const{data}=await _sb.from('deck_cards').select('*');
+    dcs=data||[];
+  }
+
+  const ownedMap=buildOwnedNameMap();
+  const miss={};
+  for(const dc of dcs){
+    const name=resolveDeckCard(dc).name;
+    if(!name||name==='Unbekannt')continue;
+    if((ownedMap.get(name.toLowerCase().trim())||0)>0)continue; // besitzt du → nicht fehlend
+    const key=name.toLowerCase().trim();
+    if(!miss[key])miss[key]={name:name,qty:0};
+    miss[key].qty+=(dc.quantity||1);
+  }
+  const list=Object.values(miss).sort((a,b)=>a.name.localeCompare(b.name));
+
+  if(!list.length){
+    body.innerHTML='<div class="dxm-empty">🎉 Dir fehlt keine Karte — alles ist in deiner Sammlung.</div>';
+    return;
+  }
+
+  const rowsHtml=list.map(m=>`<div class="dxm-row"><span>${esc(m.name)}</span><span class="dxm-qty">×${m.qty}</span></div>`).join('');
+  const textValue=list.map(m=>m.qty+' '+m.name).join('\n');
+
+  body.innerHTML=`
+    <div style="color:var(--text2);font-size:0.9rem;margin-bottom:0.2rem">${list.length} Karte${list.length===1?'':'n'}, die du nicht besitzt:</div>
+    <div class="dxm-list">${rowsHtml}</div>
+    <label style="font-size:0.65rem;color:var(--text3);font-family:'Cinzel',serif;letter-spacing:0.1em">ALS TEXT (KOPIERBAR)</label>
+    <textarea class="dxm-text" id="missingText" readonly>${esc(textValue)}</textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="missingCopyBtn">In Zwischenablage kopieren</button>
+      <button class="btn" id="missingDlBtn">Als .txt herunterladen</button>
+    </div>`;
+  document.getElementById('missingCopyBtn').addEventListener('click',function(){
+    const t=document.getElementById('missingText');t.select();
+    try{ navigator.clipboard.writeText(t.value); }catch(e){ try{document.execCommand('copy');}catch(_){} }
+    if(typeof toastSuccess==='function')toastSuccess('✓ Liste kopiert');
+  });
+  document.getElementById('missingDlBtn').addEventListener('click',function(){
+    const blob=new Blob([textValue],{type:'text/plain;charset=utf-8'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='fehlende-karten.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
 }
