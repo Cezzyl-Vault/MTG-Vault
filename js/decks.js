@@ -940,10 +940,20 @@ async function moveCategoryByOffset(category,offset){
 // exakt wie bisher. Sonst → karten-ähnliche Struktur aus den am deck_card
 // gespeicherten Feldern (für Suche hinzugefügte / nicht besessene Karten).
 function resolveDeckCard(dc){
+  // 1) Direkter Treffer über card_id (explizit aus der Sammlung gewählte Druckung).
   if(dc.card_id){
     const c=allCards.find(x=>x.id===dc.card_id);
     if(c)return c;
   }
+  // 2) Besitzt du diese Karte (per Name)? → nimm eine besessene Druckung (die
+  //    älteste), damit das Deck die Version zeigt, die du tatsächlich hast –
+  //    statt der Scryfall-Standarddruckung. Greift auch rückwirkend.
+  const nm=(dc.card_name||dc.card_id||'').toLowerCase().trim();
+  if(nm){
+    const owned=allCards.filter(c=>(c.name||'').toLowerCase().trim()===nm);
+    if(owned.length)return pickOldestPrinting(owned);
+  }
+  // 3) Sonst (nicht besessen): die am deck_card gespeicherten Felder.
   return {
     id:'dc:'+dc.id,
     name:dc.card_name||dc.card_id||'Unbekannt',
@@ -960,6 +970,19 @@ function resolveDeckCard(dc){
     purchase_price:null,
     foil:null
   };
+}
+
+// Älteste Druckung aus einer Liste von Sammlungskarten (nach Set-Release-Datum).
+// Karten mit unbekanntem Datum landen hinten. Spiegelt die Logik aus collection.js.
+function pickOldestPrinting(list){
+  return [...list].sort((a,b)=>{
+    const da=(typeof setReleasedAt==='function')?setReleasedAt(a.set_code):'';
+    const db=(typeof setReleasedAt==='function')?setReleasedAt(b.set_code):'';
+    if(!da&&!db)return (a.set_code||'').localeCompare(b.set_code||'');
+    if(!da)return 1;
+    if(!db)return -1;
+    return da.localeCompare(db);
+  })[0];
 }
 
 // Map: Kartenname (lowercase) → besessene Gesamtmenge. Einmal pro Aufruf gebaut.
