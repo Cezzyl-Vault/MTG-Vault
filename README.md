@@ -21,9 +21,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 
 **Decks**
 - Übersicht mit Karten-Anzahl, Wert €, Ø Manawert, Farb-Punkten pro Deck
-- Karten ins Deck auf zwei Wegen:
-  - **„+ Karten"**: aus der eigenen Sammlung wählen (Multi-Select)
-  - **„+ Suche"**: beliebige Karte per Scryfall-Suche — **auch Karten, die man (noch) nicht besitzt** (Wunschlisten-Funktion)
+- **Karten hinzufügen wie bei deckstats.net**: In jeder Kategorie (und in „Ohne Kategorie") gibt es ein Tippfeld. Kartennamen tippen → Vorschläge (Scryfall-Autocomplete) → anklicken oder Enter → die Karte landet sofort in genau dieser Kategorie. Das Feld bleibt fokussiert, sodass man mehrere Karten zügig hintereinander eintippen kann; daneben ein Anzahl-Feld. Es lassen sich beliebige Karten hinzufügen — **auch solche, die man (noch) nicht besitzt**
 - **„Fehlt"-Markierung**: Karten, die in keinem Sammlungs-Eintrag vorkommen, werden abgedunkelt mit rotem „fehlt"-Badge angezeigt (Listen-Ansicht: „fehlt"-Tag). Der Abgleich läuft live über den Kartennamen — wer die Karte später kauft und importiert, sieht die Markierung automatisch verschwinden
 - **Fehlt-Liste**: „✦ Fehlende" im Deck (pro Deck) bzw. „✦ Fehlende Karten" in der Decks-Übersicht (über alle Decks) zeigt alle nicht besessenen Karten mit Mengen — kopierbar und als .txt herunterladbar (z.B. als Einkaufsliste)
 - Karten-Detail mit zwei Ansichten:
@@ -33,13 +31,13 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **Karten gleichen Namens werden zusammengefasst** dargestellt (z.B. 4× Insel aus 3 Sets = ein Tile mit ×4)
 - **Anzahl-Pille** auf jeder Karte immer sichtbar (×N)
 - **Bearbeiten-Modus** mit Multi-Select für Verschieben/Entfernen mehrerer Karten gleichzeitig
-- **Klick auf Karte** öffnet immer das Karten-Modal (auch im Edit-Modus). Auswahl im Edit-Modus erfolgt nur über die Checkbox-Overlay. (Nicht besessene Karten haben kein Detail-Modal — Entfernen geht über den Edit-Modus)
+- **Klick auf eine Deck-Karte** öffnet ein schlichtes Deck-Fenster: Bild, Anzahl (−/＋), Kategorie, „Speichern", „Entfernen", Scryfall-Link und ob die Karte in der Sammlung ist. Keine Sammlungs-Varianten-Tabelle mehr. Im Edit-Modus erfolgt die Mehrfach-Auswahl weiterhin über die Checkbox-Overlay
 - **"Alle markieren"-Button** pro Kategorie im Edit-Modus (Toggle)
 - Kategorien sortierbar via ▲▼-Pfeile (nur im Edit-Modus sichtbar)
 - Kategorien einklappbar via Klick auf Header
 - Karten ohne Kategorie landen in "Ohne Kategorie"-Sektion oben
 - **Visueller Move-Picker**: Karten verschieben über klickbare Kategorien-Liste (statt Texteingabe)
-- **Karten-Modal mit Deck-Kontext**: Bei Klick auf Karte aus dem Deck zeigt das Modal "📂 Verschieben" und "🗑 Aus Deck entfernen" statt "Zu Deck hinzufügen"
+- **Entkoppelt von der Sammlung**: Ein Deck ist eine reine Kartenliste (Name + Anzahl + Kategorie). Ob du eine Karte besitzt, ist nur eine Anzeige-Info (die „fehlt"-Markierung), kein Fundament — Karten verschwinden nicht aus Decks, wenn sich die Sammlung ändert. In der Sammlung gibt es zusätzlich pro Karte einen „+ Deck"-Knopf als Schnellweg
 
 **Statistik pro Deck** (einklappbar)
 - KPIs: Karten / Ø Manawert / Deckwert
@@ -55,7 +53,8 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Banlist (Scryfall)
 - Farbidentität (Karten in Kategorie "Commander" definieren erlaubte Farben)
 - Geschützte "Commander"-Kategorie mit 👑
-- Prüft auch nicht besessene Karten (deren Legalitäts-Daten werden beim Hinzufügen per Suche mitgespeichert)
+- Prüft auch nicht besessene Karten (deren Legalitäts-Daten werden beim Hinzufügen mitgespeichert)
+- Nur außerhalb des Bearbeiten-Modus sichtbar (im Edit-Modus ausgeblendet)
 
 **Statistik global**
 - Karten/Einträge/Sets/Foils/Decks/Gesamtwert
@@ -110,7 +109,8 @@ MTG-Vault/
     ├── deck-stats.js             Stats-Panel pro Deck
     ├── deck-validation.js        Commander-Validierung (alle 5 Regeln)
     ├── decks.js                  Decks-Übersicht, Detail, Karten-/Listen-Modus, Edit-Mode,
-    │                             Deck-Suche (+ nicht besessene Karten), Fehlt-Liste
+    │                             Tippfeld-Hinzufügen pro Kategorie, Deck-Karten-Fenster,
+    │                             "fehlt"-Markierung + Fehlt-Liste
     ├── price-tracking.js         Wöchentliche Snapshots, Scryfall-Live-Preise
     ├── stats.js                  Globale Statistik + Wertverlaufs-Chart
     └── app.js                    Orchestrierung: View-Wechsel, Mobile-Nav, Startup
@@ -144,7 +144,7 @@ Validierung auch nicht besessene Deck-Karten mitzählen.
 | Karte-per-Suche-hinzufügen | `js/add-card.js` |
 | Karten-Anreicherung (Scryfall) | `js/scryfall.js` |
 | Filter/Anzeige der Sammlung | `js/collection.js` |
-| Decks-Logik, Edit-Mode, Deck-Suche, Fehlt-Liste | `js/decks.js` |
+| Decks-Logik, Tippfeld-Hinzufügen, Deck-Karten-Fenster, Fehlt-Liste | `js/decks.js` |
 | Pro-Deck-Statistik | `js/deck-stats.js` |
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |
@@ -185,7 +185,7 @@ price_snapshots user_id, snapshot_date, total_value, card_count
 
 Zum `deck_cards`-Design: Verweist `card_id` auf eine Sammlungs-Karte, kommen
 die Anzeige-Daten von dort (wie früher). Ist `card_id = NULL`, wurde die Karte
-per Deck-Suche hinzugefügt und trägt ihre Identität selbst — das Deck
+über das Tippfeld hinzugefügt und trägt ihre Identität selbst — das Deck
 funktioniert damit als Wunschliste. Ob eine Karte "besessen" ist, wird zur
 Laufzeit per Namensabgleich mit der Sammlung ermittelt (nicht gespeichert).
 
@@ -216,4 +216,4 @@ Dann im Browser `http://localhost:8000` öffnen.
 von `decks.js` fügen ihre Modals, Styles und Buttons selbst ins DOM ein. Vorteil:
 neue Features brauchen keine `index.html`-Änderung. Wer deren Aussehen ändern
 will, sucht das CSS also in der jeweiligen JS-Datei (Style-Tags `#acs-styles`
-bzw. `#dx-styles`), nicht in `styles/`.
+in add-card.js bzw. `#dx-styles` und `#dx2-styles` in decks.js), nicht in `styles/`.
