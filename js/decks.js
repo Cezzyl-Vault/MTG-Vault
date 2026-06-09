@@ -193,24 +193,24 @@ function renderDeckDetail(deck){
           <button class="${listActive}" onclick="setDeckViewMode('list')" title="Listen-Ansicht">☰</button>
         </div>
         <button class="${editClass}" onclick="toggleDeckEditMode()" title="Karten markieren und bearbeiten">${editLabel}</button>
-        <button class="btn-gold" onclick="openAddCardsModal()">+ Karten</button>
-        <button class="btn-gold" onclick="openDeckSearchModal()" title="Karte per Suche hinzufügen — auch Karten, die du noch nicht besitzt">+ Suche</button>
         <button class="back-btn" onclick="openMissingModal(activeDeckId)" title="Liste der Karten in diesem Deck, die du nicht besitzt">✦ Fehlende</button>
         <button class="btn-gold" onclick="openCatModal()">+ Kategorie</button>
         <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
       </div>
     </div>
-    <div class="deck-validation-panel" id="deck-validation-panel"></div>
+    ${deckEditMode?'':'<div class="deck-validation-panel" id="deck-validation-panel"></div>'}
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
-    ${uncategorized.length?uncategorizedSection(uncategorized,deck.id):''}
+    ${uncategorizedSection(uncategorized,deck.id)}
     ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length,deck.format)).join('')}
-    ${!currentDeckCards.length?`<div class="empty-state" style="padding:3rem"><div class="empty-icon">🃏</div><h2>Keine Karten</h2><p>Füge Karten über „+ Karten“ (aus deiner Sammlung) oder „+ Suche“ (beliebige Karte, auch was dir noch fehlt) hinzu.</p></div>`:''}
+    ${!currentDeckCards.length?`<div class="empty-state" style="padding:2rem 1rem"><div class="empty-icon">🃏</div><p style="color:var(--text2)">Tippe oben ins Feld einen Kartennamen, um loszulegen — auch Karten, die du noch nicht besitzt.</p></div>`:''}
     ${deckEditMode?renderEditActionBar():''}
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
   if(typeof renderDeckStats==='function')renderDeckStats(deck,currentDeckCards);
-  // Validierungs-Panel füllen (eigene Funktion in deck-validation.js)
-  if(typeof renderDeckValidation==='function')renderDeckValidation(deck,currentDeckCards);
+  // Validierungs-Panel füllen — im Bearbeiten-Modus ausgeblendet (User-Wunsch)
+  if(!deckEditMode && typeof renderDeckValidation==='function')renderDeckValidation(deck,currentDeckCards);
+  // Tippfelder pro Kategorie nach erneutem Rendern wieder fokussieren
+  if(typeof dcaPostRender==='function')dcaPostRender();
 }
 
 // Bottom-Aktions-Leiste, die im Edit-Modus erscheint
@@ -243,10 +243,10 @@ function uncategorizedSection(dcCards,deckId){
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap" onclick="event.stopPropagation()">
         ${selectAllBtn}
-        <button class="del-cat-btn" onclick="openAddCardsModal('')" title="Weitere Karten ohne Kategorie hinzufügen">+ Karten</button>
       </div>
     </div>
     ${body}
+    ${collapsed?'':inlineAddRow('')}
   </div>`;
 }
 
@@ -320,7 +320,7 @@ function deckCardTile(g){
   const isSelected=g.dcIds.every(id=>deckEditSelected.has(id));
   const dcIdsCsv=g.dcIds.join(',');
   // Hauptfläche-Klick öffnet immer das Karten-Modal mit Deck-Kontext
-  const tileClick=`onclick="openCardModal('${escJs(cardName)}','${dcIdsCsv}')"`;
+  const tileClick=`onclick="openDeckCardModal('${dcIdsCsv}')"`;
   // Checkbox: stoppt Propagation, togglet stattdessen die Auswahl
   const checkbox=deckEditMode?`<div class="dc-tile-checkbox" onclick="event.stopPropagation();toggleDeckEditGroup('${dcIdsCsv}')" title="Auswählen">${isSelected?'✓':''}</div>`:'';
   // Trash: entfernt aus Deck (mit Bestätigung)
@@ -345,7 +345,7 @@ function deckCardRow(g){
   const cardName=g.name;
   const isSelected=g.dcIds.every(id=>deckEditSelected.has(id));
   const dcIdsCsv=g.dcIds.join(',');
-  const rowClick=`onclick="openCardModal('${escJs(cardName)}','${dcIdsCsv}')"`;
+  const rowClick=`onclick="openDeckCardModal('${dcIdsCsv}')"`;
   const checkbox=deckEditMode?`<div class="dc-row-checkbox" onclick="event.stopPropagation();toggleDeckEditGroup('${dcIdsCsv}')" title="Auswählen">${isSelected?'✓':''}</div>`:'';
   return`<div class="deck-card-row${isSelected?' selected':''}${g.owned?'':' dc-not-owned'}" ${rowClick} title="${esc(cardName)}">
     ${checkbox}
@@ -400,11 +400,11 @@ function catSection(cat,dcCards,deckId,index,total,deckFormat){
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap" onclick="event.stopPropagation()">
         ${selectAllBtn}
-        <button class="del-cat-btn" onclick="openAddCardsModal('${escJs(cat)}')" title="Karten zu dieser Kategorie hinzufügen">+ Karten</button>
         ${deleteBtn}
       </div>
     </div>
     ${body}
+    ${collapsed?'':inlineAddRow(cat)}
   </div>`;
 }
 
@@ -478,8 +478,7 @@ async function removeDeckCardGroup(dcIdsCsv){
   },0);
   // Karten-Name herausfinden für die Bestätigung
   const firstDc=currentDeckCards.find(d=>d.id===ids[0]);
-  const card=firstDc?allCards.find(c=>c.id===firstDc.card_id):null;
-  const name=card?.name||'diese Karte';
+  const name=firstDc?resolveDeckCard(firstDc).name:'diese Karte';
   const ok=await confirmAction(
     ids.length>1
       ?`Alle ${totalQty} "${name}" (in ${ids.length} Druckungen) aus dem Deck entfernen?`
@@ -1287,3 +1286,250 @@ async function openMissingModal(deckId){
     a.download='fehlende-karten.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   });
 }
+
+
+// ══════════════════════════════════════════════════════════
+//  DECK-BAU 2.0 · Tippfeld pro Kategorie + einfaches Karten-Fenster
+// ══════════════════════════════════════════════════════════
+//
+//  Entkoppelt das Deck von der Sammlung (deckstats-Stil):
+//   - In jeder Kategorie (und in "Ohne Kategorie") gibt es ein Tippfeld:
+//     Name eintippen → Vorschläge → auswählen/Enter → Karte landet sofort
+//     in genau dieser Kategorie. Schreibt denormalisiert via addToDeckDenorm,
+//     Besitz wird wie gehabt live per Name bestimmt ("fehlt"-Markierung).
+//   - Klick auf eine Deck-Karte öffnet ein schlichtes Fenster (Anzahl,
+//     Kategorie, Entfernen, Scryfall-Link) statt der Sammlungs-Varianten.
+
+// Markup für das Tippfeld einer Kategorie. cat='' bedeutet "Ohne Kategorie".
+function inlineAddRow(cat){
+  const c=cat||'';
+  return `<div class="dca-add" data-cat="${esc(c)}">
+    <input class="dca-input" type="text" placeholder="＋ Karte tippen…" autocomplete="off" spellcheck="false">
+    <input class="dca-qty" type="number" min="1" max="99" value="1" title="Anzahl">
+    <button class="dca-btn" type="button" title="Hinzufügen">＋</button>
+    <div class="dca-suggestions"></div>
+  </div>`;
+}
+
+// Nach erneutem Rendern das zuletzt benutzte Tippfeld wieder fokussieren,
+// damit man zügig mehrere Karten hintereinander eintippen kann.
+let _dcaRefocusCat=null;
+function dcaPostRender(){
+  if(_dcaRefocusCat===null)return;
+  const sel='.dca-add[data-cat="'+(window.CSS&&CSS.escape?CSS.escape(_dcaRefocusCat):_dcaRefocusCat)+'"] .dca-input';
+  const inp=document.querySelector(sel);
+  _dcaRefocusCat=null;
+  if(inp){ inp.focus(); }
+}
+
+// Autocomplete-Vorschläge für ein Tippfeld laden
+async function dcaSuggest(q,sugEl){
+  try{
+    const res=await fetch('https://api.scryfall.com/cards/autocomplete?q='+encodeURIComponent(q));
+    if(!res.ok)throw 0;
+    const data=await res.json();
+    const names=(data.data||[]).slice(0,12);
+    if(!names.length){sugEl.innerHTML='';return;}
+    sugEl.innerHTML=names.map(n=>`<div class="dca-suggestion">${esc(n)}</div>`).join('');
+  }catch(e){ sugEl.innerHTML=''; }
+}
+
+// Aus einem Tippfeld heraus eine Karte ins Deck übernehmen
+function dcaCommit(wrap,rawName,exact){
+  const name=(rawName||'').trim();
+  if(!name)return;
+  const cat=wrap.dataset.cat||'';
+  const qtyEl=wrap.querySelector('.dca-qty');
+  const qty=Math.max(1,parseInt(qtyEl&&qtyEl.value,10)||1);
+  const sug=wrap.querySelector('.dca-suggestions');
+  if(sug)sug.innerHTML='';
+  addInlineCard(name,cat,qty,exact);
+}
+
+async function addInlineCard(name,cat,qty,exact){
+  if(!activeDeckId){toastError('Bitte zuerst ein Deck öffnen.');return;}
+  let c;
+  try{
+    const url='https://api.scryfall.com/cards/named?'+(exact?'exact=':'fuzzy=')+encodeURIComponent(name);
+    const res=await fetch(url);
+    if(!res.ok){toastError('Karte nicht gefunden: '+name);return;}
+    c=await res.json();
+  }catch(e){ toastError('Scryfall nicht erreichbar.');return; }
+  const cardData={
+    card_name:c.name,
+    scryfall_id:c.id,
+    set_code:(c.set||'').toUpperCase(),
+    set_name:c.set_name||'',
+    collector_number:c.collector_number||'',
+    rarity:(c.rarity||'').toLowerCase(),
+    mana_value:(c.cmc!=null?Math.floor(c.cmc):null),
+    colors:c.colors||[],
+    color_identity:c.color_identity||[],
+    type_line:c.type_line||null,
+    legal_commander:(c.legalities&&c.legalities.commander)||null
+  };
+  const ok=await addToDeckDenorm(activeDeckId,cardData,cat||null,qty);
+  if(!ok)return;
+  _dcaRefocusCat=cat||'';                       // nach Render wieder hierhin fokussieren
+  currentDeckCards=await loadDeckCards(activeDeckId);
+  renderDeckDetail(allDecks.find(d=>d.id===activeDeckId));
+  const owned=ownedQtyByName(c.name)>0;
+  toastSuccess('✓ '+(qty>1?qty+'× ':'')+c.name+(owned?'':' (fehlt)'));
+}
+
+// Delegierte Listener — einmalig auf dem (persistenten) Deck-Detail-Container.
+// Überleben das Neu-Rendern, weil das Element bleibt und nur sein Inhalt wechselt.
+(function wireInlineAdd(){
+  const root=document.getElementById('deck-detail-view');
+  if(!root||root.dataset.dcaWired)return;
+  root.dataset.dcaWired='1';
+  let deb=null;
+  root.addEventListener('input',function(ev){
+    const inp=ev.target.closest&&ev.target.closest('.dca-input');if(!inp)return;
+    const wrap=inp.closest('.dca-add');const sug=wrap.querySelector('.dca-suggestions');
+    clearTimeout(deb);
+    const q=inp.value.trim();
+    if(q.length<2){sug.innerHTML='';return;}
+    deb=setTimeout(()=>dcaSuggest(q,sug),250);
+  });
+  root.addEventListener('keydown',function(ev){
+    const inp=ev.target.closest&&ev.target.closest('.dca-input');if(!inp)return;
+    if(ev.key==='Enter'){ev.preventDefault();dcaCommit(inp.closest('.dca-add'),inp.value,false);}
+    else if(ev.key==='Escape'){inp.closest('.dca-add').querySelector('.dca-suggestions').innerHTML='';}
+  });
+  root.addEventListener('click',function(ev){
+    const btn=ev.target.closest&&ev.target.closest('.dca-btn');
+    if(!btn)return;
+    const wrap=btn.closest('.dca-add');
+    dcaCommit(wrap,wrap.querySelector('.dca-input').value,false);
+  });
+  // Auswahl eines Vorschlags: mousedown (feuert vor blur), fügt sofort hinzu
+  root.addEventListener('mousedown',function(ev){
+    const s=ev.target.closest&&ev.target.closest('.dca-suggestion');if(!s)return;
+    ev.preventDefault();
+    dcaCommit(s.closest('.dca-add'),s.textContent,true);
+  });
+})();
+
+// ── Einfaches Deck-Karten-Fenster (ersetzt die Sammlungs-Varianten-Ansicht) ──
+let _dcmIds=[];
+function openDeckCardModal(dcIdsCsv){
+  const ids=(dcIdsCsv||'').split(',').filter(Boolean);
+  const rows=ids.map(id=>currentDeckCards.find(d=>d.id===id)).filter(Boolean);
+  if(!rows.length)return;
+  _dcmIds=rows.map(r=>r.id);
+  const rep=rows[0];
+  const card=resolveDeckCard(rep);
+  const totalQty=rows.reduce((s,r)=>s+(r.quantity||1),0);
+  const owned=ownedQtyByName(card.name)>0;
+  const img=iUrl(card);
+  const cats=[...new Set(currentDeckCards.map(dc=>dc.category).filter(Boolean))];
+  const defs=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const allCats=[...new Set([...cats,...defs])];
+  const scry=card.scryfall_id?('https://scryfall.com/card/'+(card.set_code||'').toLowerCase()+'/'+(card.collector_number||'')):null;
+  document.getElementById('deckCardModalBody').innerHTML=`
+    <div class="dcm-wrap">
+      ${img?`<img class="dcm-img" src="${img}" alt="${esc(card.name)}">`:`<div class="dcm-img dcm-noimg">🃏</div>`}
+      <div class="dcm-controls">
+        <div class="dcm-name">${esc(card.name)}</div>
+        <div class="dcm-meta">${esc(card.set_code||'')}${card.collector_number?' #'+esc(card.collector_number):''}</div>
+        <div class="dcm-own ${owned?'is-owned':'is-missing'}">${owned?'✓ In deiner Sammlung':'✦ Nicht in Sammlung — fehlt'}</div>
+        <div class="form-field"><label>ANZAHL</label>
+          <div class="dcm-qty-row">
+            <button type="button" class="dcm-step" onclick="dcmStep(-1)">−</button>
+            <input type="number" id="dcmQty" min="1" max="99" value="${totalQty}">
+            <button type="button" class="dcm-step" onclick="dcmStep(1)">＋</button>
+          </div>
+        </div>
+        <div class="form-field"><label>KATEGORIE</label>
+          <input id="dcmCat" list="dcmCatList" placeholder="Ohne Kategorie" value="${esc(rep.category||'')}" autocomplete="off">
+          <datalist id="dcmCatList">${allCats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+        </div>
+        ${rows.length>1?`<div class="dcm-hint">Hinweis: ${rows.length} Druckungen — werden beim Speichern zu einem Eintrag zusammengefasst.</div>`:''}
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveDeckCardModal()">Speichern</button>
+          <button class="btn" onclick="closeModal('deckCardModal');removeDeckCardGroup('${_dcmIds.join(',')}')">Entfernen</button>
+        </div>
+        ${scry?`<a class="dcm-scry" href="${scry}" target="_blank" rel="noopener">🔗 Auf Scryfall ansehen</a>`:''}
+      </div>
+    </div>`;
+  document.getElementById('deckCardModal').classList.add('open');
+}
+function dcmStep(d){
+  const i=document.getElementById('dcmQty');
+  i.value=Math.min(99,Math.max(1,(parseInt(i.value,10)||1)+d));
+}
+async function saveDeckCardModal(){
+  const ids=_dcmIds.slice();
+  if(!ids.length||!activeDeckId)return;
+  const newQty=Math.min(99,Math.max(1,parseInt(document.getElementById('dcmQty').value,10)||1));
+  const newCat=(document.getElementById('dcmCat').value||'').trim()||null;
+  const repId=ids[0];
+  const rep=currentDeckCards.find(d=>d.id===repId);
+  const patch={quantity:newQty,category:newCat};
+  // Alt-Zeilen (mit card_id, ohne eigene Felder) beim Speichern konsolidieren
+  if(rep&&!rep.card_name){
+    const c=resolveDeckCard(rep);
+    patch.card_id=null;
+    patch.card_name=c.name;patch.scryfall_id=c.scryfall_id;patch.set_code=c.set_code;
+    patch.set_name=c.set_name;patch.collector_number=c.collector_number;patch.rarity=c.rarity;
+    patch.mana_value=c.mana_value;patch.colors=c.colors;patch.color_identity=c.color_identity;
+    patch.type_line=c.type_line;patch.legal_commander=c.legal_commander;
+  }
+  const{error}=await _sb.from('deck_cards').update(patch).eq('id',repId);
+  if(error){toastError('Fehler: '+error.message);return;}
+  for(let i=1;i<ids.length;i++){ await removeDeckCardDB(ids[i]); }
+  currentDeckCards=await loadDeckCards(activeDeckId);
+  renderDeckDetail(allDecks.find(d=>d.id===activeDeckId));
+  closeModal('deckCardModal');
+  toastSuccess('✓ Gespeichert');
+}
+
+// ── Styles + Modal-Element für Deck-Bau 2.0 (einmalig) ──
+(function injectDeckBuild2(){
+  if(!document.getElementById('dx2-styles')){
+    const css=[
+      '.dca-add{position:relative;display:flex;gap:0.4rem;align-items:center;margin:0.7rem 0.2rem 0.2rem;}',
+      ".dca-input{flex:1;min-width:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.45rem 0.6rem;font-family:'EB Garamond',serif;font-size:0.95rem;}",
+      '.dca-input:focus{outline:none;border-color:var(--gold-dim);}',
+      ".dca-qty{width:52px;flex:0 0 auto;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.45rem 0.3rem;text-align:center;font-family:'EB Garamond',serif;}",
+      ".dca-btn{flex:0 0 auto;background:var(--surface3);border:1px solid var(--border2);color:var(--gold2);border-radius:6px;width:38px;height:36px;font-size:1.05rem;cursor:pointer;}",
+      '.dca-btn:hover{background:var(--surface2);border-color:var(--gold-dim);}',
+      '.dca-suggestions{position:absolute;top:100%;left:0;right:54px;z-index:60;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 8px 8px;max-height:240px;overflow-y:auto;box-shadow:0 10px 28px rgba(0,0,0,0.55);}',
+      '.dca-suggestions:empty{display:none;}',
+      ".dca-suggestion{padding:0.45rem 0.7rem;cursor:pointer;font-family:'EB Garamond',serif;color:var(--text);border-bottom:1px solid var(--border);}",
+      '.dca-suggestion:last-child{border-bottom:none;}',
+      '.dca-suggestion:hover{background:var(--surface3);color:var(--gold2);}',
+      '.dcm-wrap{display:flex;gap:1rem;flex-wrap:wrap;}',
+      '.dcm-img{width:180px;max-width:42%;border-radius:10px;align-self:flex-start;}',
+      '.dcm-noimg{display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--surface2);min-height:170px;}',
+      '.dcm-controls{flex:1;min-width:210px;}',
+      ".dcm-name{font-family:'EB Garamond',serif;font-size:1.15rem;color:var(--text);}",
+      '.dcm-meta{font-size:0.8rem;color:var(--text2);margin-bottom:0.3rem;}',
+      '.dcm-own{font-size:0.82rem;margin-bottom:0.7rem;}',
+      '.dcm-own.is-owned{color:var(--green);}',
+      '.dcm-own.is-missing{color:var(--red);}',
+      '.dcm-qty-row{display:flex;gap:0.4rem;align-items:center;}',
+      '.dcm-qty-row input{width:70px;text-align:center;}',
+      ".dcm-step{width:34px;height:34px;background:var(--surface3);border:1px solid var(--border2);color:var(--gold2);border-radius:6px;font-size:1.05rem;cursor:pointer;}",
+      '.dcm-hint{font-size:0.75rem;color:var(--text2);margin:0.4rem 0;}',
+      '.dcm-scry{display:inline-block;margin-top:0.6rem;color:var(--teal);text-decoration:none;font-size:0.85rem;}'
+    ].join('\n');
+    const s=document.createElement('style');s.id='dx2-styles';s.textContent=css;document.head.appendChild(s);
+  }
+  if(!document.getElementById('deckCardModal')){
+    const w=document.createElement('div');
+    w.innerHTML=`
+<div class="modal-overlay" id="deckCardModal">
+  <div class="modal small-modal">
+    <div class="modal-header">
+      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">KARTE IM DECK</span>
+      <button class="modal-close" onclick="closeModal('deckCardModal')">✕</button>
+    </div>
+    <div class="modal-detail" id="deckCardModalBody"></div>
+  </div>
+</div>`;
+    while(w.firstElementChild){ document.body.appendChild(w.firstElementChild); }
+    document.getElementById('deckCardModal').addEventListener('click',function(ev){ if(ev.target===this)closeModal('deckCardModal'); });
+  }
+})();
