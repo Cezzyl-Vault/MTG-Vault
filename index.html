@@ -19,6 +19,21 @@
 </head>
 <body>
 
+<!-- ══ DB-STATUS (Verbindungsprüfung beim Start / Datenbank pausiert) ══ -->
+<div id="dbStatusScreen">
+  <div class="auth-box">
+    <div class="auth-emblem" id="dbStatusEmblem">🏛️</div>
+    <div class="brand-logo">MTG Vault</div>
+    <div class="auth-tagline" id="dbStatusTitle">Verbinde mit der Datenbank…</div>
+    <div class="db-status-details" id="dbStatusDetails">
+      <p class="db-status-text" id="dbStatusText"></p>
+      <a class="auth-btn db-status-btn" id="dbActivateBtn" href="https://supabase.com/dashboard" target="_blank" rel="noopener">Datenbank aktivieren</a>
+      <button class="db-status-retry" id="dbRetryBtn" onclick="retryDbCheck()">Jetzt erneut prüfen</button>
+      <div class="db-status-hint" id="dbStatusHint"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ CONFIG ══ -->
 <div id="configScreen">
   <div class="config-box">

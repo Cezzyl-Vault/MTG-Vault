@@ -21,12 +21,20 @@ async function submitAuth(){
     let res=authMode==='login'
       ?await _sb.auth.signInWithPassword({email,password:pw})
       :await _sb.auth.signUp({email,password:pw});
-    if(res.error){errEl.textContent=res.error.message;setBusy(submitBtn,false);return;}
+    if(res.error){
+      setBusy(submitBtn,false);
+      // Datenbank zwischenzeitlich pausiert? → Status-Bildschirm statt kryptischer Fehlermeldung
+      const cfg=loadCfg();
+      if(cfg&&!await checkDbReachable(cfg)){showDbPaused(cfg);return;}
+      errEl.textContent=res.error.message;return;
+    }
     if(authMode==='signup'&&!res.data.session){errEl.style.color='var(--green)';errEl.textContent='Bestätigungsmail gesendet!';setBusy(submitBtn,false);return;}
     showApp(res.data.user||res.data.session.user);
   }catch(e){
-    errEl.textContent='Verbindungsfehler. Bitte erneut versuchen.';
     setBusy(submitBtn,false);
+    const cfg=loadCfg();
+    if(cfg&&!await checkDbReachable(cfg)){showDbPaused(cfg);return;}
+    errEl.textContent='Verbindungsfehler. Bitte erneut versuchen.';
   }
 }
 async function signOut(){await _sb.auth.signOut();allCards=[];allDecks=[];currentUser=null;showAuth();}

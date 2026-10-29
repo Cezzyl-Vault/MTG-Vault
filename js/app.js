@@ -60,6 +60,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
 // ══════════════════════════════════════════════════════════
 //  Logik:
 //   - keine Supabase-Config gespeichert → Setup-Screen zeigen
+//   - Datenbank nicht erreichbar (pausiert/offline) → DB-Status-Screen
 //   - Config vorhanden, aktive Session → direkt in App
 //   - Config vorhanden, keine Session → Login-Screen
 (async()=>{
@@ -69,6 +70,5 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
   const cfg=loadCfg();
   if(!cfg){showConfig();return;}
   _sb=window.supabase.createClient(cfg.url,cfg.key);
-  const{data:{session}}=await _sb.auth.getSession();
-  if(session)showApp(session.user);else showAuth();
+  await connectAndStart(cfg);
 })();

@@ -1,5 +1,15 @@
 # MTG Vault
 
+## Todo
+
+- [x] Beim Öffnen der App erkennen, ob Supabase pausiert ist, und einen Button zum Aktivieren
+  anzeigen (Stufe 1: Link zum „Restore" im Dashboard, automatisches Neu-Prüfen alle 15 s)
+- [ ] Stufe 2: Datenbank direkt aus der App per Klick aufwecken
+  - Hinweis: Ein pausiertes Projekt lässt sich nur über die Supabase Management API mit
+    einem Access Token wieder starten. Der darf nicht in den öffentlichen Browser-Code —
+    braucht also einen Umweg, z.B. eine kleine Serverless-Funktion, die das Token geheim hält.
+    Vorher prüfen, ob die API das Wiederherstellen kostenloser Projekte erlaubt
+
 Magic: The Gathering Sammlungs-Manager mit Supabase-Backend.
 
 Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
@@ -177,6 +187,10 @@ Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
 
 - **Manuell starten**: GitHub → Actions → „Supabase Keep-Alive" → „Run workflow"
 - **Lauf ist rot**: Projekt ist vermutlich pausiert → im Supabase-Dashboard „Restore" klicken
+- **In der App**: Ist die Datenbank beim Start (oder beim Laden/Login) nicht erreichbar, zeigt
+  die App statt Fehlern einen eigenen Bildschirm mit Button zum Dashboard und prüft alle
+  15 Sekunden automatisch, ob sie wieder läuft (`checkDbReachable` in `js/db.js`,
+  Bildschirm-Logik in `js/config.js`)
 - **60-Tage-Regel**: GitHub deaktiviert Zeitplan-Actions, wenn 60 Tage lang kein Commit
   im Repo passiert. Vorher kommt eine Warn-Mail; reaktivieren per Klick auf „Enable workflow"
 

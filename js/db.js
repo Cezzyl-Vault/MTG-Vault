@@ -9,13 +9,39 @@ function setSyncing(state){
   lbl.textContent=state==='syncing'?'Synchronisiert…':state==='error'?'Fehler':'Verbunden';
 }
 
+// ── Erreichbarkeit prüfen (z.B. kostenloses Projekt pausiert) ──
+// Direkter fetch statt _sb, damit ein Timeout greift. Jede HTTP-Antwort
+// unter 500 heißt "Datenbank läuft" (RLS liefert ohne Login einfach []).
+// Netzwerkfehler, Timeout oder 5xx → nicht erreichbar.
+async function checkDbReachable(cfg,timeoutMs=8000){
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const res=await fetch(cfg.url+'/rest/v1/cards?select=id&limit=1',{
+      headers:{apikey:cfg.key,Authorization:'Bearer '+cfg.key},
+      signal:ctrl.signal,cache:'no-store'
+    });
+    return res.status<500;
+  }catch(e){
+    return false;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 async function loadAll(){
   setSyncing('syncing');
   const[{data:cards,error:e1},{data:decks,error:e2}]=await Promise.all([
     _sb.from('cards').select('*').order('created_at',{ascending:false}),
     _sb.from('decks').select('*').order('created_at',{ascending:false}),
   ]);
-  if(e1||e2){setSyncing('error');toastError('Konnte Daten nicht laden. Internet-Verbindung prüfen.');return;}
+  if(e1||e2){
+    setSyncing('error');
+    // Datenbank pausiert? → Status-Bildschirm statt leerer Sammlung
+    const cfg=loadCfg();
+    if(cfg&&!await checkDbReachable(cfg)){showDbPaused(cfg);return;}
+    toastError('Konnte Daten nicht laden. Internet-Verbindung prüfen.');return;
+  }
   allCards=cards||[];allDecks=decks||[];
   setSyncing('ok');renderAll();
   // Nach jedem vollständigen Laden prüfen, ob die Anreicherungs-Aufforderung sichtbar sein soll

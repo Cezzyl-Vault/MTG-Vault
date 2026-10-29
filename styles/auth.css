@@ -3,7 +3,7 @@
 ══════════════════════════════ */
 #configScreen{
   position:relative;z-index:10;
-  display:flex;align-items:center;justify-content:center;
+  display:none;align-items:center;justify-content:center;
   min-height:100vh;padding:2rem;
 }
 .config-box{
@@ -132,4 +132,27 @@
   cursor:pointer;transition:color 0.2s;
 }
 .auth-cfg-link:hover{color:var(--text2);}
+
+/* ══════════════════════════════
+   DB-STATUS SCREEN
+   Beim Start sichtbar, bis die Verbindung geprüft ist —
+   bleibt stehen, wenn Supabase pausiert/nicht erreichbar ist
+══════════════════════════════ */
+#dbStatusScreen{
+  position:relative;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:2rem;
+}
+.db-status-details{display:none;flex-direction:column;gap:0.75rem;}
+.db-status-details.visible{display:flex;}
+.db-status-text{font-size:0.95rem;color:var(--text2);line-height:1.6;margin-bottom:0.5rem;}
+.db-status-btn{display:block;text-decoration:none;}
+.db-status-retry{
+  background:transparent;border:1px solid var(--border);border-radius:8px;
+  color:var(--text2);font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.1em;
+  padding:0.7rem;cursor:pointer;transition:all 0.2s;
+}
+.db-status-retry:hover{border-color:var(--gold);color:var(--gold);}
+.db-status-retry:disabled{opacity:0.5;cursor:default;}
+.db-status-hint{font-size:0.8rem;color:var(--text3);margin-top:0.5rem;}
 
