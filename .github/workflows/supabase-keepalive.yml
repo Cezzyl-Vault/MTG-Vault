@@ -1,0 +1,69 @@
+# ══════════════════════════════════════════════════════════
+#  Supabase Keep-Alive  ·  verhindert das Pausieren des Projekts
+# ══════════════════════════════════════════════════════════
+#
+#  Kostenlose Supabase-Projekte werden nach 7 Tagen ohne Aktivität
+#  pausiert. Diese Action schickt alle 3 Tage eine kleine Abfrage an
+#  die Tabelle "cards" — das ist eine echte Datenbank-Abfrage und
+#  zählt als Aktivität.
+#
+#  Keine Secrets nötig:
+#    URL und Anon-Key werden aus js/defaults.js gelesen. Der Anon-Key
+#    ist ohnehin öffentlich (steht im Browser-Code). Row Level Security
+#    sorgt dafür, dass die Abfrage ohne Login keine Daten zurückgibt —
+#    die Antwort ist einfach [].
+#
+#  Wenn der Lauf rot wird:
+#    Das Projekt ist vermutlich doch pausiert → im Supabase-Dashboard
+#    "Restore" klicken. GitHub schickt bei Fehlschlägen eine Mail.
+#
+#  Achtung 60-Tage-Regel:
+#    GitHub deaktiviert Zeitplan-Actions, wenn 60 Tage lang kein Commit
+#    im Repo passiert. Vorher kommt eine Warn-Mail; reaktivieren geht
+#    per Klick unter Actions → "Supabase Keep-Alive" → "Enable workflow".
+
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # Alle 3 Tage um 06:17 UTC — krumme Minute, weil GitHub Zeitpläne
+    # zur vollen Stunde oft stark verzögert ausführt
+    - cron: '17 6 */3 * *'
+  # Manuell startbar: Actions → "Supabase Keep-Alive" → "Run workflow"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code auschecken (für js/defaults.js)
+        uses: actions/checkout@v4
+
+      - name: Supabase-Verbindungsdaten aus defaults.js lesen
+        id: cfg
+        run: |
+          URL=$(grep -oP "DEFAULT_SUPABASE_URL\s*=\s*'\K[^']+" js/defaults.js)
+          KEY=$(grep -oP "DEFAULT_SUPABASE_KEY\s*=\s*'\K[^']+" js/defaults.js)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "URL oder Key in js/defaults.js nicht gefunden."
+            exit 1
+          fi
+          echo "Supabase-Projekt: $URL"
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "key=$KEY" >> $GITHUB_OUTPUT
+
+      - name: Datenbank anpingen
+        run: |
+          # --fail: bei HTTP-Fehler (z.B. pausiertes Projekt) wird der Lauf rot
+          # --retry: kurze Netzwerk-Aussetzer abfangen
+          STATUS=$(curl --silent --show-error --fail \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --output /dev/null --write-out "%{http_code}" \
+            -H "apikey: ${{ steps.cfg.outputs.key }}" \
+            -H "Authorization: Bearer ${{ steps.cfg.outputs.key }}" \
+            "${{ steps.cfg.outputs.url }}/rest/v1/cards?select=id&limit=1")
+          echo "Antwort von Supabase: HTTP $STATUS"

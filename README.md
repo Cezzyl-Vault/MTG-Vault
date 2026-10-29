@@ -81,7 +81,8 @@ MTG-Vault/
 ├── index.html                    HTML-Skelett + Datei-Referenzen
 ├── README.md                     diese Datei
 ├── .github/workflows/
-│   └── version-bump.yml          Auto-Versionierung + Cache-Busting
+│   ├── version-bump.yml          Auto-Versionierung + Cache-Busting
+│   └── supabase-keepalive.yml    Hält das Supabase-Projekt wach (alle 3 Tage)
 ├── styles/
 │   ├── base.css                  Variablen, Body, Hintergrund, Scrollbar
 │   ├── auth.css                  Setup-Screen + Login/Registrierung
@@ -154,6 +155,7 @@ Validierung auch nicht besessene Deck-Karten mitzählen.
 | Texte/Buttons im HTML | `index.html` |
 | Supabase-URL/Key | `js/defaults.js` |
 | Auto-Versionierung | `.github/workflows/version-bump.yml` |
+| Wachhalte-Rhythmus für Supabase | `.github/workflows/supabase-keepalive.yml` |
 
 ## Auto-Versionierung + Cache-Busting
 
@@ -165,6 +167,18 @@ Bei jedem Push auf `main` läuft eine GitHub Action, die:
 Damit lädt der Browser bei jedem Release frische Dateien — kein manuelles Strg+F5 mehr nötig.
 
 Die Action ignoriert ihre eigenen Commits (markiert mit `[skip ci]`), damit sie keine Endlosschleife produziert.
+
+## Supabase wachhalten
+
+Kostenlose Supabase-Projekte werden nach 7 Tagen ohne Aktivität pausiert. Die Action
+`supabase-keepalive.yml` schickt deshalb alle 3 Tage eine kleine Abfrage an die
+Tabelle `cards`. URL und Anon-Key liest sie aus `js/defaults.js` — es sind keine
+Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
+
+- **Manuell starten**: GitHub → Actions → „Supabase Keep-Alive" → „Run workflow"
+- **Lauf ist rot**: Projekt ist vermutlich pausiert → im Supabase-Dashboard „Restore" klicken
+- **60-Tage-Regel**: GitHub deaktiviert Zeitplan-Actions, wenn 60 Tage lang kein Commit
+  im Repo passiert. Vorher kommt eine Warn-Mail; reaktivieren per Klick auf „Enable workflow"
 
 ## Datenbank-Schema
 
