@@ -81,6 +81,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **Backup herunterladen** (im Settings-Modal): Sammlung, Decks, Deck-Karten und Preisverlauf als JSON-Datei
 
 **UX**
+- **Als App installierbar** (PWA): eigenes Icon auf dem Startbildschirm, startet ohne Browserleiste, öffnet auch offline (siehe [Als App aufs Handy](#als-app-aufs-handy))
 - Bottom-Navigation auf Mobile
 - Karten-Modal mit Sticky-"Schließen"-Button unten
 - Bestätigungs-Modals im App-Stil
@@ -94,6 +95,9 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 ```
 MTG-Vault/
 ├── index.html                    HTML-Skelett + Datei-Referenzen
+├── manifest.webmanifest          App-Name, Farben, Icons für die Installation (PWA)
+├── sw.js                         Service Worker: Netz zuerst, offline aus dem Cache
+├── icons/                        App-Icons (192/512, maskable, Apple, Favicon)
 ├── README.md                     diese Datei
 ├── .github/workflows/
 │   ├── version-bump.yml          Auto-Versionierung + Cache-Busting
@@ -201,6 +205,22 @@ Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
   Bildschirm-Logik in `js/config.js`)
 - **60-Tage-Regel**: GitHub deaktiviert Zeitplan-Actions, wenn 60 Tage lang kein Commit
   im Repo passiert. Vorher kommt eine Warn-Mail; reaktivieren per Klick auf „Enable workflow"
+
+## Als App aufs Handy
+
+- **Android (Chrome)**: Seite öffnen → Menü ⋮ → „App installieren" bzw. „Zum Startbildschirm hinzufügen"
+- **iPhone (Safari)**: Seite öffnen → Teilen-Symbol → „Zum Home-Bildschirm"
+- **PC (Chrome/Edge)**: Installations-Symbol rechts in der Adressleiste
+
+Die App startet dann mit eigenem Icon und ohne Browserleiste. Der Service Worker
+(`sw.js`) lädt jede Datei zuerst frisch aus dem Netz — Updates kommen also wie gewohnt
+sofort an. Nur ohne Internet nimmt er die zuletzt geladene Kopie, damit die App trotzdem
+startet und „Keine Internetverbindung" anzeigt. Datenbank- und Scryfall-Anfragen werden
+nicht zwischengespeichert. Icons neu erzeugen: Bilder in `icons/` ersetzen (gleiche Namen
+und Größen).
+
+Hinweis iPhone: Eine vom Home-Bildschirm gestartete App hat eigenen Speicher, getrennt
+von Safari — dort muss man sich einmal separat anmelden.
 
 ## Anmelden ohne Passwort
 

@@ -64,6 +64,10 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
 //   - Config vorhanden, aktive Session → direkt in App
 //   - Config vorhanden, keine Session → Login-Screen
 (async()=>{
+  // Service Worker für die Handy-App (sw.js) — Fehler sind egal, die Seite
+  // funktioniert auch ohne (z.B. bei file:// oder in privaten Fenstern)
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
   // Sets-Liste im Hintergrund laden (blockiert nicht den Login-Flow)
   loadSets();
 
