@@ -364,3 +364,9 @@ details summary{outline:none;}
   margin-top:0.4rem;padding:0.5rem 0.8rem;font-size:0.85rem;color:var(--text);
   background:rgba(224,82,82,0.08);border-left:2px solid var(--red);border-radius:4px;
 }
+
+/* Aktueller Marktpreis + Gewinn/Verlust (livePrices in price-tracking.js) */
+.variant-now{color:var(--text);font-size:0.78rem;white-space:nowrap;}
+.price-delta{font-size:0.75rem;color:var(--text3);white-space:nowrap;}
+.price-delta.pos{color:var(--green);}
+.price-delta.neg{color:var(--red);}

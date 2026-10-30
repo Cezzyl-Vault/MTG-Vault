@@ -69,7 +69,8 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Nur außerhalb des Bearbeiten-Modus sichtbar (im Edit-Modus ausgeblendet)
 
 **Statistik global**
-- Karten/Einträge/Sets/Foils/Decks/Gesamtwert
+- Karten/Einträge/Sets/Foils/Decks, Kaufwert und aktueller **Marktwert**
+- **Marktwert-Bereich**: Gewinn/Verlust gegenüber dem Kaufpreis (nur Karten mit Kaufpreis), Top 10 der wertvollsten Karten, größte Gewinner und Verlierer; „↻ Preise" lädt neu. Das Karten-Fenster zeigt pro Variante „jetzt X €" mit Gewinn/Verlust. Preise kommen von Scryfall (Cardmarket) und werden pro Gerät 24 Stunden zwischengespeichert
 - Wertentwicklung als Linechart (wöchentliche Snapshots, Live-Preise von Scryfall; Foils nutzen den Foil-Preis)
 - Seltenheit, Top Sets, Sprachen, Zustände als Bar-Charts
 
@@ -133,8 +134,8 @@ MTG-Vault/
     │                             "fehlt"-Markierung + Fehlt-Liste
     ├── deck-list.js              Deckliste als Text: Export (3 Formate) + Import
     │                             (selbstständig: injiziert eigenes Modal + CSS)
-    ├── price-tracking.js         Wöchentliche Snapshots, Scryfall-Live-Preise
-    ├── stats.js                  Globale Statistik + Wertverlaufs-Chart
+    ├── price-tracking.js         Wöchentliche Snapshots, aktuelle Preise pro Karte (24-h-Cache)
+    ├── stats.js                  Globale Statistik, Marktwert + Top-Listen, Wertverlaufs-Chart
     └── app.js                    Orchestrierung: View-Wechsel, Mobile-Nav, Startup
 ```
 
@@ -171,7 +172,7 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Pro-Deck-Statistik | `js/deck-stats.js` |
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |
-| Preis-Snapshots | `js/price-tracking.js` |
+| Preis-Snapshots, aktuelle Preise pro Karte | `js/price-tracking.js` |
 | CSV/PDF-Export, Komplett-Backup | `js/export.js` |
 | Bestätigungs-Modals, Toasts | `js/ui.js` |
 | Texte/Buttons im HTML | `index.html` |

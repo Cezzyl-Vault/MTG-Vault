@@ -67,6 +67,8 @@ async function loadAll(){
   if(typeof checkAndShowMigrationBanner==='function')checkAndShowMigrationBanner();
   // Im Hintergrund den wöchentlichen Preis-Snapshot prüfen — blockiert das Rendern nicht
   if(typeof maybeCreateWeeklySnapshot==='function')maybeCreateWeeklySnapshot();
+  // Aktuelle Marktpreise pro Karte (max. 1× pro Tag von Scryfall, sonst aus dem Cache)
+  if(typeof refreshLivePricesInBackground==='function')refreshLivePricesInBackground();
   // Alte Deck-Zeilen (nur card_id-Verweis) auf das neue Format umstellen — fragt vorher nach
   if(typeof migrateLegacyDeckCards==='function')migrateLegacyDeckCards();
 }

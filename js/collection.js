@@ -320,8 +320,20 @@ function openCardModal(name){
   // Tabelle aller Varianten — auch bei nur 1 Variante zeigen wir die Tabelle,
   // damit Bearbeiten und Löschen direkt zugänglich sind ohne Umweg über das
   // Detail-Grid. Aktionen pro Zeile: [+ Deck] (falls Decks da) [✎] [🗑]
+  // Aktueller Marktwert (Scryfall, price-tracking.js) — nur Varianten mit bekanntem Preis
+  const hasLive=typeof livePriceOf==='function';
+  const priced=hasLive?variants.filter(v=>livePriceOf(v)!=null):[];
+  const totalNow=priced.reduce((s,v)=>s+livePriceOf(v)*(v.quantity||1),0);
+  const paidOfPriced=priced.reduce((s,v)=>s+parsePrice(v.purchase_price)*(v.quantity||1),0);
+  const totalDelta=priced.length&&priced.every(v=>parsePrice(v.purchase_price)>0)?priceDelta(totalNow,paidOfPriced):null;
+
   const rows=variants.map(v=>{
     const vPrice=v.purchase_price?`${parsePrice(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
+    const now=hasLive?livePriceOf(v):null;
+    const delta=now!=null?priceDelta(now,parsePrice(v.purchase_price)):null;
+    const nowHtml=now!=null
+      ?`<span class="variant-now" title="Aktueller Marktpreis (Scryfall)">jetzt ${now.toFixed(2)} €${delta?` <span class="price-delta ${delta.cls}">${delta.text}</span>`:''}</span>`
+      :'';
     let actionButtons='';
     if(allDecks.length>0){
       actionButtons+=`<button class="icon-btn deck-add-btn" onclick="event.stopPropagation();openAddVariantToDeckModal('${v.id}')" title="Diese Variante zu einem Deck hinzufügen">+ Deck</button>`;
@@ -340,7 +352,8 @@ function openCardModal(name){
         <div class="variant-stats">
           <span class="condition-badge ${cc(v.condition)}">${cl(v.condition)}</span>
           <span class="variant-qty">×${v.quantity}</span>
-          <span class="variant-price">${vPrice}</span>
+          <span class="variant-price" title="Kaufpreis">${vPrice}</span>
+          ${nowHtml}
         </div>
       </div>
       <div class="variant-actions">${actionButtons}</div>
@@ -350,7 +363,8 @@ function openCardModal(name){
   const summaryHTML=`<div class="variants-summary">
       <span><strong>${variants.length}</strong> ${variants.length===1?'Variante':'Varianten'}</span>
       <span><strong>${totalQty}</strong> Karten gesamt</span>
-      ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Gesamtwert</span>`:''}
+      ${totalValue>0?`<span><strong>${totalValue.toFixed(2)} €</strong> Kaufwert</span>`:''}
+      ${priced.length?`<span><strong>${totalNow.toFixed(2)} €</strong> Marktwert${totalDelta?` <span class="price-delta ${totalDelta.cls}">${totalDelta.text}</span>`:''}</span>`:''}
     </div>`;
 
   const variantsBlock=`

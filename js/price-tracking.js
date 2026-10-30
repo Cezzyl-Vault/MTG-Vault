@@ -26,9 +26,12 @@ const SNAPSHOT_INTERVAL_DAYS = 7;
 // Holt für alle Karten mit scryfall_id den aktuellen EUR-Preis von Scryfall.
 // Verwendet die gleiche Batch-API wie die Anreicherung, aber mit anderem
 // Output-Mapping. Foil-Karten bekommen den Foil-Preis, sonst Normal-Preis.
+// Ergebnis pro Sammlungs-Eintrag (card.id) — dieselbe Druckung kann als Foil
+// und Normal in der Sammlung liegen und hat dann zwei Preise. null = Scryfall
+// kennt keinen Preis (bzw. Abfrage fehlgeschlagen).
 async function fetchLivePrices(cards, onProgress){
   const valid=cards.filter(c=>c.scryfall_id);
-  const prices={};  // {scryfall_id: euroBetrag}
+  const prices={};  // {card.id: euroBetrag|null}
   if(!valid.length)return prices;
 
   const BATCH=75;
@@ -48,7 +51,7 @@ async function fetchLivePrices(cards, onProgress){
 
       for(const card of batch){
         const sf=byId[card.scryfall_id];
-        if(!sf||!sf.prices)continue;
+        if(!sf||!sf.prices){prices[card.id]=null;continue;}
         // Foil-Karten preferieren den Foil-Preis, fallen aber auf normalen Preis zurück
         // wenn nichts da ist (manche Karten haben nur eine Variante mit Preis).
         let eurPrice=null;
@@ -57,7 +60,7 @@ async function fetchLivePrices(cards, onProgress){
         }else{
           eurPrice=parseFloat(sf.prices.eur)||parseFloat(sf.prices.eur_foil)||null;
         }
-        if(eurPrice!=null)prices[card.scryfall_id]=eurPrice;
+        prices[card.id]=eurPrice;
       }
     }catch(e){
       console.warn('Scryfall-Preis-Batch fehlgeschlagen:',e);
@@ -77,15 +80,94 @@ async function fetchLivePrices(cards, onProgress){
 // ── Aktuellen Sammlungswert berechnen (Live von Scryfall) ──
 async function calculateCurrentValue(){
   const prices=await fetchLivePrices(allCards);
+  storeLivePrices(prices);   // frische Preise gleich für Gewinn/Verlust mitnutzen
   let total=0;
   let cardCount=0;
   for(const card of allCards){
     const qty=card.quantity||1;
     cardCount+=qty;
-    const p=prices[card.scryfall_id];
+    const p=prices[card.id];
     if(p!=null)total+=p*qty;
   }
   return{total,cardCount,prices};
+}
+
+// ══════════════════════════════════════════════════════════
+//  AKTUELLE PREISE PRO KARTE  ·  Gewinn/Verlust, wertvollste Karten
+// ══════════════════════════════════════════════════════════
+//
+//  livePrices: card.id → aktueller Einzelpreis in € (oder null). Wird pro
+//  Gerät 24 Stunden im LocalStorage gehalten, damit nicht jeder App-Start
+//  Scryfall abfragt. Neue Karten ohne Eintrag lösen ein Nachladen aus.
+//  Genutzt im Karten-Fenster (collection.js) und in der Statistik (stats.js).
+const LIVE_PRICE_KEY='mtgvault_live_prices';
+const LIVE_PRICE_MAX_AGE_MS=24*60*60*1000;
+let livePrices={};
+let livePricesAt=0;
+let livePricesLoading=null;
+
+function storeLivePrices(prices){
+  livePrices=prices;livePricesAt=Date.now();
+  try{localStorage.setItem(LIVE_PRICE_KEY,JSON.stringify({at:livePricesAt,prices}));}catch(e){/* Speicher voll → nur im RAM */}
+}
+function loadCachedLivePrices(){
+  try{
+    const j=JSON.parse(localStorage.getItem(LIVE_PRICE_KEY)||'null');
+    if(j&&j.prices){livePrices=j.prices;livePricesAt=j.at||0;}
+  }catch(e){/* kaputter Cache → neu laden */}
+}
+
+// Lädt die Preise neu, wenn sie älter als 24 h sind, Karten fehlen oder force.
+// Gibt true zurück, wenn neue Preise geladen wurden.
+async function refreshLivePrices(force=false){
+  if(livePricesLoading)return livePricesLoading;
+  if(!livePricesAt)loadCachedLivePrices();
+  const fresh=Date.now()-livePricesAt<LIVE_PRICE_MAX_AGE_MS;
+  const missing=allCards.some(c=>c.scryfall_id&&!(c.id in livePrices));
+  if(!force&&fresh&&!missing)return false;
+  livePricesLoading=(async()=>{
+    try{
+      const prices=await fetchLivePrices(allCards);
+      if(!Object.keys(prices).length)return false;
+      storeLivePrices(prices);
+      return true;
+    }finally{livePricesLoading=null;}
+  })();
+  return livePricesLoading;
+}
+
+// Aktueller Einzelpreis einer Sammlungskarte (null = unbekannt)
+function livePriceOf(card){
+  const p=livePrices[card.id];
+  return p==null?null:p;
+}
+
+// Differenz als Text + CSS-Klasse, z.B. {text:'+0.60 € (+24%)', cls:'pos'}
+function priceDelta(now,paid){
+  if(now==null||!(paid>0))return null;
+  const d=now-paid;
+  const pct=d/paid*100;
+  const sign=d>0?'+':d<0?'−':'±';
+  return{diff:d,cls:d>0.005?'pos':d<-0.005?'neg':'',text:`${sign}${Math.abs(d).toFixed(2)} € (${sign}${Math.abs(pct).toFixed(0)}%)`};
+}
+
+// Nach dem Laden der Sammlung im Hintergrund aufrufen (db.js → loadAll)
+async function refreshLivePricesInBackground(){
+  try{
+    const changed=await refreshLivePrices();
+    // Offene Statistik mit den neuen Preisen neu zeichnen
+    if(changed&&document.getElementById('view-stats')?.classList.contains('active'))renderStats();
+  }catch(e){console.warn('[Preise] Laden fehlgeschlagen:',e);}
+}
+
+// Button „↻ Preise aktualisieren" in der Statistik
+async function forceRefreshLivePrices(btn){
+  setBusy(btn,true,'Lade Preise…');
+  try{
+    if(await refreshLivePrices(true))toastSuccess('Aktuelle Preise geladen');
+    else toastError('Scryfall hat keine Preise geliefert.');
+    renderStats();
+  }finally{setBusy(btn,false);}
 }
 
 // ── Letzten Snapshot aus DB lesen ──
