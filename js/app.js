@@ -59,7 +59,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
 //  STARTUP  ·  Wird beim Laden der Seite automatisch ausgeführt
 // ══════════════════════════════════════════════════════════
 //  Logik:
-//   - keine Supabase-Config gespeichert → Setup-Screen zeigen
+//   - keine Supabase-Config in defaults.js → Hinweis auf dem Status-Screen
 //   - Datenbank nicht erreichbar (pausiert/offline) → DB-Status-Screen
 //   - Config vorhanden, aktive Session → direkt in App
 //   - Config vorhanden, keine Session → Login-Screen
@@ -68,7 +68,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
   loadSets();
 
   const cfg=loadCfg();
-  if(!cfg){showConfig();return;}
+  if(!cfg){showConfigMissing();return;}
   _sb=window.supabase.createClient(cfg.url,cfg.key);
   await connectAndStart(cfg);
 })();

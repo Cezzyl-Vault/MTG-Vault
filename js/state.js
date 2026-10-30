@@ -11,10 +11,9 @@ let _sb = null, currentUser = null;
 // Sammlung, Decks und Karten des aktuell offenen Decks
 let allCards = [], allDecks = [], currentDeckCards = [];
 
-// Aktuelle Filter-Ergebnisse und Anzeige-Modus (Grid oder Liste)
-// Hinweis: `filtered` ist seit der Group-Logik unbenutzt. Die aktive Liste
-// heißt jetzt `filteredGroups` und wird in collection.js verwaltet.
-let filtered = [], viewMode = 'grid';
+// Anzeige-Modus der Sammlung (Grid oder Liste). Die gefilterte Liste
+// heißt `filteredGroups` und wird in collection.js verwaltet.
+let viewMode = 'grid';
 
 // IDs für gerade bearbeitete Karte / bearbeitetes Deck / offenes Deck
 let editingCardId = null, editingDeckId = null, activeDeckId = null;
@@ -22,13 +21,6 @@ let editingCardId = null, editingDeckId = null, activeDeckId = null;
 // Auth-Modus: 'login' oder 'signup'
 let authMode = 'login';
 
-// Hilfsvariable für Kategorie-Modal (aktuell ungenutzt, für künftige Erweiterungen)
-let pendingCatDeckId = null;
-
-// Deck-Kontext für das Karten-Modal: wenn aus einem Deck heraus geöffnet,
-// stehen hier die dc-IDs (Array). Sonst null. Steuert, ob "Zu Deck hinzufügen"
-// oder "Aus Deck entfernen / Verschieben"-Buttons erscheinen.
-let cardModalDeckContext = null;
 // deckViewMode: 'cards' (Bilder-Grid) oder 'list' (klassische Listen-Zeilen)
 // deckEditMode: zeigt Checkboxen, Lösch-Buttons pro Karte, Multi-Select-Aktionen
 // deckEditSelected: Set der dc-IDs, die im Edit-Modus markiert sind
@@ -39,5 +31,5 @@ let deckEditSelected = new Set();
 let deckCollapsedCategories = new Set();
 
 // HINWEIS: Manche Module verwalten zusätzlichen lokalen State in ihrer eigenen Datei,
-// z.B. `addCardsSelected` (Set) in decks.js für die Karten-Auswahl im Add-Modal.
+// z.B. `movePickerDcIds` in decks.js für den Kategorie-Wähler.
 // Das ist Absicht — solche kurzlebigen UI-Zustände gehören zum Modul, das sie nutzt.

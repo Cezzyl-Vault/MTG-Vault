@@ -81,7 +81,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Bestätigungs-Modals im App-Stil
 - Lade-Indikatoren auf Buttons
 - Semantische Toasts (✓/⚠/ℹ)
-- Hardcoded Supabase-Config in `js/defaults.js`
+- Supabase-Verbindung fest in `js/defaults.js` (kein Setup-Bildschirm)
 - Auto-Cache-Busting bei jedem Release
 
 ## Projektstruktur
@@ -95,7 +95,7 @@ MTG-Vault/
 │   └── supabase-keepalive.yml    Hält das Supabase-Projekt wach (alle 3 Tage)
 ├── styles/
 │   ├── base.css                  Variablen, Body, Hintergrund, Scrollbar
-│   ├── auth.css                  Setup-Screen + Login/Registrierung
+│   ├── auth.css                  Logo, Login/Registrierung, DB-Status-Bildschirm
 │   ├── header.css                Header, Desktop-Nav, Mobile-Drawer, Bottom-Nav
 │   ├── collection.css            Filter, Karten-Grid, Listen-Ansicht, Export-Buttons
 │   ├── stats.css                 KPIs, Bar-Charts, Preis-Linechart
@@ -110,7 +110,7 @@ MTG-Vault/
     ├── sets.js                   Scryfall-Sets-Cache
     ├── db.js                     Alle Supabase-Aufrufe
     ├── scryfall.js               Karten-Anreicherung
-    ├── config.js                 Supabase-Setup-Screen, Screen-Wechsel
+    ├── config.js                 Supabase-Verbindung, Screen-Wechsel, DB-Status-Bildschirm
     ├── auth.js                   Login, Registrierung, Logout
     ├── csv-import.js             ManaBox-CSV Parser (mit Auto-Anreicherung)
     ├── add-card.js               Karte manuell per Scryfall-Suche hinzufügen
@@ -163,7 +163,7 @@ Validierung auch nicht besessene Deck-Karten mitzählen.
 | CSV/PDF-Export | `js/export.js` |
 | Bestätigungs-Modals, Toasts | `js/ui.js` |
 | Texte/Buttons im HTML | `index.html` |
-| Supabase-URL/Key | `js/defaults.js` |
+| Supabase-URL/Key (Projekt wechseln) | `js/defaults.js` |
 | Auto-Versionierung | `.github/workflows/version-bump.yml` |
 | Wachhalte-Rhythmus für Supabase | `.github/workflows/supabase-keepalive.yml` |
 
@@ -196,7 +196,9 @@ Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
 
 ## Datenbank-Schema
 
-Beim ersten Setup oder wenn neue Spalten dazukommen, erscheint im UI ein Migrations-Banner mit dem benötigten SQL. Aktuelle Tabellen:
+Neue Spalten oder Tabellen werden im Supabase-Dashboard (SQL Editor) angelegt. Fehlen
+bei Karten angereicherte Daten (Manawert, Farben, Typ …), bietet ein Banner in der
+Sammlung an, sie von Scryfall nachzuladen. Aktuelle Tabellen:
 
 ```
 cards          standardfelder + mana_value, colors[], type_line,

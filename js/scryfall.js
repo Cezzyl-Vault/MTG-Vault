@@ -67,16 +67,6 @@ async function enrichCards(cards, onProgress){
   }
 }
 
-// ── Schema-Check: Existieren die neuen Spalten überhaupt? ──
-// Wenn allCards leer ist, können wir's nicht prüfen → annehmen, dass Schema OK ist.
-// Falls die SQL-Migration noch nicht gelaufen ist, fehlt mana_value bzw. legal_commander
-// komplett als Property vom Karten-Objekt.
-function isSchemaMigrated(){
-  if(!allCards.length)return true;
-  // Beide alte UND neue Felder müssen als Property existieren (auch wenn null).
-  return 'mana_value' in allCards[0] && 'legal_commander' in allCards[0];
-}
-
 // ── Findet Karten in der Sammlung, die noch keine angereicherten Daten haben ──
 // Erweitert: deckt auch die neuen Validierungs-Felder ab.
 function findUnenrichedCards(){
@@ -93,17 +83,7 @@ function checkAndShowMigrationBanner(){
   const banner=document.getElementById('migrationBanner');
   if(!banner)return;
 
-  // Schema fehlt komplett? Banner mit Hinweis auf SQL.
-  if(!isSchemaMigrated()){
-    banner.style.display='';
-    document.getElementById('migrationCount').textContent='0';
-    document.getElementById('migrationLabel').textContent=
-      'Datenbank-Schema muss erweitert werden. Klick zum Anzeigen der Anweisung.';
-    document.getElementById('migrationButton').textContent='SQL anzeigen';
-    return;
-  }
-
-  // Schema da, aber nicht alle Karten haben Daten?
+  // Haben alle Karten ihre angereicherten Daten?
   const todo=findUnenrichedCards();
   if(todo.length>0){
     banner.style.display='';
@@ -116,12 +96,8 @@ function checkAndShowMigrationBanner(){
   }
 }
 
-// ── Klick auf den Banner-Button: dispatch je nach Zustand ──
+// ── Klick auf den Banner-Button ──
 function startMigration(){
-  if(!isSchemaMigrated()){
-    document.getElementById('schemaSqlModal').classList.add('open');
-    return;
-  }
   runEnrichmentMigration();
 }
 
@@ -164,12 +140,6 @@ async function runEnrichmentMigration(){
     renderAll();
     showToast(`✓ ${saved} Karten erfolgreich angereichert`);
   },800);
-}
-
-// SQL-Snippet kopieren (vom Schema-Modal)
-function copySchemaSQL(){
-  const txt=document.getElementById('schemaSqlCode').textContent;
-  navigator.clipboard.writeText(txt).then(()=>showToast('✓ SQL kopiert'));
 }
 
 // Banner manuell schließen (nur Session, kommt beim Reload zurück)

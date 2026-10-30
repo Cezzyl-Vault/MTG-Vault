@@ -1,44 +1,37 @@
 // ══════════════════════════════════════════════════════════
-//  CONFIG  ·  Supabase-Setup-Screen + Wechsel zwischen Bildschirmen
+//  CONFIG  ·  Supabase-Verbindung + Wechsel zwischen Bildschirmen
 // ══════════════════════════════════════════════════════════
 //
-//  Reihenfolge der Werte:
-//  1. LocalStorage (vom Setup-Bildschirm gespeichert) — Vorrang
-//  2. Hardcoded Defaults aus defaults.js — Fallback
-//  3. Wenn weder noch: Setup-Bildschirm anzeigen
+//  Die Verbindungsdaten kommen ausschließlich aus js/defaults.js.
+//  Projekt wechseln = dort neue URL + Anon-Key eintragen.
 function loadCfg(){
-  // Erst LocalStorage prüfen — falls vorhanden, hat das Vorrang
-  try{
-    const stored=JSON.parse(localStorage.getItem(CFG_KEY));
-    if(stored&&stored.url&&stored.key)return stored;
-  }catch(e){/* ignorieren */}
-  // Fallback: Defaults aus defaults.js (ist optional — Datei könnte fehlen)
+  // Früher konnte ein Setup-Bildschirm eine Config im LocalStorage ablegen,
+  // die defaults.js überdeckt hat — Altlast einmalig wegräumen.
+  try{localStorage.removeItem(CFG_KEY);}catch(e){/* ignorieren */}
   if(typeof DEFAULT_SUPABASE_URL!=='undefined'&&DEFAULT_SUPABASE_URL&&DEFAULT_SUPABASE_KEY){
     return{url:DEFAULT_SUPABASE_URL,key:DEFAULT_SUPABASE_KEY};
   }
   return null;
 }
-function copySQL(){navigator.clipboard.writeText(document.getElementById('sqlCode').textContent).then(()=>showToast('✓ SQL kopiert'));}
 
-function saveConfig(){
-  const url=document.getElementById('cfgUrl').value.trim();
-  const key=document.getElementById('cfgKey').value.trim();
-  if(!url||!key){alert('Bitte beide Felder ausfüllen.');return;}
-  localStorage.setItem(CFG_KEY,JSON.stringify({url,key}));
-  _sb=window.supabase.createClient(url,key);
-  showAuth();
-}
-
-function showConfig(){
+// Fehlt die Konfiguration komplett (defaults.js leer/kaputt), gibt es nichts
+// zu prüfen — Hinweis auf dem Status-Bildschirm statt leerer Seite.
+function showConfigMissing(){
   stopDbRetry();
-  s('dbStatusScreen','none');s('configScreen','flex');s('authScreen','none');s('appScreen','none');
-  const cfg=loadCfg();
-  if(cfg){document.getElementById('cfgUrl').value=cfg.url||'';document.getElementById('cfgKey').value=cfg.key||'';}
+  s('dbStatusScreen','flex');s('authScreen','none');s('appScreen','none');
+  document.getElementById('dbStatusEmblem').textContent='⚙️';
+  document.getElementById('dbStatusTitle').textContent='Keine Datenbank konfiguriert';
+  document.getElementById('dbStatusText').textContent='In js/defaults.js fehlen die Supabase-URL oder der Anon-Key.';
+  document.getElementById('dbActivateBtn').style.display='none';
+  document.getElementById('dbRetryBtn').style.display='none';
+  document.getElementById('dbStatusHint').textContent='';
+  document.getElementById('dbStatusDetails').classList.add('visible');
 }
-function showAuth(){s('dbStatusScreen','none');s('configScreen','none');s('authScreen','flex');s('appScreen','none');}
+
+function showAuth(){s('dbStatusScreen','none');s('authScreen','flex');s('appScreen','none');}
 function showApp(user){
   currentUser=user;
-  s('dbStatusScreen','none');s('configScreen','none');s('authScreen','none');s('appScreen','block');
+  s('dbStatusScreen','none');s('authScreen','none');s('appScreen','block');
   // Start-Reiter aus den Nutzer-Einstellungen anwenden (default: Sammlung)
   if(typeof loadSettings==='function'){
     const settings=loadSettings();
@@ -77,7 +70,7 @@ function supabaseDashboardUrl(cfg){
 }
 
 function showDbPaused(cfg){
-  s('dbStatusScreen','flex');s('configScreen','none');s('authScreen','none');s('appScreen','none');
+  s('dbStatusScreen','flex');s('authScreen','none');s('appScreen','none');
   const offline=navigator.onLine===false;
   document.getElementById('dbStatusEmblem').textContent=offline?'📡':'⏸️';
   document.getElementById('dbStatusTitle').textContent=offline?'Keine Internetverbindung':'Datenbank ist pausiert';

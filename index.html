@@ -34,103 +34,6 @@
   </div>
 </div>
 
-<!-- ══ CONFIG ══ -->
-<div id="configScreen">
-  <div class="config-box">
-    <div class="brand-logo">MTG Vault</div>
-    <div class="brand-sub">COLLECTION MANAGER · SETUP</div>
-    <div class="cfg-step">
-      <h3>SCHRITT 1 — SUPABASE PROJEKT</h3>
-      <p>Gehe zu <strong>supabase.com</strong>, erstelle ein Konto und ein neues Projekt. Unter <strong>Project Settings → API</strong> findest du URL und <code>anon</code> Key.</p>
-    </div>
-    <div class="cfg-step">
-      <h3>SCHRITT 2 — TABELLEN ANLEGEN</h3>
-      <p>Im Supabase <strong>SQL Editor</strong> ausführen:</p>
-      <div class="code-block" id="sqlCode">-- Tabellen anlegen
-create table if not exists cards (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users not null,
-  name text, set_code text, set_name text,
-  collector_number text, foil text, rarity text,
-  quantity integer default 1, manabox_id text,
-  scryfall_id text, purchase_price text, currency text,
-  misprint boolean default false, altered boolean default false,
-  condition text, language text,
-  mana_value integer, colors text[], type_line text,
-  color_identity text[], legal_commander text,
-  created_at timestamptz default now()
-);
-
--- Falls die Tabelle schon existiert: fehlende Spalten nachziehen
-alter table cards add column if not exists mana_value integer;
-alter table cards add column if not exists colors text[];
-alter table cards add column if not exists type_line text;
-alter table cards add column if not exists color_identity text[];
-alter table cards add column if not exists legal_commander text;
-
-create table if not exists decks (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users not null,
-  name text not null, description text, format text,
-  category_order text[],
-  created_at timestamptz default now()
-);
--- Falls die Tabelle schon existiert: Spalte für sortierbare Kategorien nachziehen
-alter table decks add column if not exists category_order text[];
-create table if not exists deck_cards (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users not null,
-  deck_id uuid references decks(id) on delete cascade,
-  card_id uuid references cards(id) on delete cascade,
-  category text default 'Sonstige',
-  quantity integer default 1,
-  created_at timestamptz default now()
-);
-
--- Preisverlauf-Snapshots (für Wertentwicklung über Zeit)
-create table if not exists price_snapshots (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users not null,
-  snapshot_date date not null,
-  total_value numeric(10,2) not null,
-  card_count integer,
-  created_at timestamptz default now(),
-  unique(user_id, snapshot_date)
-);
-alter table price_snapshots enable row level security;
-drop policy if exists "own snapshots" on price_snapshots;
-create policy "own snapshots" on price_snapshots for all
-  using (auth.uid()=user_id) with check (auth.uid()=user_id);
-
--- Row Level Security aktivieren
-alter table cards enable row level security;
-alter table decks enable row level security;
-alter table deck_cards enable row level security;
-
--- Alte Policies löschen (falls vorhanden) und neu anlegen
-drop policy if exists "own cards" on cards;
-drop policy if exists "own decks" on decks;
-drop policy if exists "own deck_cards" on deck_cards;
-
-create policy "own cards" on cards for all
-  using (auth.uid()=user_id) with check (auth.uid()=user_id);
-create policy "own decks" on decks for all
-  using (auth.uid()=user_id) with check (auth.uid()=user_id);
-create policy "own deck_cards" on deck_cards for all
-  using (auth.uid()=user_id) with check (auth.uid()=user_id);</div>
-      <button class="copy-btn" onclick="copySQL()">Kopieren</button>
-    </div>
-    <div class="cfg-step">
-      <h3>SCHRITT 3 — VERBINDEN</h3>
-      <label class="cfg-label">SUPABASE PROJECT URL</label>
-      <input class="cfg-input" id="cfgUrl" placeholder="https://xxxxxxxxxxxx.supabase.co">
-      <label class="cfg-label">ANON PUBLIC KEY</label>
-      <input class="cfg-input" id="cfgKey" placeholder="eyJhbGci…">
-      <button class="cfg-save-btn" onclick="saveConfig()">Verbinden &amp; Starten →</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ AUTH ══ -->
 <div id="authScreen">
   <div class="auth-box">
@@ -147,7 +50,6 @@ create policy "own deck_cards" on deck_cards for all
       <div class="auth-error" id="authError"></div>
       <button class="auth-btn" id="authSubmit" onclick="submitAuth()">Anmelden</button>
     </div>
-    <div class="auth-cfg-link" onclick="showConfig()">⚙ Supabase neu konfigurieren</div>
   </div>
 </div>
 
@@ -417,36 +319,6 @@ create policy "own deck_cards" on deck_cards for all
   </div>
 </div>
 
-<!-- ADD CARDS TO DECK MODAL -->
-<div class="modal-overlay" id="addCardsModal">
-  <div class="modal">
-    <div class="modal-header">
-      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)" id="addCardsTitle">KARTEN ZU DECK HINZUFÜGEN</span>
-      <button class="modal-close" onclick="closeModal('addCardsModal')">✕</button>
-    </div>
-    <div class="modal-detail">
-      <div class="form-field">
-        <label>KATEGORIE <span style="color:var(--text3);font-weight:400;font-size:0.7rem;letter-spacing:0">(optional — leer lassen für "Ohne Kategorie")</span></label>
-        <input id="addCardsCategory" placeholder="z.B. Lands, Creatures… (oder leer lassen)" list="addCardsCatSuggestions">
-        <datalist id="addCardsCatSuggestions"></datalist>
-      </div>
-      <div class="form-field">
-        <label>SUCHE</label>
-        <input id="addCardsSearch" placeholder="Karte suchen (Name, Set…)" oninput="filterAddCards()">
-      </div>
-      <div class="add-cards-meta">
-        <span id="addCardsSelectionInfo">0 ausgewählt</span>
-        <button type="button" class="btn-link" onclick="selectAllAddCards()">Alle sichtbaren markieren</button>
-        <button type="button" class="btn-link" onclick="clearAddCardsSelection()">Auswahl leeren</button>
-      </div>
-      <div class="add-cards-list" id="addCardsList"></div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="confirmAddCardsToDeck()" id="addCardsConfirmBtn">Hinzufügen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- DATEN-ANREICHERUNGS-FORTSCHRITT MODAL -->
 <div class="modal-overlay" id="migrationModal">
   <div class="modal small-modal">
@@ -459,47 +331,6 @@ create policy "own deck_cards" on deck_cards for all
         <div class="progress-fill" id="migrationProgressBar" style="width:0%"></div>
       </div>
       <div id="migrationProgressLabel" style="font-size:0.85rem;color:var(--text2);text-align:center;margin-top:0.5rem">Wird vorbereitet…</div>
-    </div>
-  </div>
-</div>
-
-<!-- SCHEMA-SQL MODAL (zeigt ALTER-Statement, falls Spalten fehlen) -->
-<div class="modal-overlay" id="schemaSqlModal">
-  <div class="modal">
-    <div class="modal-header">
-      <span style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3)">DATENBANK-UPDATE</span>
-      <button class="modal-close" onclick="closeModal('schemaSqlModal')">✕</button>
-    </div>
-    <div class="modal-detail">
-      <p style="font-size:0.9rem;color:var(--text2)">Das Datenbank-Schema muss um drei Spalten erweitert werden, damit die erweiterten Filter (Manawert, Farben, Typ) funktionieren.</p>
-      <ol style="font-size:0.88rem;color:var(--text2);margin-left:1.2rem">
-        <li>SQL kopieren (Button unten)</li>
-        <li>Im Supabase-Dashboard → "SQL Editor" → Neue Abfrage einfügen → "Run"</li>
-        <li>Hierher zurückkommen und die App neu laden</li>
-      </ol>
-      <div class="code-block" id="schemaSqlCode">alter table cards add column if not exists mana_value integer;
-alter table cards add column if not exists colors text[];
-alter table cards add column if not exists type_line text;
-alter table cards add column if not exists color_identity text[];
-alter table cards add column if not exists legal_commander text;
-
-create table if not exists price_snapshots (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users not null,
-  snapshot_date date not null,
-  total_value numeric(10,2) not null,
-  card_count integer,
-  created_at timestamptz default now(),
-  unique(user_id, snapshot_date)
-);
-alter table price_snapshots enable row level security;
-drop policy if exists "own snapshots" on price_snapshots;
-create policy "own snapshots" on price_snapshots for all
-  using (auth.uid()=user_id) with check (auth.uid()=user_id);</div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="copySchemaSQL()">SQL kopieren</button>
-        <button class="btn" onclick="closeModal('schemaSqlModal')">Schließen</button>
-      </div>
     </div>
   </div>
 </div>

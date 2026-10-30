@@ -25,8 +25,7 @@ name: Auto-Version Bump
 on:
   push:
     branches:
-      - Sammlung-mit-Auto-Import   # alter Hauptbranch
-      - main                        # aktueller Hauptbranch
+      - main
 
 permissions:
   contents: write
