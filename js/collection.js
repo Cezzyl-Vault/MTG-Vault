@@ -367,6 +367,11 @@ function openCardModal(name){
       <div class="modal-set">${esc(c.set_name||c.set_code)}${variants.length>1?' (älteste Variante angezeigt)':''}</div>
       ${variantsBlock}
 
+      ${allDecks.length>0?`<div class="deck-usage" id="cardDeckUsage" data-name="${esc(c.name)}">
+        <div class="deck-usage-title">IN DECKS</div>
+        <div class="deck-usage-empty">Wird geladen…</div>
+      </div>`:''}
+
       ${allDecks.length>0?`
       <div class="add-to-deck-hint">
         <span style="font-size:0.78rem;color:var(--text3);font-style:italic">Klicke <strong>+ Deck</strong> in der Variantentabelle, um eine Variante zu einem Deck hinzuzufügen.</span>
@@ -393,6 +398,56 @@ function openCardModal(name){
       </details>`:''}
     </div>`;
   document.getElementById('cardModal').classList.add('open');
+  if(allDecks.length>0)renderCardDeckUsage(c.name,totalQty,c.type_line);
+}
+
+// ── In welchen Decks steckt die Karte? ──
+// Zählt alle Deck-Einträge mit gleichem Namen (doppelseitige Karten auch nur
+// über die Vorderseite) und warnt, wenn die Decks zusammen mehr Exemplare
+// brauchen, als du besitzt — dann kannst du sie nicht gleichzeitig spielen.
+// Basic Lands sind davon ausgenommen. Sideboard/Maybeboard zählen mit.
+async function renderCardDeckUsage(name,ownedQty,typeLine){
+  const box=document.getElementById('cardDeckUsage');
+  if(!box)return;
+  const{data:rows,error}=await fetchAllRows('deck_cards');
+  // Fenster inzwischen geschlossen oder andere Karte geöffnet?
+  const cur=document.getElementById('cardDeckUsage');
+  if(!cur||cur.dataset.name!==name)return;
+  const body=cur.querySelector('.deck-usage-empty');
+  if(error){body.textContent='Decks konnten nicht geladen werden.';return;}
+
+  const front=s=>(s||'').toLowerCase().trim().split(' // ')[0];
+  const key=front(name);
+  const perDeck=new Map();   // deck_id → {qty, cats:Set}
+  for(const dc of rows||[]){
+    if(front(dc.card_name)!==key)continue;
+    if(!perDeck.has(dc.deck_id))perDeck.set(dc.deck_id,{qty:0,cats:new Set()});
+    const u=perDeck.get(dc.deck_id);
+    u.qty+=dc.quantity||1;
+    if(dc.category)u.cats.add(dc.category);
+  }
+  if(!perDeck.size){body.textContent='In keinem Deck.';return;}
+
+  const used=[...perDeck.entries()]
+    .map(([id,u])=>({deck:allDecks.find(d=>d.id===id),...u}))
+    .filter(u=>u.deck)
+    .sort((a,b)=>a.deck.name.localeCompare(b.deck.name));
+  const totalUsed=used.reduce((s,u)=>s+u.qty,0);
+  const isBasic=/basic land/i.test(typeLine||'');
+  const rowsHtml=used.map(u=>`<div class="deck-usage-row" onclick="openDeckFromCardModal('${u.deck.id}')" title="Deck öffnen">
+      <span><span class="deck-usage-name">${esc(u.deck.name)}</span>${u.cats.size?`<span class="deck-usage-cat">${esc([...u.cats].join(', '))}</span>`:''}</span>
+      <span class="deck-usage-qty">×${u.qty}</span>
+    </div>`).join('');
+  const warn=(!isBasic&&totalUsed>ownedQty)
+    ?`<div class="deck-usage-warn">⚠ Du besitzt ${ownedQty}×, die Decks brauchen zusammen ${totalUsed}×. Um alle gleichzeitig zu spielen, fehlen dir ${totalUsed-ownedQty}.</div>`
+    :'';
+  cur.innerHTML=`<div class="deck-usage-title">IN ${used.length} DECK${used.length===1?'':'S'}</div>${rowsHtml}${warn}`;
+}
+
+function openDeckFromCardModal(deckId){
+  closeModal('cardModal');
+  switchView('decks');
+  openDeckDetail(deckId);
 }
 
 // Bearbeiten einer einzelnen Variante (über Bleistift-Symbol in Variantentabelle).

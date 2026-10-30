@@ -33,6 +33,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Übersicht mit Karten-Anzahl, Wert €, Ø Manawert, Farb-Punkten pro Deck
 - **Karten hinzufügen wie bei deckstats.net**: In jeder Kategorie (und in „Ohne Kategorie") gibt es ein Tippfeld. Kartennamen tippen → Vorschläge (Scryfall-Autocomplete) → anklicken oder Enter → die Karte landet sofort in genau dieser Kategorie. Das Feld bleibt fokussiert, sodass man mehrere Karten zügig hintereinander eintippen kann; daneben ein Anzahl-Feld. Es lassen sich beliebige Karten hinzufügen — **auch solche, die man (noch) nicht besitzt**
 - **„Fehlt"-Markierung**: Karten, die in keinem Sammlungs-Eintrag vorkommen, werden abgedunkelt mit rotem „fehlt"-Badge angezeigt (Listen-Ansicht: „fehlt"-Tag). Der Abgleich läuft live über den Kartennamen — wer die Karte später kauft und importiert, sieht die Markierung automatisch verschwinden
+- **In welchen Decks steckt eine Karte?** Das Karten-Fenster der Sammlung zeigt unter „In Decks" alle Decks mit dieser Karte (Kategorie + Anzahl, Klick öffnet das Deck). Brauchen die Decks zusammen mehr Exemplare, als du besitzt, erscheint eine Warnung (Basic Lands ausgenommen)
 - **Deckliste als Text**: „⇩ Liste importieren" in der Decks-Übersicht legt aus einer eingefügten Liste ein neues Deck an; „⇅ Liste" im Deck exportiert es als Text (mit Kategorien, einfach für Moxfield/Archidekt oder im MTG-Arena-Format, optional mit Set + Nummer) und fügt Karten aus einer Liste hinzu. Versteht „1 Sol Ring", „1x Sol Ring (C21) 263", Archidekt-Kategorien „[Ramp]", Überschriften wie „// Ramp" oder „Commander" sowie MTGO-„SB:"-Zeilen. Nicht gefundene Karten bleiben zum Korrigieren im Feld stehen
 - **Fehlt-Liste**: „✦ Fehlende" im Deck (pro Deck) bzw. „✦ Fehlende Karten" in der Decks-Übersicht (über alle Decks) zeigt alle nicht besessenen Karten mit Mengen — kopierbar und als .txt herunterladbar (z.B. als Einkaufsliste)
 - Karten-Detail mit zwei Ansichten:
@@ -104,7 +105,7 @@ MTG-Vault/
 │   ├── collection.css            Filter, Karten-Grid, Listen-Ansicht, Export-Buttons
 │   ├── stats.css                 KPIs, Bar-Charts, Preis-Linechart
 │   ├── decks.css                 Decks-Übersicht + Detail (incl. Karten-Grid, Edit-Mode)
-│   └── modals.css                Modals + Toast + Spinner
+│   └── modals.css                Modals + Toast + Spinner, „In Decks"-Block
 └── js/
     ├── state.js                  Globale Variablen
     ├── defaults.js               Hardcoded Supabase-URL + Anon-Key
@@ -119,7 +120,7 @@ MTG-Vault/
     ├── csv-import.js             ManaBox-CSV Parser (mit Auto-Anreicherung)
     ├── add-card.js               Karte manuell per Scryfall-Suche hinzufügen
     │                             (selbstständig: injiziert eigenes Modal, CSS + Buttons)
-    ├── collection.js             Sammlung: Filter, Grid/Liste, Karten-Modal
+    ├── collection.js             Sammlung: Filter, Grid/Liste, Karten-Modal (inkl. „In Decks")
     ├── export.js                 CSV-Export + PDF-Druckansicht
     ├── deck-stats.js             Stats-Panel pro Deck
     ├── deck-validation.js        Commander-Validierung (alle 5 Regeln)
