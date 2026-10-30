@@ -204,6 +204,7 @@ function renderDeckDetail(deck){
         </div>
         <button class="${editClass}" onclick="toggleDeckEditMode()" title="Karten markieren und bearbeiten">${editLabel}</button>
         <button class="back-btn" onclick="openMissingModal(activeDeckId)" title="Liste der Karten in diesem Deck, die du nicht besitzt">✦ Fehlende</button>
+        <button class="back-btn" onclick="openDeckListModal(activeDeckId)" title="Deckliste als Text exportieren oder Karten aus einer Liste hinzufügen">⇅ Liste</button>
         <button class="btn-gold" onclick="openCatModal()">+ Kategorie</button>
         <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
       </div>

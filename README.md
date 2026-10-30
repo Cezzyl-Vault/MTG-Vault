@@ -33,6 +33,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - Übersicht mit Karten-Anzahl, Wert €, Ø Manawert, Farb-Punkten pro Deck
 - **Karten hinzufügen wie bei deckstats.net**: In jeder Kategorie (und in „Ohne Kategorie") gibt es ein Tippfeld. Kartennamen tippen → Vorschläge (Scryfall-Autocomplete) → anklicken oder Enter → die Karte landet sofort in genau dieser Kategorie. Das Feld bleibt fokussiert, sodass man mehrere Karten zügig hintereinander eintippen kann; daneben ein Anzahl-Feld. Es lassen sich beliebige Karten hinzufügen — **auch solche, die man (noch) nicht besitzt**
 - **„Fehlt"-Markierung**: Karten, die in keinem Sammlungs-Eintrag vorkommen, werden abgedunkelt mit rotem „fehlt"-Badge angezeigt (Listen-Ansicht: „fehlt"-Tag). Der Abgleich läuft live über den Kartennamen — wer die Karte später kauft und importiert, sieht die Markierung automatisch verschwinden
+- **Deckliste als Text**: „⇩ Liste importieren" in der Decks-Übersicht legt aus einer eingefügten Liste ein neues Deck an; „⇅ Liste" im Deck exportiert es als Text (mit Kategorien, einfach für Moxfield/Archidekt oder im MTG-Arena-Format, optional mit Set + Nummer) und fügt Karten aus einer Liste hinzu. Versteht „1 Sol Ring", „1x Sol Ring (C21) 263", Archidekt-Kategorien „[Ramp]", Überschriften wie „// Ramp" oder „Commander" sowie MTGO-„SB:"-Zeilen. Nicht gefundene Karten bleiben zum Korrigieren im Feld stehen
 - **Fehlt-Liste**: „✦ Fehlende" im Deck (pro Deck) bzw. „✦ Fehlende Karten" in der Decks-Übersicht (über alle Decks) zeigt alle nicht besessenen Karten mit Mengen — kopierbar und als .txt herunterladbar (z.B. als Einkaufsliste)
 - Karten-Detail mit zwei Ansichten:
   - **Karten-Ansicht** (Standard): Bilder als Grid, klickbar für Detail-Modal
@@ -125,6 +126,8 @@ MTG-Vault/
     ├── decks.js                  Decks-Übersicht, Detail, Karten-/Listen-Modus, Edit-Mode,
     │                             Tippfeld-Hinzufügen pro Kategorie, Deck-Karten-Fenster,
     │                             "fehlt"-Markierung + Fehlt-Liste
+    ├── deck-list.js              Deckliste als Text: Export (3 Formate) + Import
+    │                             (selbstständig: injiziert eigenes Modal + CSS)
     ├── price-tracking.js         Wöchentliche Snapshots, Scryfall-Live-Preise
     ├── stats.js                  Globale Statistik + Wertverlaufs-Chart
     └── app.js                    Orchestrierung: View-Wechsel, Mobile-Nav, Startup
@@ -141,7 +144,7 @@ Diese Reihenfolge nicht ändern, sonst funktioniert die App nicht:
 4. `ui.js` — confirmAction, setBusy, Toast-Varianten
 5. `settings.js` — Nutzer-Einstellungen
 6. `sets.js`, `db.js`, `scryfall.js`
-7. `config.js`, `auth.js`, `csv-import.js`, `add-card.js`, `collection.js`, `export.js`, `deck-stats.js`, `deck-validation.js`, `decks.js`, `price-tracking.js`, `stats.js`
+7. `config.js`, `auth.js`, `csv-import.js`, `add-card.js`, `collection.js`, `export.js`, `deck-stats.js`, `deck-validation.js`, `decks.js`, `deck-list.js` (nach `decks.js`, nutzt dessen Helfer), `price-tracking.js`, `stats.js`
 8. `app.js` — als Letztes, weil hier der Startup-Code läuft
 
 Statistik (`deck-stats.js`) und Validierung (`deck-validation.js`) lösen Deck-Karten
@@ -159,6 +162,7 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Karten-Anreicherung (Scryfall) | `js/scryfall.js` |
 | Filter/Anzeige der Sammlung | `js/collection.js` |
 | Decks-Logik, Tippfeld-Hinzufügen, Deck-Karten-Fenster, Fehlt-Liste | `js/decks.js` |
+| Deckliste importieren/exportieren (Formate, Parser) | `js/deck-list.js` |
 | Pro-Deck-Statistik | `js/deck-stats.js` |
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |

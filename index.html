@@ -236,12 +236,14 @@
         <div class="decks-header">
           <h1>⚔️ Meine Decks</h1>
           <button class="btn-gold" onclick="openDeckModal()">+ Neues Deck</button>
+          <button class="back-btn" onclick="openDeckListModal(null)" title="Neues Deck aus einer Textliste anlegen (Moxfield, Archidekt, Arena …)" style="margin-left:0.5rem">⇩ Liste importieren</button>
         </div>
         <div id="decks-empty" class="empty-state" style="display:none">
           <div class="empty-icon">⚔️</div>
           <h2>Noch keine Decks</h2>
           <p>Erstelle dein erstes Deck und ordne deine Karten in Kategorien.</p>
           <button class="empty-cta" onclick="openDeckModal()">Deck erstellen</button>
+          <button class="back-btn" onclick="openDeckListModal(null)" style="margin-top:0.75rem">⇩ oder Deckliste importieren</button>
         </div>
         <div class="decks-grid" id="decksGrid"></div>
       </div>
@@ -477,6 +479,7 @@
 <script src="js/deck-stats.js?v=161" defer></script>
 <script src="js/deck-validation.js?v=161" defer></script>
 <script src="js/decks.js?v=161" defer></script>
+<script src="js/deck-list.js?v=161" defer></script>
 <script src="js/price-tracking.js?v=161" defer></script>
 <script src="js/stats.js?v=161" defer></script>
 <script src="js/app.js?v=161" defer></script>
