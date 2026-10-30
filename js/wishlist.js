@@ -96,6 +96,17 @@ async function refreshWishPrices(force=false){
   try{return await wishPricesLoading;}finally{wishPricesLoading=null;}
 }
 
+// Cardmarket-Link ohne Scryfalls Tracking-Zusätze (referrer=scryfall&utm_…):
+// Mit diesen blockiert Cloudflare bei Cardmarket den Aufruf komplett.
+// Aus dem Scryfall-Link nur die Produkt-ID übernehmen, sonst nach Namen suchen.
+function cardmarketUrl(scryfallCmUrl,name){
+  let id=null;
+  try{id=new URL(scryfallCmUrl).searchParams.get('idProduct');}catch(e){/* kein Link */}
+  return id
+    ?'https://www.cardmarket.com/de/Magic/Products?idProduct='+encodeURIComponent(id)
+    :'https://www.cardmarket.com/de/Magic/Products/Search?searchString='+encodeURIComponent(name);
+}
+
 function wishPriceInfo(w){return wishPrices[wishKey(w.card_name)]||null;}
 function wishPriceOf(w){const c=wishPriceInfo(w);return c&&c.eur!=null?c.eur:null;}
 function isWishAlert(w){
@@ -271,7 +282,7 @@ function renderWishlistBody(){
     const has=(owned.get(wishKey(w.card_name))||0)>0;
     const priceHtml=!info?'<span class="wl-set">Preis wird geladen…</span>'
       :p==null?'<span class="wl-set">kein Euro-Preis bekannt</span>'
-      :`ab <strong>${p.toFixed(2)} €</strong> <span class="wl-set">${esc(info.set||'')}</span>${info.cm?`<a href="${esc(info.cm)}" target="_blank" rel="noopener">Cardmarket ↗</a>`:''}`;
+      :`ab <strong>${p.toFixed(2)} €</strong> <span class="wl-set">${esc(info.set||'')}</span><a href="${esc(cardmarketUrl(info.cm,w.card_name))}" target="_blank" rel="noopener noreferrer">Cardmarket ↗</a>`;
     const max=w.max_price!=null?parseFloat(w.max_price).toFixed(2):'';
     return`<div class="wl-row${hit?' wl-alert':''}">
       <div class="wl-main">
