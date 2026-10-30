@@ -6,7 +6,8 @@
 //  card_name + max_price. Fehlt die Tabelle, zeigt das Fenster einen
 //  Hinweis statt eines Fehlers.
 //
-//  Preis = günstigste Druckung mit Euro-Preis laut Scryfall (Cardmarket).
+//  Preis = günstigste spielbare Druckung mit Euro-Preis laut Scryfall
+//  (Cardmarket) — ohne Goldrand, Sammler-Sets usw. (isPlayablePrint).
 //  Pro Gerät 24 Stunden im LocalStorage zwischengespeichert. Liegt er auf
 //  oder unter dem Wunschpreis:
 //   - Zähler am Button „★ Wunschliste" in der Decks-Übersicht
@@ -15,7 +16,7 @@
 //  Karten kommen per Tippfeld ins Fenster oder gesammelt aus der
 //  Fehlt-Liste („★ Auf die Wunschliste", decks.js → openMissingModal).
 
-const WISH_PRICE_KEY='mtgvault_wish_prices';
+const WISH_PRICE_KEY='mtgvault_wish_prices_v2';   // v2: ohne Goldrand & Co. (alter Cache wird ignoriert)
 const WISH_ALERT_KEY='mtgvault_wish_alert';
 const WISH_PRICE_MAX_AGE_MS=24*60*60*1000;
 let wishlist=[];
@@ -41,10 +42,22 @@ async function loadWishlist(){
 
 // ── Preise ──
 function loadWishPriceCache(){
+  try{localStorage.removeItem('mtgvault_wish_prices');}catch(e){/* alter Cache vor v2 */}
   try{wishPrices=JSON.parse(localStorage.getItem(WISH_PRICE_KEY)||'{}')||{};}catch(e){wishPrices={};}
 }
 function saveWishPriceCache(){
   try{localStorage.setItem(WISH_PRICE_KEY,JSON.stringify(wishPrices));}catch(e){/* nur im RAM */}
+}
+
+// Nur Druckungen, die man im Turnier/Commander spielen darf. Ausgeschlossen:
+// Goldrand (World Championship Decks), Silberrand (Un-Sets), Sammler-Sets
+// wie Collectors' Edition oder 30th Anniversary (set_type „memorabilia"),
+// Token, Übergroße und reine Online-Karten. Sonst wäre z.B. die goldene
+// Hall of Gemstone aus WC98 für 2,47 € die „günstigste".
+function isPlayablePrint(p){
+  if(p.digital||p.oversized)return false;
+  if(p.border_color==='gold'||p.border_color==='silver')return false;
+  return !['memorabilia','token','funny'].includes(p.set_type);
 }
 
 // Günstigste Druckung mit Euro-Preis: Karte holen, dann ihre Druckungen
@@ -59,6 +72,7 @@ async function fetchCheapestPrint(name){
     const r2=await fetch(card.prints_search_uri);
     if(r2.ok){
       for(const p of (await r2.json()).data||[]){
+        if(!isPlayablePrint(p))continue;
         const e=parseFloat(p.prices&&p.prices.eur);
         if(e>0&&(!best||e<best.e))best={e,p};
       }
@@ -303,7 +317,7 @@ function renderWishlistBody(){
     ${wishlist.length?`<div class="wl-list">${rows}</div>`
       :'<div class="dxm-empty">Noch leer. Tippe oben eine Karte ein oder übernimm sie aus „✦ Fehlende Karten".</div>'}
     <div class="wl-foot">
-      <span>Preis = günstigste Druckung laut Scryfall (Cardmarket)${stand?', Stand '+new Date(stand).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</span>
+      <span>Preis = günstigste spielbare Druckung laut Scryfall (Cardmarket)${stand?', Stand '+new Date(stand).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</span>
       ${wishlist.length?'<button class="btn-mini" type="button" onclick="forceRefreshWishPrices(this)">↻ Preise</button>':''}
     </div>`;
 }
