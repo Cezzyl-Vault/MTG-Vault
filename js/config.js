@@ -57,7 +57,7 @@ async function connectAndStart(cfg){
   let session=null;
   try{({data:{session}}=await _sb.auth.getSession());}
   catch(e){showDbPaused(cfg);return;}
-  if(session)showApp(session.user);else showAuth();
+  if(session)showApp(session.user);else{showAuth();showAuthErrorFromUrl();}
 }
 
 // Dashboard-Link aus der Projekt-URL ableiten (https://<ref>.supabase.co)

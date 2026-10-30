@@ -62,6 +62,19 @@
 }
 .auth-btn:hover{transform:translateY(-1px);box-shadow:0 6px 25px rgba(201,168,76,0.4);}
 .auth-error{font-size:0.85rem;min-height:1.2rem;text-align:left;padding:0.1rem 0;}
+/* Anmeldelink per E-Mail (Login ohne Passwort) */
+.auth-divider{
+  display:flex;align-items:center;gap:0.75rem;margin-top:0.5rem;
+  color:var(--text2);font-size:0.8rem;font-style:italic;
+}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.auth-link-btn{
+  background:transparent;color:var(--gold);border:1px solid var(--gold-dim);border-radius:8px;
+  font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.08em;
+  padding:0.7rem;cursor:pointer;transition:all 0.2s;
+}
+.auth-link-btn:hover{background:rgba(201,168,76,0.08);border-color:var(--gold);}
+.auth-link-btn:disabled{opacity:0.6;cursor:default;}
 /* ══════════════════════════════
    DB-STATUS SCREEN
    Beim Start sichtbar, bis die Verbindung geprüft ist —

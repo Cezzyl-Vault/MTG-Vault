@@ -73,6 +73,8 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 
 **Konto & Einstellungen**
 - E-Mail/Passwort-Login und Registrierung (Supabase Auth), Logout
+- **Anmeldelink per E-Mail** (Login ohne Passwort, siehe [Anmelden ohne Passwort](#anmelden-ohne-passwort))
+- Angemeldet bleibt man pro Gerät dauerhaft, bis man sich abmeldet oder die Browserdaten löscht
 - Settings-Modal: Start-Reiter beim App-Start und Karten-Größe im Deck konfigurierbar (gespeichert im LocalStorage des Browsers)
 - **Backup herunterladen** (im Settings-Modal): Sammlung, Decks, Deck-Karten und Preisverlauf als JSON-Datei
 
@@ -112,7 +114,7 @@ MTG-Vault/
     ├── db.js                     Alle Supabase-Aufrufe
     ├── scryfall.js               Karten-Anreicherung
     ├── config.js                 Supabase-Verbindung, Screen-Wechsel, DB-Status-Bildschirm
-    ├── auth.js                   Login, Registrierung, Logout
+    ├── auth.js                   Login, Registrierung, Anmeldelink per E-Mail, Logout
     ├── csv-import.js             ManaBox-CSV Parser (mit Auto-Anreicherung)
     ├── add-card.js               Karte manuell per Scryfall-Suche hinzufügen
     │                             (selbstständig: injiziert eigenes Modal, CSS + Buttons)
@@ -194,6 +196,26 @@ Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
   Bildschirm-Logik in `js/config.js`)
 - **60-Tage-Regel**: GitHub deaktiviert Zeitplan-Actions, wenn 60 Tage lang kein Commit
   im Repo passiert. Vorher kommt eine Warn-Mail; reaktivieren per Klick auf „Enable workflow"
+
+## Anmelden ohne Passwort
+
+Auf dem Login-Bildschirm E-Mail eingeben und „✉ Anmeldelink per E-Mail schicken“ klicken.
+Supabase schickt einen Link, der zurück zur App führt und das Gerät dauerhaft anmeldet
+(`sendMagicLink` in `js/auth.js`). Per Link lässt sich nur ein **bestehendes** Konto
+anmelden, kein neues anlegen.
+
+Einmalig im Supabase-Dashboard einstellen:
+
+- **Authentication → URL Configuration**: Site URL `https://cezzyl-vault.github.io/MTG-Vault/`,
+  unter Redirect URLs `https://cezzyl-vault.github.io/MTG-Vault/**` und zum lokalen Testen
+  `http://localhost:8000/**` eintragen. Sonst führt der Link nicht zur App zurück.
+- **Empfohlen – Authentication → Sign In / Providers → Email**: „Allow new users to sign up“
+  ausschalten, damit niemand sonst ein Konto anlegen kann.
+- E-Mail-Adresse vergessen? Steht unter **Authentication → Users**.
+
+Der kostenlose Supabase-Mailversand schickt nur wenige Mails pro Stunde. Kommt keine Mail,
+ein paar Minuten warten (auch den Spam-Ordner prüfen). Der Link ist nur kurz gültig und
+nur einmal benutzbar.
 
 ## Datenbank-Schema
 
