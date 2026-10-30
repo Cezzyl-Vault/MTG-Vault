@@ -29,11 +29,30 @@ async function checkDbReachable(cfg,timeoutMs=8000){
   }
 }
 
+// ── Alle Zeilen einer Tabelle laden ──
+// Supabase liefert pro Anfrage höchstens 1000 Zeilen. Ohne Seitenweises Laden
+// würde z.B. eine Sammlung mit 1500 Einträgen nur zu zwei Dritteln erscheinen.
+// Sortierung nach created_at (neueste zuerst) + id, damit die Seiten stabil sind.
+// Rückgabe im selben Format wie ein Supabase-Aufruf: {data, error}.
+async function fetchAllRows(table){
+  const PAGE=1000;
+  const rows=[];
+  for(let from=0;;from+=PAGE){
+    const{data,error}=await _sb.from(table).select('*')
+      .order('created_at',{ascending:false}).order('id')
+      .range(from,from+PAGE-1);
+    if(error)return{data:null,error};
+    rows.push(...(data||[]));
+    if(!data||data.length<PAGE)break;
+  }
+  return{data:rows,error:null};
+}
+
 async function loadAll(){
   setSyncing('syncing');
   const[{data:cards,error:e1},{data:decks,error:e2}]=await Promise.all([
-    _sb.from('cards').select('*').order('created_at',{ascending:false}),
-    _sb.from('decks').select('*').order('created_at',{ascending:false}),
+    fetchAllRows('cards'),
+    fetchAllRows('decks'),
   ]);
   if(e1||e2){
     setSyncing('error');
@@ -48,6 +67,8 @@ async function loadAll(){
   if(typeof checkAndShowMigrationBanner==='function')checkAndShowMigrationBanner();
   // Im Hintergrund den wöchentlichen Preis-Snapshot prüfen — blockiert das Rendern nicht
   if(typeof maybeCreateWeeklySnapshot==='function')maybeCreateWeeklySnapshot();
+  // Alte Deck-Zeilen (nur card_id-Verweis) auf das neue Format umstellen — fragt vorher nach
+  if(typeof migrateLegacyDeckCards==='function')migrateLegacyDeckCards();
 }
 
 async function upsertCards(cards){
@@ -87,22 +108,12 @@ async function deleteDeckDB(id){
 }
 
 // DECK CARDS DB
+// Karten hinzufügen läuft über addToDeckDenorm in decks.js (Zeile trägt ihre
+// Kartendaten selbst, card_id bleibt null).
 async function loadDeckCards(deckId){
   const{data,error}=await _sb.from('deck_cards').select('*').eq('deck_id',deckId);
   if(error){toastError('Fehler: '+error.message);return[];}
   return data||[];
-}
-async function addToDeckDB(deckId,cardId,category,quantity){
-  // Check if already exists in same category
-  const{data:existing}=await _sb.from('deck_cards').select('*').eq('deck_id',deckId).eq('card_id',cardId).eq('category',category);
-  if(existing&&existing.length>0){
-    const{error}=await _sb.from('deck_cards').update({quantity:existing[0].quantity+quantity}).eq('id',existing[0].id);
-    if(error){toastError('Fehler: '+error.message);return false;}
-  }else{
-    const{error}=await _sb.from('deck_cards').insert({deck_id:deckId,card_id:cardId,category,quantity,user_id:currentUser.id});
-    if(error){toastError('Fehler: '+error.message);return false;}
-  }
-  return true;
 }
 async function removeDeckCardDB(id){
   const{error}=await _sb.from('deck_cards').delete().eq('id',id);

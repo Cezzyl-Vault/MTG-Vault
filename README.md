@@ -74,6 +74,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 **Konto & Einstellungen**
 - E-Mail/Passwort-Login und Registrierung (Supabase Auth), Logout
 - Settings-Modal: Start-Reiter beim App-Start und Karten-Größe im Deck konfigurierbar (gespeichert im LocalStorage des Browsers)
+- **Backup herunterladen** (im Settings-Modal): Sammlung, Decks, Deck-Karten und Preisverlauf als JSON-Datei
 
 **UX**
 - Bottom-Navigation auf Mobile
@@ -141,9 +142,9 @@ Diese Reihenfolge nicht ändern, sonst funktioniert die App nicht:
 7. `config.js`, `auth.js`, `csv-import.js`, `add-card.js`, `collection.js`, `export.js`, `deck-stats.js`, `deck-validation.js`, `decks.js`, `price-tracking.js`, `stats.js`
 8. `app.js` — als Letztes, weil hier der Startup-Code läuft
 
-Besonderheit: `decks.js` MUSS nach `deck-stats.js` und `deck-validation.js` laden —
-es leitet deren Karten-Auflösung (`dcCard`/`dvCard`) um, damit Statistik und
-Validierung auch nicht besessene Deck-Karten mitzählen.
+Statistik (`deck-stats.js`) und Validierung (`deck-validation.js`) lösen Deck-Karten
+über `resolveDeckCard` aus `decks.js` auf. Das passiert erst zur Laufzeit, daher ist
+die Ladereihenfolge zwischen diesen drei Dateien egal.
 
 ## Wo ändere ich was?
 
@@ -160,7 +161,7 @@ Validierung auch nicht besessene Deck-Karten mitzählen.
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |
 | Preis-Snapshots | `js/price-tracking.js` |
-| CSV/PDF-Export | `js/export.js` |
+| CSV/PDF-Export, Komplett-Backup | `js/export.js` |
 | Bestätigungs-Modals, Toasts | `js/ui.js` |
 | Texte/Buttons im HTML | `index.html` |
 | Supabase-URL/Key (Projekt wechseln) | `js/defaults.js` |
@@ -213,11 +214,18 @@ price_snapshots user_id, snapshot_date, total_value, card_count
                 (unique pro user_id+snapshot_date)
 ```
 
-Zum `deck_cards`-Design: Verweist `card_id` auf eine Sammlungs-Karte, kommen
-die Anzeige-Daten von dort (wie früher). Ist `card_id = NULL`, wurde die Karte
-über das Tippfeld hinzugefügt und trägt ihre Identität selbst — das Deck
-funktioniert damit als Wunschliste. Ob eine Karte "besessen" ist, wird zur
-Laufzeit per Namensabgleich mit der Sammlung ermittelt (nicht gespeichert).
+Zum `deck_cards`-Design: Jede Zeile trägt ihre Karten-Identität selbst
+(`card_name`, `scryfall_id`, …) und hat `card_id = NULL` — egal ob sie über das
+Tippfeld oder über „+ Deck" in der Sammlung entstanden ist. Das Deck funktioniert
+damit auch als Wunschliste, und Löschen in der Sammlung lässt Decks unberührt.
+Ob eine Karte "besessen" ist, wird zur Laufzeit per Namensabgleich mit der
+Sammlung ermittelt (nicht gespeichert); dabei wird bevorzugt dieselbe Druckung
+(`scryfall_id`) angezeigt.
+
+`card_id` ist eine Altlast: Früher speicherte „+ Deck" nur diesen Verweis, und
+wegen `on delete cascade` verschwand die Deck-Karte mit der Sammlungskarte. Solche
+Zeilen stellt die App nach dem Login einmalig um (`migrateLegacyDeckCards` in
+`js/decks.js`, mit Rückfrage und vorherigem Backup).
 
 Alle Tabellen haben Row Level Security (RLS) Policies — jeder Nutzer sieht nur eigene Daten.
 

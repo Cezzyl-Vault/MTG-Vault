@@ -468,7 +468,10 @@ async function confirmAddVariantToDeck(){
   if(qty<1||qty>99){toastError('Anzahl muss zwischen 1 und 99 liegen.');return;}
 
   const v=allCards.find(c=>c.id===pendingAddVariantId);
-  const result=await addToDeckDB(deckId,pendingAddVariantId,category,qty);
+  if(!v){toastError('Variante nicht gefunden.');return;}
+  // Deck-Zeile bekommt die Kartendaten selbst (kein card_id-Verweis) —
+  // so bleibt sie im Deck, auch wenn die Variante später aus der Sammlung fliegt
+  const result=await addToDeckDenorm(deckId,deckCardFieldsFromCard(v),category,qty);
   if(!result){toastError('Hinzufügen fehlgeschlagen.');return;}
 
   const deck=allDecks.find(d=>d.id===deckId);

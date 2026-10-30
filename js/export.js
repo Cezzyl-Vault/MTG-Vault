@@ -207,3 +207,35 @@ function exportFilteredToPDF(){
 
   toastSuccess(`Druckdialog geöffnet (${cards.length} Einträge). Wähle "Als PDF speichern".`);
 }
+
+// ══════════════════════════════════════════════════════════
+//  BACKUP  ·  Komplette Daten als JSON-Datei
+// ══════════════════════════════════════════════════════════
+//
+//  Sichert alles, was dem eingeloggten Nutzer gehört: Sammlung, Decks,
+//  Deck-Karten und Preis-Snapshots — unabhängig von aktiven Filtern.
+//  Aufruf aus dem Einstellungen-Fenster und vor der Deck-Umstellung
+//  (migrateLegacyDeckCards in decks.js). Gibt true zurück, wenn die Datei
+//  heruntergeladen wurde.
+const BACKUP_TABLES=['cards','decks','deck_cards','price_snapshots'];
+
+async function downloadFullBackup(btn){
+  setBusy(btn,true,'Sichere…');
+  try{
+    const backup={app:'MTG Vault',format:1,created_at:new Date().toISOString(),user_id:currentUser?currentUser.id:null};
+    for(const table of BACKUP_TABLES){
+      const{data,error}=await fetchAllRows(table);
+      if(error)throw error;
+      backup[table]=data;
+    }
+    const blob=new Blob([JSON.stringify(backup,null,1)],{type:'application/json'});
+    triggerDownload(blob,`mtg-vault-backup-${todayIsoDate()}.json`);
+    toastSuccess(`Backup gespeichert: ${backup.cards.length} Karten-Einträge, ${backup.decks.length} Decks`);
+    return true;
+  }catch(e){
+    toastError('Backup fehlgeschlagen: '+(e.message||e));
+    return false;
+  }finally{
+    setBusy(btn,false);
+  }
+}

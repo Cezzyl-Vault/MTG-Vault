@@ -20,7 +20,8 @@
 //  jeder Karten-Änderung neu gerendert.
 
 // ── Helfer ──
-function dvCard(dc){return allCards.find(c=>c.id===dc.card_id);}
+// Karte zu einem deck_card Eintrag (auch nicht besessene) — siehe resolveDeckCard in decks.js
+function dvCard(dc){return resolveDeckCard(dc);}
 
 // ── Hauptvalidierung ── Gibt Array von Issues zurück
 function validateCommanderDeck(deckCards){

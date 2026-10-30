@@ -13,25 +13,28 @@ async function renderDecks(){
   //
   // Berechnete Werte pro Deck:
   //   count:        Gesamtzahl Karten (Summe der quantity)
-  //   value:        Gesamtwert in € (purchase_price × quantity)
+  //   value:        Gesamtwert in € (purchase_price × quantity, nur besessene Karten)
   //   avgMv:        Durchschnittlicher Manawert (ohne Länder)
   //   colors:       Set der Farben, die im Deck vorkommen (ohne Länder)
+  // Karten werden wie im Deck-Detail über resolveDeckCard aufgelöst — so zählen
+  // auch nicht besessene Karten mit und Übersicht + Detail zeigen dieselben Werte.
   const stats={};
   try{
-    const{data:deckCards,error}=await _sb.from('deck_cards').select('deck_id,card_id,quantity');
+    const{data:deckCards,error}=await fetchAllRows('deck_cards');
     if(!error&&deckCards){
+      const ownedIndex=buildOwnedIndex();
       for(const dc of deckCards){
         if(!stats[dc.deck_id])stats[dc.deck_id]={count:0,value:0,manaSum:0,nonLandCount:0,colors:new Set()};
-        stats[dc.deck_id].count+=dc.quantity;
-        const card=allCards.find(c=>c.id===dc.card_id);
-        if(!card)continue;
-        stats[dc.deck_id].value+=(parseFloat(card.purchase_price)||0)*dc.quantity;
+        const qty=parseInt(dc.quantity,10)||1;
+        stats[dc.deck_id].count+=qty;
+        const card=resolveDeckCard(dc,ownedIndex);
+        stats[dc.deck_id].value+=(parseFloat(card.purchase_price)||0)*qty;
         // Manawert + Farben nur für Nicht-Länder zählen (sonst dominieren Lands die Charts)
         if(card.type_line&&card.mana_value!=null){
           const isLand=(card.type_line||'').toLowerCase().includes('land');
           if(!isLand){
-            stats[dc.deck_id].manaSum+=card.mana_value*dc.quantity;
-            stats[dc.deck_id].nonLandCount+=dc.quantity;
+            stats[dc.deck_id].manaSum+=card.mana_value*qty;
+            stats[dc.deck_id].nonLandCount+=qty;
             const cs=Array.isArray(card.colors)?card.colors:[];
             for(const c of cs)stats[dc.deck_id].colors.add(c);
           }
@@ -273,13 +276,13 @@ function renderCategoryBody(dcCards){
 // Robust gegen:
 // - Unterschiedliche Schreibweisen ("Island" vs " island ") via lowercase+trim
 // - Quantity als String aus der DB (parseInt-Cast)
-// - Karten ohne card-Eintrag in allCards (Fallback auf card_id; gruppiert dann nicht — ist OK)
 function groupDcByCardName(dcCards){
   const groups={};
   const ownedMap=buildOwnedNameMap();
+  const ownedIndex=buildOwnedIndex();
   for(const dc of dcCards){
-    const card=resolveDeckCard(dc);
-    const displayName=card?.name||dc.card_id;
+    const card=resolveDeckCard(dc,ownedIndex);
+    const displayName=card.name;
     // Gruppierungsschlüssel ist lowercase + trim, damit "Island", "island", " Island "
     // und Co. zur selben Gruppe gehören
     const key=String(displayName).toLowerCase().trim();
@@ -349,7 +352,7 @@ function deckCardRow(g){
     ${checkbox}
     ${img?`<img class="dc-img" src="${img}" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
-      <div class="dc-name">${esc(cardName||g.representative.card_id)}${g.owned?'':`<span class="dc-miss-tag">fehlt</span>`}</div>
+      <div class="dc-name">${esc(cardName)}${g.owned?'':`<span class="dc-miss-tag">fehlt</span>`}</div>
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}${g.dcIds.length>1?` · ${g.dcIds.length} Druckungen`:''}</div>
     </div>
     <span class="dc-qty">×${g.quantity}</span>
@@ -596,10 +599,7 @@ function openMovePicker(dcIdsCsv){
   const dcs=movePickerDcIds.map(id=>currentDeckCards.find(c=>c.id===id)).filter(Boolean);
   const totalQty=dcs.reduce((s,d)=>s+(d.quantity||1),0);
   // Eindeutige Kartennamen sammeln
-  const names=[...new Set(dcs.map(dc=>{
-    const card=allCards.find(c=>c.id===dc.card_id);
-    return card?.name||'Karte';
-  }))];
+  const names=[...new Set(dcs.map(dc=>resolveDeckCard(dc).name))];
   const subject=names.length===1
     ?`<strong>${esc(names[0])}</strong>${totalQty>1?` (×${totalQty})`:''} verschieben nach…`
     :`<strong>${dcs.length} Einträge</strong> (${totalQty} Karten) verschieben nach…`;
@@ -746,42 +746,47 @@ async function moveCategoryByOffset(category,offset){
 //  DECK-ERWEITERUNG · Nicht besessene Karten + Fehlt-Liste
 // ══════════════════════════════════════════════════════════
 //
-//  Macht ein Deck zu einer eigenständigen Wunschliste:
-//   - Karten können per Suche hinzugefügt werden — auch welche, die man
-//     NICHT besitzt. Solche deck_cards tragen ihre Identität selbst
+//  Macht ein Deck zu einer eigenständigen Kartenliste (auch Wunschliste):
+//   - Jede deck_cards-Zeile trägt ihre Karten-Identität selbst
 //     (card_name, scryfall_id, set_code, … plus mana_value/colors/
 //     color_identity/type_line/legal_commander für Statistik+Validierung)
-//     und haben card_id = null.
+//     und hat card_id = null. Egal ob per Tippfeld oder per „+ Deck" aus
+//     der Sammlung hinzugefügt — Löschen in der Sammlung lässt das Deck
+//     unberührt.
 //   - Ob eine Karte "besessen" ist, wird LIVE per Namensabgleich mit der
 //     Sammlung bestimmt: kaufst du sie später und importierst sie, stimmt
 //     die Markierung automatisch.
 //   - Fehlt-Liste: alle Kartennamen in einem Deck (oder über ALLE Decks),
 //     die nicht in der Sammlung sind — kopierbar + als .txt herunterladbar.
-//
-//  Voraussetzung: einmalige SQL-Erweiterung an deck_cards (siehe Anleitung).
+//   - Ältere Zeilen, die nur per card_id auf die Sammlung zeigen, stellt
+//     migrateLegacyDeckCards einmalig um.
 
 // ── Auflösung einer Deck-Karte ──
-// Besessene Karte (card_id triff in der Sammlung)? → die Sammlungskarte,
-// exakt wie bisher. Sonst → karten-ähnliche Struktur aus den am deck_card
-// gespeicherten Feldern (für Suche hinzugefügte / nicht besessene Karten).
-function resolveDeckCard(dc){
-  // 1) Direkter Treffer über card_id (explizit aus der Sammlung gewählte Druckung).
-  if(dc.card_id){
+// Besitzt du die Karte (Namensabgleich)? → eine Sammlungskarte zurückgeben:
+// bevorzugt dieselbe Druckung (scryfall_id), sonst die älteste — so zeigt das
+// Deck die Version, die du tatsächlich hast. Sonst → karten-ähnliche Struktur
+// aus den am deck_card gespeicherten Feldern (nicht besessene Karten).
+// ownedIndex (optional, aus buildOwnedIndex) spart bei vielen Aufrufen das
+// wiederholte Durchsuchen der Sammlung.
+function resolveDeckCard(dc,ownedIndex){
+  // Altlast bis zur Umstellung: Zeile ohne eigene Daten, nur card_id-Verweis
+  if(!dc.card_name&&dc.card_id){
     const c=allCards.find(x=>x.id===dc.card_id);
     if(c)return c;
   }
-  // 2) Besitzt du diese Karte (per Name)? → nimm eine besessene Druckung (die
-  //    älteste), damit das Deck die Version zeigt, die du tatsächlich hast –
-  //    statt der Scryfall-Standarddruckung. Greift auch rückwirkend.
-  const nm=(dc.card_name||dc.card_id||'').toLowerCase().trim();
+  const nm=(dc.card_name||'').toLowerCase().trim();
   if(nm){
-    const owned=allCards.filter(c=>(c.name||'').toLowerCase().trim()===nm);
-    if(owned.length)return pickOldestPrinting(owned);
+    const owned=ownedIndex
+      ?(ownedIndex.get(nm)||[])
+      :allCards.filter(c=>(c.name||'').toLowerCase().trim()===nm);
+    if(owned.length){
+      return (dc.scryfall_id&&owned.find(c=>c.scryfall_id===dc.scryfall_id))||pickOldestPrinting(owned);
+    }
   }
-  // 3) Sonst (nicht besessen): die am deck_card gespeicherten Felder.
+  // Nicht besessen: die am deck_card gespeicherten Felder.
   return {
     id:'dc:'+dc.id,
-    name:dc.card_name||dc.card_id||'Unbekannt',
+    name:dc.card_name||'Unbekannt',
     scryfall_id:dc.scryfall_id||null,
     set_code:dc.set_code||'',
     set_name:dc.set_name||'',
@@ -795,6 +800,92 @@ function resolveDeckCard(dc){
     purchase_price:null,
     foil:null
   };
+}
+
+// Map: Kartenname (lowercase) → alle besessenen Druckungen. Einmal pro Render bauen
+// und an resolveDeckCard übergeben, wenn viele Deck-Zeilen aufgelöst werden.
+function buildOwnedIndex(){
+  const m=new Map();
+  for(const c of allCards){
+    const n=(c.name||'').toLowerCase().trim();
+    if(!n)continue;
+    if(!m.has(n))m.set(n,[]);
+    m.get(n).push(c);
+  }
+  return m;
+}
+
+// ── Kartendaten für eine deck_cards-Zeile ──
+// Aus einer Sammlungskarte (z.B. „+ Deck" in der Variantentabelle, Umstellung)
+function deckCardFieldsFromCard(c){
+  return{
+    card_name:c.name,
+    scryfall_id:c.scryfall_id||null,
+    set_code:c.set_code||'',
+    set_name:c.set_name||'',
+    collector_number:c.collector_number||'',
+    rarity:c.rarity||'',
+    mana_value:(c.mana_value!=null?c.mana_value:null),
+    colors:Array.isArray(c.colors)?c.colors:[],
+    color_identity:Array.isArray(c.color_identity)?c.color_identity:[],
+    type_line:c.type_line||null,
+    legal_commander:c.legal_commander||null
+  };
+}
+// Aus einem Scryfall-Kartenobjekt (Tippfeld im Deck)
+function deckCardFieldsFromScryfall(c){
+  return{
+    card_name:c.name,
+    scryfall_id:c.id,
+    set_code:(c.set||'').toUpperCase(),
+    set_name:c.set_name||'',
+    collector_number:c.collector_number||'',
+    rarity:(c.rarity||'').toLowerCase(),
+    mana_value:(c.cmc!=null?Math.floor(c.cmc):null),
+    colors:c.colors||[],
+    color_identity:c.color_identity||[],
+    type_line:c.type_line||null,
+    legal_commander:(c.legalities&&c.legalities.commander)||null
+  };
+}
+
+// ── Einmalige Umstellung alter Deck-Zeilen ──
+// Früher speicherte „+ Deck" aus der Sammlung nur einen Verweis (card_id).
+// Wegen "on delete cascade" in der Datenbank verschwand die Deck-Karte dann
+// zusammen mit der Sammlungskarte. Hier bekommen solche Zeilen ihre
+// Kartendaten selbst und card_id = null. Läuft nach jedem loadAll, tut aber
+// nur etwas, solange es alte Zeilen gibt — und fragt vorher nach.
+// Vor dem Umstellen wird ein komplettes Backup heruntergeladen.
+let legacyMigrationAsked=false;
+async function migrateLegacyDeckCards(){
+  if(legacyMigrationAsked)return;  // pro Sitzung höchstens einmal fragen
+  const{data:rows,error}=await _sb.from('deck_cards').select('*').not('card_id','is',null);
+  if(error||!rows||!rows.length)return;
+  legacyMigrationAsked=true;
+  const ok=await confirmAction(
+    `${rows.length} ältere Deck-Einträge verweisen noch direkt auf Karten deiner Sammlung. Löschst du so eine Karte aus der Sammlung, verschwindet sie bisher auch aus dem Deck. Jetzt umstellen? Vorher wird automatisch ein Backup heruntergeladen.`,
+    {title:'DECKS UMSTELLEN',confirmLabel:'Backup + Umstellen'}
+  );
+  if(!ok)return;
+  if(!await downloadFullBackup())return;
+  let done=0,fail=0;
+  for(const dc of rows){
+    const card=allCards.find(c=>c.id===dc.card_id);
+    if(!card){fail++;continue;}
+    const{error:e}=await _sb.from('deck_cards')
+      .update({...deckCardFieldsFromCard(card),card_id:null}).eq('id',dc.id);
+    if(e)fail++;else done++;
+  }
+  if(fail)toastError(`${done} Deck-Einträge umgestellt, ${fail} fehlgeschlagen — beim nächsten Start wird es erneut versucht.`);
+  else toastSuccess(`${done} Deck-Einträge umgestellt`);
+  // Offenes Deck bzw. Übersicht mit den umgestellten Zeilen neu zeichnen
+  if(activeDeckId){
+    currentDeckCards=await loadDeckCards(activeDeckId);
+    const deck=allDecks.find(d=>d.id===activeDeckId);
+    if(deck)renderDeckDetail(deck);
+  }else{
+    renderDecks();
+  }
 }
 
 // Älteste Druckung aus einer Liste von Sammlungskarten (nach Set-Release-Datum).
@@ -825,21 +916,13 @@ function ownedQtyByName(name){
   return buildOwnedNameMap().get(name.toLowerCase().trim())||0;
 }
 
-// Statistik & Validierung sollen nicht besessene Karten MITZÄHLEN:
-// Wir leiten ihre Karten-Auflösung auf den Resolver um. (Override der globalen
-// Helfer aus deck-stats.js / deck-validation.js — decks.js lädt danach,
-// daher greift die Umleitung zur Laufzeit.)
-if(typeof dcCard!=='undefined'){ dcCard=function(dc){return resolveDeckCard(dc);}; }
-if(typeof dvCard!=='undefined'){ dvCard=function(dc){return resolveDeckCard(dc);}; }
-
 // ── DB: Karte mit eigenen Feldern (denormalisiert) ins Deck schreiben ──
 async function addToDeckDenorm(deckId,cardData,category,quantity){
   const{data:rows}=await _sb.from('deck_cards').select('*').eq('deck_id',deckId);
   const catNorm=category||null;
   const nameNorm=(cardData.card_name||'').toLowerCase().trim();
-  // Gleiche per-Suche-Karte (Name + Kategorie) schon da? → Menge erhöhen.
+  // Gleiche Karte (Name + Kategorie) schon da? → Menge erhöhen.
   const match=(rows||[]).find(r=>
-    !r.card_id &&
     ((r.card_name||'').toLowerCase().trim()===nameNorm) &&
     ((r.category||null)===catNorm)
   );
@@ -1035,20 +1118,7 @@ async function addInlineCard(name,cat,qty,exact){
     if(!res.ok){toastError('Karte nicht gefunden: '+name);return;}
     c=await res.json();
   }catch(e){ toastError('Scryfall nicht erreichbar.');return; }
-  const cardData={
-    card_name:c.name,
-    scryfall_id:c.id,
-    set_code:(c.set||'').toUpperCase(),
-    set_name:c.set_name||'',
-    collector_number:c.collector_number||'',
-    rarity:(c.rarity||'').toLowerCase(),
-    mana_value:(c.cmc!=null?Math.floor(c.cmc):null),
-    colors:c.colors||[],
-    color_identity:c.color_identity||[],
-    type_line:c.type_line||null,
-    legal_commander:(c.legalities&&c.legalities.commander)||null
-  };
-  const ok=await addToDeckDenorm(activeDeckId,cardData,cat||null,qty);
+  const ok=await addToDeckDenorm(activeDeckId,deckCardFieldsFromScryfall(c),cat||null,qty);
   if(!ok)return;
   _dcaRefocusCat=cat||'';                       // nach Render wieder hierhin fokussieren
   currentDeckCards=await loadDeckCards(activeDeckId);
@@ -1147,14 +1217,9 @@ async function saveDeckCardModal(){
   const repId=ids[0];
   const rep=currentDeckCards.find(d=>d.id===repId);
   const patch={quantity:newQty,category:newCat};
-  // Alt-Zeilen (mit card_id, ohne eigene Felder) beim Speichern konsolidieren
-  if(rep&&!rep.card_name){
-    const c=resolveDeckCard(rep);
-    patch.card_id=null;
-    patch.card_name=c.name;patch.scryfall_id=c.scryfall_id;patch.set_code=c.set_code;
-    patch.set_name=c.set_name;patch.collector_number=c.collector_number;patch.rarity=c.rarity;
-    patch.mana_value=c.mana_value;patch.colors=c.colors;patch.color_identity=c.color_identity;
-    patch.type_line=c.type_line;patch.legal_commander=c.legal_commander;
+  // Alt-Zeile (nur card_id, falls die Umstellung abgelehnt wurde) beim Speichern mit umstellen
+  if(rep&&!rep.card_name&&rep.card_id){
+    Object.assign(patch,deckCardFieldsFromCard(resolveDeckCard(rep)),{card_id:null});
   }
   const{error}=await _sb.from('deck_cards').update(patch).eq('id',repId);
   if(error){toastError('Fehler: '+error.message);return;}

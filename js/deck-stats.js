@@ -15,10 +15,9 @@
 //      - Farbverteilung (jede Farbe einer multicolor Karte zählt 1×)
 //      - Typenverteilung (Hauptkategorie pro Karte)
 
-// Hilfsfunktion: Findet die "Karte" zu einem deck_card Eintrag.
-// Im currentDeckCards-Array sind Einträge der Form { card_id, quantity, ... } —
-// die eigentlichen Karten-Daten (mana_value, colors, type_line) stehen in allCards.
-function dcCard(dc){return allCards.find(c=>c.id===dc.card_id);}
+// Hilfsfunktion: Findet die "Karte" zu einem deck_card Eintrag — besessene
+// Sammlungskarte oder die am Eintrag gespeicherten Daten (resolveDeckCard in decks.js).
+function dcCard(dc){return resolveDeckCard(dc);}
 
 // Hilfsfunktion: Hauptkategorie aus type_line ermitteln.
 // Hat Vorrang: Land > Creature > Planeswalker > Battle > Artifact > Enchantment > Instant > Sorcery > Andere.

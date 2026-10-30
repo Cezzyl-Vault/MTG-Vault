@@ -377,6 +377,11 @@
         </select>
         <div class="settings-hint">Beeinflusst die Karten-Ansicht (⊞) im Deck-Detail. Auf dem Handy bleibt die Mindestgröße erhalten.</div>
       </div>
+      <div class="form-field">
+        <label>DATEN SICHERN</label>
+        <button class="btn" type="button" onclick="downloadFullBackup(this)">💾 Backup herunterladen</button>
+        <div class="settings-hint">Speichert Sammlung, Decks und Preisverlauf als JSON-Datei auf diesem Gerät.</div>
+      </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
         <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
