@@ -215,11 +215,11 @@ function exportFilteredToPDF(){
 // ══════════════════════════════════════════════════════════
 //
 //  Sichert alles, was dem eingeloggten Nutzer gehört: Sammlung, Decks,
-//  Deck-Karten und Preis-Snapshots — unabhängig von aktiven Filtern.
+//  Deck-Karten, Preis-Snapshots und Wunschliste — unabhängig von aktiven Filtern.
 //  Aufruf aus dem Einstellungen-Fenster und vor der Deck-Umstellung
 //  (migrateLegacyDeckCards in decks.js). Gibt true zurück, wenn die Datei
 //  heruntergeladen wurde.
-const BACKUP_TABLES=['cards','decks','deck_cards','price_snapshots'];
+const BACKUP_TABLES=['cards','decks','deck_cards','price_snapshots','wishlist'];
 
 async function downloadFullBackup(btn){
   setBusy(btn,true,'Sichere…');
@@ -227,6 +227,8 @@ async function downloadFullBackup(btn){
     const backup={app:'MTG Vault',format:1,created_at:new Date().toISOString(),user_id:currentUser?currentUser.id:null};
     for(const table of BACKUP_TABLES){
       const{data,error}=await fetchAllRows(table);
+      // Optionale Tabelle (z.B. wishlist) noch nicht angelegt → leer sichern
+      if(error&&typeof isMissingTableError==='function'&&isMissingTableError(error)){backup[table]=[];continue;}
       if(error)throw error;
       backup[table]=data;
     }

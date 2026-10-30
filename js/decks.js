@@ -1059,7 +1059,13 @@ async function openMissingModal(deckId){
     <div class="btn-row">
       <button class="btn btn-primary" id="missingCopyBtn">In Zwischenablage kopieren</button>
       <button class="btn" id="missingDlBtn">Als .txt herunterladen</button>
+      ${typeof addManyToWishlist==='function'?'<button class="btn" id="missingWishBtn" title="Alle fehlenden Karten auf die Wunschliste setzen (Preisalarm)">★ Auf die Wunschliste</button>':''}
     </div>`;
+  const wishBtn=document.getElementById('missingWishBtn');
+  if(wishBtn)wishBtn.addEventListener('click',async function(){
+    setBusy(wishBtn,true,'Speichere…');
+    try{await addManyToWishlist(list.map(m=>m.name));}finally{setBusy(wishBtn,false);}
+  });
   document.getElementById('missingCopyBtn').addEventListener('click',function(){
     const t=document.getElementById('missingText');t.select();
     try{ navigator.clipboard.writeText(t.value); }catch(e){ try{document.execCommand('copy');}catch(_){} }
