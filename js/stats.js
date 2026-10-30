@@ -7,7 +7,7 @@ async function renderStats(){
   const total=allCards.reduce((s,c)=>s+c.quantity,0);
   // Einträge = unique Kartennamen (entspricht der Group-Logik in der Sammlung)
   const uniqueNames=new Set(allCards.map(c=>(c.name||'').toLowerCase())).size;
-  const totalVal=allCards.reduce((s,c)=>s+(parseFloat(c.purchase_price)||0)*c.quantity,0);
+  const totalVal=allCards.reduce((s,c)=>s+parsePrice(c.purchase_price)*(c.quantity||1),0);
   const foilC=allCards.filter(c=>c.foil==='foil').reduce((s,c)=>s+c.quantity,0);
   const sets=new Set(allCards.map(c=>c.set_code)).size;
   const rC={};allCards.forEach(c=>{rC[c.rarity]=(rC[c.rarity]||0)+c.quantity;});

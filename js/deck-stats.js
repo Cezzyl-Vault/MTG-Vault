@@ -55,7 +55,7 @@ function computeDeckStats(deckCards){
     const card=dcCard(dc);if(!card)continue;
     const qty=dc.quantity||1;
     totalCards+=qty;
-    totalValue+=(parseFloat(card.purchase_price)||0)*qty;
+    totalValue+=parsePrice(card.purchase_price)*qty;
 
     // Wenn wichtige Daten fehlen, separat zählen — Hinweis im UI
     if(card.type_line==null||card.mana_value==null){

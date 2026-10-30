@@ -347,7 +347,7 @@
     const isFoil=el('acsFoil').value==='foil';
     const condition=el('acsCond').value;
     const language=el('acsLang').value;
-    const price=(el('acsPrice').value||'').trim();
+    const price=normalizePrice(el('acsPrice').value);
 
     const newCard={
       id: crypto.randomUUID(),

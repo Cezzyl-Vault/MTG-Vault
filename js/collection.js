@@ -54,7 +54,7 @@ function buildGroups(cards, activeSetFilter){
     }
 
     const totalQty=variants.reduce((s,v)=>s+(v.quantity||1),0);
-    const totalValue=variants.reduce((s,v)=>s+((parseFloat(v.purchase_price)||0)*(v.quantity||1)),0);
+    const totalValue=variants.reduce((s,v)=>s+(parsePrice(v.purchase_price)*(v.quantity||1)),0);
 
     groups.push({
       name:representative.name,
@@ -315,13 +315,13 @@ function openCardModal(name){
   const c=representative;
   const img=iUrl(c);
   const totalQty=variants.reduce((s,v)=>s+(v.quantity||1),0);
-  const totalValue=variants.reduce((s,v)=>s+((parseFloat(v.purchase_price)||0)*(v.quantity||1)),0);
+  const totalValue=variants.reduce((s,v)=>s+(parsePrice(v.purchase_price)*(v.quantity||1)),0);
 
   // Tabelle aller Varianten — auch bei nur 1 Variante zeigen wir die Tabelle,
   // damit Bearbeiten und Löschen direkt zugänglich sind ohne Umweg über das
   // Detail-Grid. Aktionen pro Zeile: [+ Deck] (falls Decks da) [✎] [🗑]
   const rows=variants.map(v=>{
-    const vPrice=v.purchase_price?`${parseFloat(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
+    const vPrice=v.purchase_price?`${parsePrice(v.purchase_price).toFixed(2)} ${v.currency||'€'}`:'–';
     let actionButtons='';
     if(allDecks.length>0){
       actionButtons+=`<button class="icon-btn deck-add-btn" onclick="event.stopPropagation();openAddVariantToDeckModal('${v.id}')" title="Diese Variante zu einem Deck hinzufügen">+ Deck</button>`;
@@ -495,7 +495,7 @@ async function confirmAddVariantToDeck(){
 async function saveCardEdit(){
   if(!editingCardId)return;
   const idx=allCards.findIndex(c=>c.id===editingCardId);if(idx===-1)return;
-  const updated={...allCards[idx],name:document.getElementById('e_name').value.trim(),quantity:parseInt(document.getElementById('e_qty').value)||1,purchase_price:document.getElementById('e_price').value.trim(),condition:document.getElementById('e_cond').value,foil:document.getElementById('e_foil').value};
+  const updated={...allCards[idx],name:document.getElementById('e_name').value.trim(),quantity:parseInt(document.getElementById('e_qty').value)||1,purchase_price:normalizePrice(document.getElementById('e_price').value),condition:document.getElementById('e_cond').value,foil:document.getElementById('e_foil').value};
   // Speichern-Button im Modal in Lade-Zustand versetzen
   const btn=document.querySelector('#cardModal .btn-primary');
   setBusy(btn,true,'Speichert…');

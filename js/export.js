@@ -42,7 +42,7 @@ function triggerDownload(blob,filename){
 
 // Aktuelles Datum als ISO-Stamp für Dateinamen (z.B. 2026-05-07)
 function todayIsoDate(){
-  return new Date().toISOString().split('T')[0];
+  return localDateStr();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -52,12 +52,13 @@ function exportFilteredToCSV(){
   const cards=getFilteredCards();
   if(!cards.length){toastError('Keine Karten zum Exportieren.');return;}
 
-  // Alle relevanten Spalten — entsprechen weitgehend dem ManaBox-Format,
-  // sodass die Datei auch wieder reimportiert werden könnte.
+  // Spaltennamen im ManaBox-Format, damit der CSV-Import (csv-import.js) die
+  // Datei wieder einlesen kann — inkl. Duplikat-Erkennung über Set + Nummer.
+  // Manawert/Farben/Kartentyp sind Zusatzinfos; der Import holt sie neu von Scryfall.
   const headers=[
-    'Name','Set Code','Set Name','Sammlernummer','Anzahl',
-    'Foil','Seltenheit','Zustand','Sprache','Kaufpreis','Währung',
-    'Manawert','Farben','Kartentyp','Misprint','Altered','Scryfall ID'
+    'Name','Set code','Set name','Collector number','Quantity',
+    'Foil','Rarity','Condition','Language','Purchase price','Purchase price currency',
+    'Mana value','Colors','Type line','Misprint','Altered','Scryfall ID','ManaBox ID'
   ];
   const rows=cards.map(c=>[
     c.name||'',
@@ -76,7 +77,8 @@ function exportFilteredToCSV(){
     c.type_line||'',
     c.misprint?'true':'false',
     c.altered?'true':'false',
-    c.scryfall_id||''
+    c.scryfall_id||'',
+    c.manabox_id||''
   ]);
 
   const csv=[
@@ -103,14 +105,14 @@ function exportFilteredToPDF(){
   cards.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
 
   const totalCards=cards.reduce((s,c)=>s+(c.quantity||1),0);
-  const totalValue=cards.reduce((s,c)=>s+(parseFloat(c.purchase_price)||0)*(c.quantity||1),0);
+  const totalValue=cards.reduce((s,c)=>s+parsePrice(c.purchase_price)*(c.quantity||1),0);
   const date=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'long',year:'numeric'});
   const dateTime=new Date().toLocaleString('de-DE');
 
   // Eigenständiges HTML-Dokument bauen, das in einem neuen Fenster gedruckt wird.
   // Das HTML ist bewusst minimal, damit's auf Papier/PDF gut aussieht.
   const tableRows=cards.map(c=>{
-    const cardValue=(parseFloat(c.purchase_price)||0)*(c.quantity||1);
+    const cardValue=parsePrice(c.purchase_price)*(c.quantity||1);
     return`<tr>
       <td>${esc(c.name||'')}</td>
       <td>${esc(c.set_name||c.set_code||'')}</td>

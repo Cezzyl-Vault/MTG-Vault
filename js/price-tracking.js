@@ -124,8 +124,9 @@ async function maybeCreateWeeklySnapshot(){
     today.setHours(0,0,0,0);
 
     if(latest){
-      const lastDate=new Date(latest.snapshot_date);
-      const daysSince=Math.floor((today-lastDate)/(1000*60*60*24));
+      // Als lokales Datum lesen (ohne Uhrzeit würde JS es als UTC-Mitternacht deuten)
+      const lastDate=new Date(latest.snapshot_date+'T00:00:00');
+      const daysSince=Math.round((today-lastDate)/(1000*60*60*24));
       if(daysSince<SNAPSHOT_INTERVAL_DAYS){
         // Noch nicht eine Woche her, nichts tun
         return;
@@ -141,7 +142,7 @@ async function maybeCreateWeeklySnapshot(){
       return;
     }
 
-    const todayIso=today.toISOString().split('T')[0];
+    const todayIso=localDateStr(today);
     const{error}=await _sb.from('price_snapshots').insert({
       user_id:currentUser.id,
       snapshot_date:todayIso,
@@ -278,7 +279,7 @@ async function createManualSnapshot(btn){
       toastError('Keine Live-Preise gefunden. Sammlung enthält keine bewerteten Karten.');
       return;
     }
-    const today=new Date().toISOString().split('T')[0];
+    const today=localDateStr();
     const{error}=await _sb.from('price_snapshots').upsert({
       user_id:currentUser.id,
       snapshot_date:today,

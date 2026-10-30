@@ -28,7 +28,7 @@ async function renderDecks(){
         const qty=parseInt(dc.quantity,10)||1;
         stats[dc.deck_id].count+=qty;
         const card=resolveDeckCard(dc,ownedIndex);
-        stats[dc.deck_id].value+=(parseFloat(card.purchase_price)||0)*qty;
+        stats[dc.deck_id].value+=parsePrice(card.purchase_price)*qty;
         // Manawert + Farben nur für Nicht-Länder zählen (sonst dominieren Lands die Charts)
         if(card.type_line&&card.mana_value!=null){
           const isLand=(card.type_line||'').toLowerCase().includes('land');
@@ -152,6 +152,19 @@ async function openDeckDetail(deckId){
   renderDeckDetail(deck);
 }
 
+// ── Reihenfolge der Kategorien eines Decks ──
+// Gespeicherte Reihenfolge (deck.category_order) hat Vorrang, sonst die
+// Standard-Reihenfolge. Kategorien mit Karten, die in keiner der beiden Listen
+// stehen, kommen hinten dran. Kategorien aus category_order erscheinen auch
+// ohne Karten — so bleibt eine per „+ Kategorie" angelegte Kategorie sichtbar,
+// bis man sie füllt oder löscht. cats: Objekt mit Kategorie-Namen als Schlüssel.
+const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+function orderedDeckCategories(deck,cats){
+  const savedOrder=Array.isArray(deck&&deck.category_order)?deck.category_order:[];
+  const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER.filter(c=>cats[c]);
+  return[...new Set([...baseOrder,...Object.keys(cats)])];
+}
+
 function renderDeckDetail(deck){
   const detailView=document.getElementById('deck-detail-view');
   // Group by category — Karten OHNE Kategorie werden separat gehalten und oben angezeigt
@@ -168,13 +181,7 @@ function renderDeckDetail(deck){
   });
   const totalCards=currentDeckCards.reduce((s,dc)=>s+dc.quantity,0);
 
-  // Reihenfolge der Kategorien: gespeicherte Reihenfolge aus deck.category_order
-  // hat Vorrang. Neue (noch nicht gespeicherte) Kategorien hängen wir hinten an.
-  const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
-  const savedOrder=Array.isArray(deck.category_order)?[...deck.category_order]:[];
-  const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER;
-  const sortedCats=[...new Set([...baseOrder.filter(c=>cats[c]),...Object.keys(cats)])];
-  const visibleCats=sortedCats.filter(c=>cats[c]);
+  const visibleCats=orderedDeckCategories(deck,cats);
 
   // Edit-Modus / View-Modus für die Buttons im Header
   const editLabel=deckEditMode?'✓ Fertig':'✎ Bearbeiten';
@@ -204,7 +211,7 @@ function renderDeckDetail(deck){
     ${deckEditMode?'':'<div class="deck-validation-panel" id="deck-validation-panel"></div>'}
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${uncategorizedSection(uncategorized,deck.id)}
-    ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat],deck.id,idx,visibleCats.length,deck.format)).join('')}
+    ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat]||[],deck.id,idx,visibleCats.length,deck.format)).join('')}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:2rem 1rem"><div class="empty-icon">🃏</div><p style="color:var(--text2)">Tippe oben ins Feld einen Kartennamen, um loszulegen — auch Karten, die du noch nicht besitzt.</p></div>`:''}
     ${deckEditMode?renderEditActionBar():''}
   `;
@@ -547,11 +554,23 @@ function openCatModal(){
   document.getElementById('catName').value='';
   document.getElementById('catModal').classList.add('open');
 }
-function addCategory(){
+// Neue (leere) Kategorie: wird hinten an deck.category_order angehängt und
+// erscheint damit sofort mit eigenem Tippfeld im Deck.
+async function addCategory(){
   const name=document.getElementById('catName').value.trim();
-  if(!name){showToast('Name erforderlich.');return;}
+  if(!name){toastError('Name erforderlich.');return;}
+  const deck=allDecks.find(d=>d.id===activeDeckId);
+  if(!deck)return;
+  const cats={};
+  currentDeckCards.forEach(dc=>{const c=(dc.category||'').trim();if(c)cats[c]=true;});
+  const order=orderedDeckCategories(deck,cats);
+  if(order.some(c=>c.toLowerCase()===name.toLowerCase())){toastError(`Kategorie "${name}" gibt es schon.`);return;}
+  order.push(name);
+  if(!await updateDeckDB(deck.id,{category_order:order}))return;
+  deck.category_order=order;
   closeModal('catModal');
-  showToast(`Kategorie "${name}" bereit – füge jetzt Karten über die Sammlung hinzu.`);
+  renderDeckDetail(deck);
+  toastSuccess(`Kategorie "${name}" angelegt – tippe jetzt Karten hinein.`);
 }
 
 async function removeCategory(deckId,category){
@@ -571,6 +590,12 @@ async function removeCategory(deckId,category){
   if(await removeCategoryDB(deckId,category)){
     currentDeckCards=currentDeckCards.filter(dc=>dc.category!==category);
     const deck2=allDecks.find(d=>d.id===deckId);
+    // Auch aus der gespeicherten Reihenfolge nehmen — sonst bliebe sie als
+    // leere Kategorie stehen (siehe orderedDeckCategories)
+    if(deck2&&Array.isArray(deck2.category_order)&&deck2.category_order.includes(category)){
+      const order=deck2.category_order.filter(c=>c!==category);
+      if(await updateDeckDB(deck2.id,{category_order:order}))deck2.category_order=order;
+    }
     renderDeckDetail(deck2);toastSuccess(`Kategorie "${category}" entfernt`);
   }
 }
@@ -618,8 +643,7 @@ function openMovePicker(dcIdsCsv){
 
   // Reihenfolge respektieren wie im Deck
   const deck=allDecks.find(d=>d.id===activeDeckId);
-  const savedOrder=Array.isArray(deck?.category_order)?[...deck.category_order]:[];
-  const orderedCats=[...new Set([...savedOrder.filter(c=>cats[c]),...Object.keys(cats)])];
+  const orderedCats=orderedDeckCategories(deck,cats);
 
   // Aktuelle Kategorie der ausgewählten Karten — zum Hervorheben/Disable
   const currentCats=new Set(dcs.map(dc=>dc.category||'__uncat__'));
@@ -637,7 +661,7 @@ function openMovePicker(dcIdsCsv){
     html+=`<button class="move-picker-row${isCurrent?' current':''}" onclick="moveToCategory('${escJs(cat)}')" ${isCurrent?'disabled':''}>
       <span class="mp-arrow">→</span>
       <span class="mp-name">${esc(cat)}</span>
-      <span class="mp-count">${cats[cat]}</span>
+      <span class="mp-count">${cats[cat]||0}</span>
     </button>`;
   }
   document.getElementById('movePickerList').innerHTML=html;
@@ -719,10 +743,7 @@ async function moveCategoryByOffset(category,offset){
     const cat=(dc.category||'').trim();
     if(cat){if(!cats[cat])cats[cat]=[];cats[cat].push(dc);}
   });
-  const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
-  const savedOrder=Array.isArray(deck.category_order)?[...deck.category_order]:[];
-  const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER;
-  const visibleCats=[...new Set([...baseOrder.filter(c=>cats[c]),...Object.keys(cats)])].filter(c=>cats[c]);
+  const visibleCats=orderedDeckCategories(deck,cats);
 
   const idx=visibleCats.indexOf(category);
   const newIdx=idx+offset;
@@ -1041,7 +1062,7 @@ async function openMissingModal(deckId){
   document.getElementById('missingCopyBtn').addEventListener('click',function(){
     const t=document.getElementById('missingText');t.select();
     try{ navigator.clipboard.writeText(t.value); }catch(e){ try{document.execCommand('copy');}catch(_){} }
-    if(typeof toastSuccess==='function')toastSuccess('✓ Liste kopiert');
+    if(typeof toastSuccess==='function')toastSuccess('Liste kopiert');
   });
   document.getElementById('missingDlBtn').addEventListener('click',function(){
     const blob=new Blob([textValue],{type:'text/plain;charset=utf-8'});
@@ -1124,7 +1145,7 @@ async function addInlineCard(name,cat,qty,exact){
   currentDeckCards=await loadDeckCards(activeDeckId);
   renderDeckDetail(allDecks.find(d=>d.id===activeDeckId));
   const owned=ownedQtyByName(c.name)>0;
-  toastSuccess('✓ '+(qty>1?qty+'× ':'')+c.name+(owned?'':' (fehlt)'));
+  toastSuccess((qty>1?qty+'× ':'')+c.name+(owned?'':' (fehlt)'));
 }
 
 // Delegierte Listener — einmalig auf dem (persistenten) Deck-Detail-Container.
@@ -1227,7 +1248,7 @@ async function saveDeckCardModal(){
   currentDeckCards=await loadDeckCards(activeDeckId);
   renderDeckDetail(allDecks.find(d=>d.id===activeDeckId));
   closeModal('deckCardModal');
-  toastSuccess('✓ Gespeichert');
+  toastSuccess('Gespeichert');
 }
 
 // ── Styles + Modal-Element für Deck-Bau 2.0 (einmalig) ──
