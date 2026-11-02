@@ -378,7 +378,8 @@ async function runDeckListImport(btn){
   }
   const msg=`${added} Karte${added===1?'':'n'} ${isNew?'importiert':'hinzugefügt'}`;
   if(missing.length){
-    resultEl.innerHTML=`<div style="color:var(--green);margin-bottom:0.4rem">✓ ${esc(msg)}</div>`+dlMissingHtml(missing,'Nicht gefunden – Namen korrigieren und erneut hinzufügen:');
+    resultEl.innerHTML=`<div style="color:var(--green);margin-bottom:0.4rem">✓ ${esc(msg)}</div>`+dlMissingHtml(missing,'Nicht gefunden – Namen korrigieren und erneut hinzufügen:')
+      +(typeof openDeckToCollection==='function'?`<button class="btn" type="button" style="margin-top:0.6rem" onclick="closeModal('deckListModal');openDeckToCollection('${deck.id}')">⇩ Karten auch in die Sammlung übernehmen</button>`:'');
     // Nur die fehlenden Zeilen stehen lassen, damit man sie korrigieren kann.
     // Nach dem Anlegen gilt das Fenster ab jetzt für das neue Deck.
     const rest=[];let last;
@@ -397,6 +398,11 @@ async function runDeckListImport(btn){
   }else{
     closeModal('deckListModal');
     toastSuccess(msg);
+    // Neues Deck: gleich anbieten, die Karten mit Versionsauswahl in die Sammlung zu holen
+    if(isNew&&typeof openDeckToCollection==='function'&&await confirmAction(
+      `Sollen die Karten aus „${deck.name}" auch in deine Sammlung? Du wählst dabei pro Karte die genaue Version (Set, Normal/Foil), damit die Preise stimmen. Standardländer werden übersprungen.`,
+      {title:'IN SAMMLUNG ÜBERNEHMEN',confirmLabel:'Ja, Versionen wählen',cancelLabel:'Nein, nur Deck'}
+    ))openDeckToCollection(deck.id);
   }
 }
 

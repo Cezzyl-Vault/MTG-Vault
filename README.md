@@ -35,6 +35,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **„Fehlt"-Markierung**: Karten, die in keinem Sammlungs-Eintrag vorkommen, werden abgedunkelt mit rotem „fehlt"-Badge angezeigt (Listen-Ansicht: „fehlt"-Tag). Der Abgleich läuft live über den Kartennamen — wer die Karte später kauft und importiert, sieht die Markierung automatisch verschwinden
 - **In welchen Decks steckt eine Karte?** Das Karten-Fenster der Sammlung zeigt unter „In Decks" alle Decks mit dieser Karte (Kategorie + Anzahl, Klick öffnet das Deck). Brauchen die Decks zusammen mehr Exemplare, als du besitzt, erscheint eine Warnung (Basic Lands ausgenommen)
 - **Deckliste als Text**: „⇩ Liste importieren" in der Decks-Übersicht legt aus einer eingefügten Liste ein neues Deck an; „⇅ Liste" im Deck exportiert es als Text (mit Kategorien, einfach für Moxfield/Archidekt oder im MTG-Arena-Format, optional mit Set + Nummer) und fügt Karten aus einer Liste hinzu. Versteht „1 Sol Ring", „1x Sol Ring (C21) 263", Archidekt-Kategorien „[Ramp]", Überschriften wie „// Ramp" oder „Commander" sowie MTGO-„SB:"-Zeilen. Nicht gefundene Karten bleiben zum Korrigieren im Feld stehen
+- **Deck-Karten in die Sammlung übernehmen**: „⇩ In Sammlung" im Deck (und als Angebot direkt nach einem Listen-Import) geht das Deck Karte für Karte durch. Pro Karte wählt man die genaue Version (Set, Nummer, Normal/Foil) — vorausgewählt ist die Druckung aus dem Deck bzw. die neueste normale Druckung, nur legal spielbare Versionen. Anzahl = Deck-Menge, Kaufpreis = aktueller Preis der Version (änderbar), Zustand und Sprache wählbar. Jede Karte wird sofort gespeichert; vorhandene gleiche Karten bekommen mehr Menge. Standardländer werden übersprungen, gleichnamige Deck-Zeilen zusammengefasst
 - **Fehlt-Liste**: „✦ Fehlende" im Deck (pro Deck) bzw. „✦ Fehlende Karten" in der Decks-Übersicht (über alle Decks) zeigt alle nicht besessenen Karten mit Mengen — kopierbar und als .txt herunterladbar (z.B. als Einkaufsliste)
 - **Wunschliste mit Preisalarm**: „★ Wunschliste" in der Decks-Übersicht. Karten per Tippfeld hinzufügen oder aus der Fehlt-Liste übernehmen („★ Auf die Wunschliste"), pro Karte einen Wunschpreis setzen. Angezeigt wird die günstigste spielbare Druckung mit Euro-Preis (ohne Goldrand, Silberrand, Sammler-Sets wie Collectors' Edition/30th Anniversary, Token, Übergroße) (Scryfall/Cardmarket) samt Cardmarket-Link (ohne Scryfalls Tracking-Zusätze, die Cloudflare bei Cardmarket blockiert). Liegt der Preis auf oder unter dem Wunschpreis, wird die Zeile grün, der Button zeigt einen Zähler und beim App-Start erscheint einmal am Tag ein Hinweis. Braucht die Tabelle `wishlist` (siehe [Datenbank-Schema](#datenbank-schema))
 - Karten-Detail mit zwei Ansichten:
@@ -138,6 +139,8 @@ MTG-Vault/
     │                             (selbstständig: injiziert eigenes Modal + CSS)
     ├── wishlist.js               Wunschliste mit Wunschpreis + Preisalarm
     │                             (selbstständig: injiziert Button, Modal + CSS)
+    ├── deck-to-collection.js     Deck-Karten mit Versionsauswahl in die Sammlung übernehmen
+    │                             (selbstständig: injiziert Modal + CSS, nutzt .acs-* aus add-card.js)
     ├── price-tracking.js         Wöchentliche Snapshots, aktuelle Preise pro Karte (24-h-Cache)
     ├── stats.js                  Globale Statistik, Marktwert + Top-Listen, Wertverlaufs-Chart
     └── app.js                    Orchestrierung: View-Wechsel, Mobile-Nav, Startup
@@ -154,7 +157,7 @@ Diese Reihenfolge nicht ändern, sonst funktioniert die App nicht:
 4. `ui.js` — confirmAction, setBusy, Toast-Varianten
 5. `settings.js` — Nutzer-Einstellungen
 6. `sets.js`, `db.js`, `scryfall.js`
-7. `config.js`, `auth.js`, `csv-import.js`, `add-card.js`, `collection.js`, `export.js`, `deck-stats.js`, `deck-validation.js`, `decks.js`, `deck-list.js` und `wishlist.js` (nach `decks.js`, nutzen dessen Helfer), `price-tracking.js`, `stats.js`
+7. `config.js`, `auth.js`, `csv-import.js`, `add-card.js`, `collection.js`, `export.js`, `deck-stats.js`, `deck-validation.js`, `decks.js`, `deck-list.js`, `wishlist.js` und `deck-to-collection.js` (nach `decks.js`, nutzen dessen Helfer; `deck-to-collection.js` zuletzt, braucht `isPlayablePrint` aus `wishlist.js`), `price-tracking.js`, `stats.js`
 8. `app.js` — als Letztes, weil hier der Startup-Code läuft
 
 Statistik (`deck-stats.js`) und Validierung (`deck-validation.js`) lösen Deck-Karten
@@ -174,6 +177,7 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Decks-Logik, Tippfeld-Hinzufügen, Deck-Karten-Fenster, Fehlt-Liste | `js/decks.js` |
 | Deckliste importieren/exportieren (Formate, Parser) | `js/deck-list.js` |
 | Wunschliste, Wunschpreis, Preisalarm | `js/wishlist.js`, Tabelle: `supabase/wishlist.sql` |
+| Deck-Karten in die Sammlung übernehmen (Versionsauswahl) | `js/deck-to-collection.js` |
 | Pro-Deck-Statistik | `js/deck-stats.js` |
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |
