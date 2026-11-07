@@ -24,6 +24,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 **Sammlung**
 - Erweiterte Filter: Manawert (Pills 0–5+), Farben (Mana-Symbole WUBRG + ◇), Kartentyp, Foil, Set, Zustand, Seltenheit
 - Karten-Gruppierung: gleiche Namen werden zu einem Tile zusammengefasst
+- **Sortierung nach Farbe**: Abschnitte Weiß, Blau, Schwarz, Rot, Grün, Mehrfarbig, Farblos & Artefakte, Länder (jeweils mit Anzahl), darin alphabetisch — in Kachel- und Listenansicht. Länder = Vorderseite ist ein Land (auch Artefakt-Länder); doppelseitige Karten zählen nach ihrer Farbidentität. Nicht angereicherte Karten stehen unter „Ohne Kartendaten" (`colorCategory` in `js/collection.js`)
 - Stats-Bar mit Einträge/Karten/Wert
 - Klick auf Karte → Modal mit allen Varianten als Tabelle
 - **Pro Variante einen "+ Deck"-Button**: jede einzelne Druckung kann gezielt zu einem Deck hinzugefügt werden (mit Mengen-Eingabe)

@@ -252,3 +252,17 @@ main{max-width:1700px;margin:0 auto;padding:1.5rem;}
   border-color:var(--gold-dim);color:var(--gold);
   background:rgba(201,168,76,0.06);
 }
+
+/* ── Abschnitte nach Farbe (colorSections in collection.js) ── */
+.color-section{margin-bottom:1.6rem;}
+.color-section-head{
+  display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;
+  font-family:'Cinzel',serif;font-size:0.8rem;letter-spacing:0.12em;font-weight:600;color:var(--gold);
+  margin:0 0 0.75rem;padding-bottom:0.4rem;border-bottom:1px solid var(--border);
+}
+.card-list .color-section-head{margin:0;padding:0.55rem 1rem;background:var(--bg2);border-bottom:1px solid var(--border);}
+.color-section-count{font-family:'EB Garamond',serif;font-size:0.82rem;letter-spacing:0;font-weight:400;color:var(--text3);}
+.color-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.4);}
+.color-dot-multi{background:conic-gradient(#fefcf0 0 20%,#aae0fa 0 40%,#968a86 0 60%,#f9aa8f 0 80%,#9bd3ae 0);}
+.color-dot-land{background:#b08d57;}
+.color-dot-unknown{background:transparent;border:1px dashed var(--text3);box-shadow:none;}

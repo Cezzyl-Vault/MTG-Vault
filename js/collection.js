@@ -61,10 +61,58 @@ function buildGroups(cards, activeSetFilter){
       cards:variants,
       representative,
       totalQty,
-      totalValue
+      totalValue,
+      colorCat:colorCategory(representative)
     });
   }
-  return groups.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  // Nach Farb-Kategorie (Reihenfolge wie COLOR_CATS), darin alphabetisch
+  return groups.sort((a,b)=>(COLOR_CAT_INDEX[a.colorCat]-COLOR_CAT_INDEX[b.colorCat])||(a.name||'').localeCompare(b.name||'','de'));
+}
+
+// ── Farb-Kategorien der Sammlung ──
+// Reihenfolge der Abschnitte: die fünf Farben (WUBRG), Mehrfarbig,
+// Farblos & Artefakte, Länder. „Ohne Kartendaten" = nicht angereichert
+// (kein type_line) — lässt sich über den Banner von Scryfall nachladen.
+const COLOR_CATS=[
+  {key:'W',label:'Weiß',dot:'mana-w'},
+  {key:'U',label:'Blau',dot:'mana-u'},
+  {key:'B',label:'Schwarz',dot:'mana-b'},
+  {key:'R',label:'Rot',dot:'mana-r'},
+  {key:'G',label:'Grün',dot:'mana-g'},
+  {key:'M',label:'Mehrfarbig',dot:'color-dot-multi'},
+  {key:'C',label:'Farblos & Artefakte',dot:'mana-c'},
+  {key:'L',label:'Länder',dot:'color-dot-land'},
+  {key:'?',label:'Ohne Kartendaten',dot:'color-dot-unknown'}
+];
+const COLOR_CAT_INDEX=Object.fromEntries(COLOR_CATS.map((c,i)=>[c.key,i]));
+
+// Kategorie einer Karte:
+//  - Land, wenn die (Vorder-)Seite ein Land ist — auch Artefakt-Länder.
+//    Modale Doppelkarten mit Land nur auf der Rückseite zählen nach Farbe.
+//  - Doppelseitige Karten haben bei Scryfall kein colors-Feld auf oberster
+//    Ebene (gespeichert wird dann []); dort ersatzweise color_identity.
+//  - 0 Farben → Farblos & Artefakte, 1 → diese Farbe, mehrere → Mehrfarbig.
+function colorCategory(c){
+  const tl=c.type_line||'';
+  if(!tl)return'?';
+  if(/\bLand\b/.test(tl.split(' // ')[0]))return'L';
+  let cols=Array.isArray(c.colors)?c.colors:[];
+  if(!cols.length&&tl.includes(' // ')&&Array.isArray(c.color_identity))cols=c.color_identity;
+  if(!cols.length)return'C';
+  if(cols.length>1)return'M';
+  return COLOR_CAT_INDEX[cols[0]]!=null?cols[0]:'C';
+}
+
+// Gruppen → Abschnitte [{cat, groups}] in Kategorie-Reihenfolge (leere fallen weg)
+function colorSections(groups){
+  const by={};
+  for(const g of groups)(by[g.colorCat]=by[g.colorCat]||[]).push(g);
+  return COLOR_CATS.filter(c=>by[c.key]).map(cat=>({cat,groups:by[cat.key]}));
+}
+function colorSectionHead(sec,tag){
+  const qty=sec.groups.reduce((s,g)=>s+g.totalQty,0);
+  const n=sec.groups.length;
+  return`<${tag} class="color-section-head"><span class="color-dot ${sec.cat.dot}"></span>${sec.cat.label}<span class="color-section-count">${n} ${n===1?'Eintrag':'Einträge'} · ${qty} ${qty===1?'Karte':'Karten'}</span></${tag}>`;
 }
 
 function applyFilters(){
@@ -218,15 +266,17 @@ function updateFilterToggleBadge(){
 function renderCards(){
   const container=document.getElementById('cardContainer');
   if(!filteredGroups.length){container.innerHTML='<div style="text-align:center;padding:4rem;color:var(--text2)">Keine Karten gefunden.</div>';return;}
+  // Abschnitte nach Farbe (siehe colorCategory), darin alphabetisch
+  const sections=colorSections(filteredGroups);
   if(viewMode==='grid'){
-    container.innerHTML='<div class="card-grid">'+filteredGroups.map(g=>gridHTML(g)).join('')+'</div>';
+    container.innerHTML=sections.map(sec=>`<section class="color-section">${colorSectionHead(sec,'h3')}<div class="card-grid">${sec.groups.map(g=>gridHTML(g)).join('')}</div></section>`).join('');
     container.querySelectorAll('[data-src]').forEach(el=>{
       const img=new Image();
       img.onload=()=>{el.src=el.dataset.src;el.removeAttribute('data-src');};
       img.src=el.dataset.src;
     });
   }else{
-    container.innerHTML='<div class="card-list"><div class="list-header"><span>NAME</span><span>SET</span><span>SELTENHEIT</span><span>VARIANTEN</span><span>FOIL</span><span>QTY</span><span>WERT</span><span>SPRACHE</span><span></span></div>'+filteredGroups.map(g=>listHTML(g)).join('')+'</div>';
+    container.innerHTML='<div class="card-list"><div class="list-header"><span>NAME</span><span>SET</span><span>SELTENHEIT</span><span>VARIANTEN</span><span>FOIL</span><span>QTY</span><span>WERT</span><span>SPRACHE</span><span></span></div>'+sections.map(sec=>colorSectionHead(sec,'div')+sec.groups.map(g=>listHTML(g)).join('')).join('')+'</div>';
   }
 }
 
