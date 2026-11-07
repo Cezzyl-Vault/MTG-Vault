@@ -19,6 +19,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 **Karten in die Sammlung bringen** (zwei Wege)
 - **CSV-Import** (ManaBox-Format): dedupliziert intelligent (Set+Sammlernr+Foil+Sprache), zeigt Live-Fortschritt bei der Anreicherung, lädt die Sammlung auch bei Teilfehlern korrekt neu
 - **Manuell per Suche** („＋ Karte hinzufügen", prominent oben in der Sammlung + im Header): Scryfall-Autocomplete → Druckung wählen (mit Bild + EUR-Preis) → Foil/Zustand/Sprache/Anzahl/Kaufpreis setzen. Existiert die Variante schon, wird die Menge erhöht statt doppelt angelegt
+- **Per Sprache oder Freitext**: Im „＋ Karte"-Fenster ganze Sätze sagen oder tippen, z.B. „2 Sol Ring from Commander 2021 foil" – dann Enter. Die App findet den Namen per Scryfall-Fuzzy-Suche (verzeiht Aussprache-/Tippfehler), grenzt die Versionen auf die genannte Edition bzw. Sammlernummer („number 263") ein, wählt einen eindeutigen Treffer automatisch und übernimmt Anzahl und Foil. Trennwort vor der Edition: „from" (oder „aus", „von", „edition", „set"); ohne Trennwort werden die letzten Wörter als Edition erkannt. Der 🎤-Knopf nutzt die Spracherkennung des Browsers (Chrome; englisch eingestellt, weil Kartennamen englisch sind). In Brave/Firefox gibt es die nicht – dort das Mikrofon der Handy-Tastatur nutzen, der diktierte Text wird genauso ausgewertet. Nach dem Hinzufügen bleibt das Fenster offen für die nächste Karte
 - Beide Wege reichern automatisch an: Manawert, Farben, Kartentyp, Farbidentität, Commander-Legalität (von Scryfall)
 
 **Sammlung**
@@ -127,7 +128,7 @@ MTG-Vault/
     ├── config.js                 Supabase-Verbindung, Screen-Wechsel, DB-Status-Bildschirm
     ├── auth.js                   Login, Registrierung, Anmeldelink per E-Mail, Logout
     ├── csv-import.js             ManaBox-CSV Parser (mit Auto-Anreicherung)
-    ├── add-card.js               Karte manuell per Scryfall-Suche hinzufügen
+    ├── add-card.js               Karte per Scryfall-Suche, Freitext oder Sprache hinzufügen
     │                             (selbstständig: injiziert eigenes Modal, CSS + Buttons)
     ├── collection.js             Sammlung: Filter, Grid/Liste, Karten-Modal (inkl. „In Decks")
     ├── export.js                 CSV-Export + PDF-Druckansicht
@@ -172,7 +173,7 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Farben, Schriften, Layout | Datei in `styles/` |
 | Login-Verhalten | `js/auth.js` |
 | CSV-Import-Logik | `js/csv-import.js` |
-| Karte-per-Suche-hinzufügen | `js/add-card.js` |
+| Karte per Suche/Sprache hinzufügen (Satz-Auswertung: `parseCardPhrase`) | `js/add-card.js` |
 | Karten-Anreicherung (Scryfall) | `js/scryfall.js` |
 | Filter/Anzeige der Sammlung | `js/collection.js` |
 | Decks-Logik, Tippfeld-Hinzufügen, Deck-Karten-Fenster, Fehlt-Liste | `js/decks.js` |
