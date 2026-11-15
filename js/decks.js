@@ -220,6 +220,7 @@ function renderDeckDetail(deck){
           <button class="${listActive}" onclick="setDeckViewMode('list')" title="Listen-Ansicht">☰</button>
         </div>
         <button class="${editClass}" onclick="toggleDeckEditMode()" title="Karten markieren und bearbeiten">${editLabel}</button>
+        <button class="back-btn" onclick="openPlaytest()" title="Starthand ziehen, Mulligan und Karten nachziehen ausprobieren">🎲 Probehand</button>
         <button class="back-btn" onclick="openMissingModal(activeDeckId)" title="Liste der Karten in diesem Deck, die du nicht besitzt">✦ Fehlende</button>
         <button class="back-btn" onclick="openDeckListModal(activeDeckId)" title="Deckliste als Text exportieren oder Karten aus einer Liste hinzufügen">⇅ Liste</button>
         <button class="back-btn" onclick="openDeckToCollection(activeDeckId)" title="Karten dieses Decks mit Versionsauswahl in die Sammlung übernehmen">⇩ In Sammlung</button>

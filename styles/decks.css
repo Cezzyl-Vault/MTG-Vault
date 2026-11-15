@@ -339,6 +339,55 @@
 }
 .dxm-maybe{opacity:0.75;}
 
+/* ── PROBEHAND (js/playtest.js) ── */
+.pt-modal{max-width:960px;}
+.pt-title{font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3);}
+.pt-cmd{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem;}
+.pt-cmd-card{width:56px;cursor:zoom-in;font-size:0.7rem;color:var(--text2);}
+.pt-cmd-card img{width:100%;border-radius:4px;display:block;}
+.pt-cmd-label{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--gold);}
+.pt-info{display:flex;flex-wrap:wrap;gap:0.4rem 1.1rem;color:var(--text2);font-size:0.9rem;margin-bottom:0.6rem;}
+.pt-info strong{color:var(--text);}
+.pt-banner{
+  background:rgba(201,168,76,0.12);border:1px solid var(--gold-dim);color:var(--gold);
+  border-radius:8px;padding:0.5rem 0.8rem;font-size:0.9rem;margin-bottom:0.6rem;
+}
+.pt-hand{
+  display:flex;flex-wrap:wrap;gap:0.5rem;padding:0.2rem 0 0.6rem;
+}
+.pt-card{position:relative;width:118px;flex:0 0 auto;cursor:zoom-in;transition:transform 0.15s;}
+.pt-card img{width:100%;border-radius:6px;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.5);}
+.pt-card:hover{transform:translateY(-4px);}
+.pt-card.pt-pick{cursor:pointer;}
+.pt-card.pt-pick:hover img{outline:2px solid var(--red);}
+.pt-card.pt-new img{outline:2px solid var(--gold);}
+.pt-noimg{
+  aspect-ratio:63/88;border:1px solid var(--border);border-radius:6px;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:0.4rem;font-size:0.8rem;color:var(--text2);
+}
+.pt-turn{
+  position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.75);color:var(--gold);
+  font-size:0.65rem;padding:0.05rem 0.35rem;border-radius:4px;
+}
+.pt-actions{display:flex;flex-wrap:wrap;gap:0.5rem;margin:0.4rem 0 1rem;}
+.pt-actions .btn{flex:0 0 auto;}
+.pt-stats{border-top:1px solid var(--border);padding-top:0.8rem;}
+.pt-stats-title{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:var(--text3);margin-bottom:0.4rem;}
+.pt-stat-row{display:flex;justify-content:space-between;gap:1rem;padding:0.25rem 0;font-size:0.9rem;color:var(--text2);border-bottom:1px dashed var(--border);}
+.pt-stat-row strong{color:var(--text);}
+.pt-zoom{
+  display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.88);
+  align-items:center;justify-content:center;padding:1rem;cursor:zoom-out;
+}
+.pt-zoom.open{display:flex;}
+.pt-zoom img{max-width:min(92vw,440px);max-height:88vh;border-radius:14px;}
+@media(max-width:600px){
+  /* Am Handy: Hand quer scrollen statt umbrechen */
+  .pt-hand{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
+  .pt-card{width:36vw;max-width:170px;scroll-snap-align:start;}
+  .pt-card:hover{transform:none;}
+}
+
 /* ── DV-HEADER klickbar machen ── */
 .dv-header{
   cursor:pointer;
