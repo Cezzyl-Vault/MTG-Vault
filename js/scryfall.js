@@ -15,6 +15,27 @@
 const SCRYFALL_BATCH_SIZE = 75;        // API-Limit pro Request
 const SCRYFALL_BATCH_DELAY_MS = 100;   // höflicher Abstand zwischen Requests
 
+// ── Kartentext (Oracle-Text) ──
+// Bei doppelseitigen Karten steht der Text nur in card_faces → beide Seiten
+// mit " // " verbinden. Karten ohne Text (z.B. Vanilla-Kreaturen) → "".
+function oracleTextOf(sf){
+  if(!sf)return'';
+  if(sf.oracle_text!=null)return sf.oracle_text;
+  if(Array.isArray(sf.card_faces))return sf.card_faces.map(f=>f.oracle_text||'').filter(Boolean).join(' // ');
+  return'';
+}
+
+// Gibt es die Spalte cards.oracle_text schon? (supabase/oracle_text.sql)
+// select('*') liefert jede vorhandene Spalte mit, auch wenn sie leer ist —
+// fehlt der Schlüssel, wurde das SQL noch nicht ausgeführt.
+// Ohne Karten wissen wir es nicht → optimistisch ja (upsertCards fängt ab).
+let oracleColumnMissing=false;
+function hasOracleColumn(){
+  if(oracleColumnMissing)return false;
+  if(typeof allCards==='undefined'||!allCards.length)return true;
+  return'oracle_text'in allCards[0];
+}
+
 // ── Anreicherung: Schreibt Felder direkt in die übergebenen Karten-Objekte ──
 //
 // Befüllt: card.mana_value (number), card.colors (string[]), card.type_line (string)
@@ -50,6 +71,8 @@ async function enrichCards(cards, onProgress){
           // Neu (für Commander-Validierung):
           card.color_identity=sf.color_identity||[];
           card.legal_commander=sf.legalities?.commander||null;
+          // Kartentext für die Volltextsuche (Spalte siehe supabase/oracle_text.sql)
+          if(hasOracleColumn())card.oracle_text=oracleTextOf(sf);
         }
       }
     }catch(e){
@@ -73,7 +96,8 @@ function findUnenrichedCards(){
   return allCards.filter(c=>
     c.scryfall_id&&(
       c.type_line==null||c.mana_value==null||
-      c.legal_commander==null||c.color_identity==null
+      c.legal_commander==null||c.color_identity==null||
+      (hasOracleColumn()&&c.oracle_text==null)
     )
   );
 }
@@ -85,11 +109,22 @@ function checkAndShowMigrationBanner(){
 
   // Haben alle Karten ihre angereicherten Daten?
   const todo=findUnenrichedCards();
+  const btn=document.getElementById('migrationButton');
+  btn.style.display='';
+  if(todo.length===0&&allCards.length&&!hasOracleColumn()){
+    // Spalte für den Kartentext fehlt noch → Hinweis statt Knopf
+    banner.style.display='';
+    document.getElementById('migrationCount').textContent=allCards.length;
+    document.getElementById('migrationLabel').textContent=
+      'ohne Kartentext. Für die Volltextsuche einmal supabase/oracle_text.sql im Supabase-SQL-Editor ausführen und neu laden.';
+    btn.style.display='none';
+    return;
+  }
   if(todo.length>0){
     banner.style.display='';
     document.getElementById('migrationCount').textContent=todo.length;
     document.getElementById('migrationLabel').textContent=
-      'Karten können mit Manawert, Farben und Kartentyp angereichert werden (für erweiterte Filter).';
+      'Karten können mit Manawert, Farben, Typ und Kartentext angereichert werden (für Filter und Volltextsuche).';
     document.getElementById('migrationButton').textContent='Jetzt anreichern';
   }else{
     banner.style.display='none';

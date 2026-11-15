@@ -584,6 +584,7 @@
       color_identity: c.color_identity||[],
       legal_commander: (c.legalities && c.legalities.commander) || null
     };
+    if(hasOracleColumn()) newCard.oracle_text=oracleTextOf(c);
 
     // Schon vorhanden? → Menge erhöhen (gleiche Logik wie CSV-Import)
     const existing = (typeof allCards!=='undefined' && allCards)

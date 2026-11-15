@@ -115,6 +115,19 @@ function colorSectionHead(sec,tag){
   return`<${tag} class="color-section-head"><span class="color-dot ${sec.cat.dot}"></span>${sec.cat.label}<span class="color-section-count">${n} ${n===1?'Eintrag':'Einträge'} · ${qty} ${qty===1?'Karte':'Karten'}</span></${tag}>`;
 }
 
+// ── Volltextsuche ──
+// Jedes Wort der Suche muss irgendwo vorkommen: im Namen, Set, Kartentyp
+// oder Kartentext. „draw creature" findet also Kreaturen, die Karten ziehen.
+function cardSearchHaystack(c){
+  return((c.name||'')+'\n'+(c.set_name||'')+'\n'+(c.set_code||'')+'\n'+(c.type_line||'')+'\n'+(c.oracle_text||'')).toLowerCase();
+}
+function cardMatchesText(c,query){
+  const words=String(query||'').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length)return true;
+  const hay=cardSearchHaystack(c);
+  return words.every(w=>hay.includes(w));
+}
+
 function applyFilters(){
   const q=document.getElementById('searchInput').value.toLowerCase();
   const rar=document.getElementById('filterRarity').value;
@@ -135,7 +148,7 @@ function applyFilters(){
   // Eine Group bleibt sichtbar, wenn MINDESTENS EINE ihrer Varianten den Filter erfüllt.
   // Erst die Karten filtern, dann gruppieren.
   const matchingCards=allCards.filter(c=>{
-    if(q&&!c.name.toLowerCase().includes(q)&&!(c.set_name||'').toLowerCase().includes(q))return false;
+    if(q&&!cardMatchesText(c,q))return false;
     if(rar&&c.rarity!==rar)return false;
     if(foil==='foil'&&c.foil!=='foil')return false;
     if(foil==='normal'&&c.foil==='foil')return false;

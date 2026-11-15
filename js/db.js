@@ -77,7 +77,16 @@ async function loadAll(){
 
 async function upsertCards(cards){
   setSyncing('syncing');
-  const{error}=await _sb.from('cards').upsert(cards.map(c=>({...c,user_id:currentUser.id})),{onConflict:'id'});
+  let rows=cards.map(c=>({...c,user_id:currentUser.id}));
+  let{error}=await _sb.from('cards').upsert(rows,{onConflict:'id'});
+  // Spalte oracle_text noch nicht angelegt (supabase/oracle_text.sql)? →
+  // ohne Kartentext speichern, damit Hinzufügen weiter funktioniert.
+  if(error&&/oracle_text/.test(error.message||'')){
+    if(typeof oracleColumnMissing!=='undefined')oracleColumnMissing=true;
+    rows=rows.map(({oracle_text,...r})=>r);
+    ({error}=await _sb.from('cards').upsert(rows,{onConflict:'id'}));
+    if(!error)toastInfo('Kartentext nicht gespeichert: bitte supabase/oracle_text.sql in Supabase ausführen.');
+  }
   if(error){setSyncing('error');toastError('Speichern fehlgeschlagen: '+error.message);return false;}
   setSyncing('ok');return true;
 }

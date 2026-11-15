@@ -20,9 +20,10 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **CSV-Import** (ManaBox-Format): dedupliziert intelligent (Set+Sammlernr+Foil+Sprache), zeigt Live-Fortschritt bei der Anreicherung, lädt die Sammlung auch bei Teilfehlern korrekt neu
 - **Manuell per Suche** („＋ Karte hinzufügen", prominent oben in der Sammlung + im Header): Scryfall-Autocomplete → Druckung wählen (mit Bild + EUR-Preis) → Foil/Zustand/Sprache/Anzahl/Kaufpreis setzen. Existiert die Variante schon, wird die Menge erhöht statt doppelt angelegt
 - **Per Sprache oder Freitext**: Im „＋ Karte"-Fenster ganze Sätze sagen oder tippen, z.B. „2 Sol Ring from Commander 2021 foil" – dann Enter. Die App findet den Namen per Scryfall-Fuzzy-Suche (verzeiht Aussprache-/Tippfehler), grenzt die Versionen auf die genannte Edition bzw. Sammlernummer („number 263") ein, wählt einen eindeutigen Treffer automatisch und übernimmt Anzahl und Foil. Trennwort vor der Edition: „from" (oder „aus", „von", „edition", „set"); ohne Trennwort werden die letzten Wörter als Edition erkannt. Der 🎤-Knopf nutzt die Spracherkennung des Browsers (Chrome; englisch eingestellt, weil Kartennamen englisch sind). In Brave/Firefox gibt es die nicht – dort das Mikrofon der Handy-Tastatur nutzen, der diktierte Text wird genauso ausgewertet. Nach dem Hinzufügen bleibt das Fenster offen für die nächste Karte
-- Beide Wege reichern automatisch an: Manawert, Farben, Kartentyp, Farbidentität, Commander-Legalität (von Scryfall)
+- Beide Wege reichern automatisch an: Manawert, Farben, Kartentyp, Farbidentität, Commander-Legalität und Kartentext (von Scryfall)
 
 **Sammlung**
+- **Volltextsuche**: Das Suchfeld durchsucht Name, Set, Kartentyp und Kartentext (Oracle-Text). Mehrere Wörter müssen alle vorkommen, egal wo – „draw creature" findet Kreaturen, die Karten ziehen (`cardMatchesText` in `js/collection.js`). Der Kartentext braucht die Spalte `oracle_text` (`supabase/oracle_text.sql` einmalig ausführen); für vorhandene Karten lädt ihn das Banner „Jetzt anreichern" nach
 - Erweiterte Filter: Manawert (Pills 0–5+), Farben (Mana-Symbole WUBRG + ◇), Kartentyp, Foil, Set, Zustand, Seltenheit
 - Karten-Gruppierung: gleiche Namen werden zu einem Tile zusammengefasst
 - **Sortierung nach Farbe**: Abschnitte Weiß, Blau, Schwarz, Rot, Grün, Mehrfarbig, Farblos & Artefakte, Länder (jeweils mit Anzahl), darin alphabetisch — in Kachel- und Listenansicht. Länder = Vorderseite ist ein Land (auch Artefakt-Länder); doppelseitige Karten zählen nach ihrer Farbidentität. Nicht angereicherte Karten stehen unter „Ohne Kartendaten" (`colorCategory` in `js/collection.js`)
@@ -103,6 +104,7 @@ MTG-Vault/
 ├── manifest.webmanifest          App-Name, Farben, Icons für die Installation (PWA)
 ├── sw.js                         Service Worker: Netz zuerst, offline aus dem Cache
 ├── supabase/wishlist.sql         SQL für die Tabelle der Wunschliste (einmalig ausführen)
+├── supabase/oracle_text.sql      SQL für die Spalte Kartentext (Volltextsuche, einmalig ausführen)
 ├── icons/                        App-Icons (192/512, maskable, Apple, Favicon)
 ├── README.md                     diese Datei
 ├── .github/workflows/
@@ -262,7 +264,8 @@ Sammlung an, sie von Scryfall nachzuladen. Aktuelle Tabellen:
 
 ```
 cards          standardfelder + mana_value, colors[], type_line,
-                color_identity[], legal_commander
+                color_identity[], legal_commander,
+                oracle_text (anlegen: supabase/oracle_text.sql)
 decks          standardfelder + category_order[]
 deck_cards     deck_id, card_id (nullable!), category, quantity
                 + eigene Karten-Identität für nicht besessene Karten:

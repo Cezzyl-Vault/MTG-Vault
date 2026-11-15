@@ -294,6 +294,7 @@ async function d2cAdd(){
     color_identity:c.color_identity||[],
     legal_commander:(c.legalities&&c.legalities.commander)||null
   };
+  if(hasOracleColumn())newCard.oracle_text=oracleTextOf(c);
   const btn=document.getElementById('d2cAddBtn');
   setBusy(btn,true,'Speichere…');
   const existing=allCards.find(x=>dedupKey(x)===dedupKey(newCard));

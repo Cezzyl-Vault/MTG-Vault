@@ -341,7 +341,7 @@ function deckCardTile(g){
     ${checkbox}
     ${removeBtn}
     ${g.owned?'':`<div class="dc-miss-badge" title="Nicht in deiner Sammlung">fehlt</div>`}
-    ${img?`<img src="${img}" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
+    ${img?`<img src="${img}" loading="lazy" alt="${esc(cardName)}">`:`<div class="dc-tile-noimg">🃏</div>`}
     ${g.quantity>1?`<div class="dc-tile-qty">×${g.quantity}</div>`:''}
   </div>`;
 }
@@ -359,7 +359,7 @@ function deckCardRow(g){
   const checkbox=deckEditMode?`<div class="dc-row-checkbox" onclick="event.stopPropagation();toggleDeckEditGroup('${dcIdsCsv}')" title="Auswählen">${isSelected?'✓':''}</div>`:'';
   return`<div class="deck-card-row${isSelected?' selected':''}${g.owned?'':' dc-not-owned'}" ${rowClick} title="${esc(cardName)}">
     ${checkbox}
-    ${img?`<img class="dc-img" src="${img}" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
+    ${img?`<img class="dc-img" src="${img}" loading="lazy" alt="${esc(cardName)}">`:`<div class="dc-img" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">🃏</div>`}
     <div style="flex:1;min-width:0">
       <div class="dc-name">${esc(cardName)}${g.owned?'':`<span class="dc-miss-tag">fehlt</span>`}</div>
       <div class="dc-sub">${card?esc(card.set_code)+(card.collector_number?' #'+esc(card.collector_number):''):''} ${card?.foil==='foil'?'· ✦ Foil':''}${g.dcIds.length>1?` · ${g.dcIds.length} Druckungen`:''}</div>
