@@ -482,7 +482,8 @@ function openCardModal(name){
 // Zählt alle Deck-Einträge mit gleichem Namen (doppelseitige Karten auch nur
 // über die Vorderseite) und warnt, wenn die Decks zusammen mehr Exemplare
 // brauchen, als du besitzt — dann kannst du sie nicht gleichzeitig spielen.
-// Basic Lands sind davon ausgenommen. Sideboard/Maybeboard zählen mit.
+// Basic Lands sind davon ausgenommen. Sideboard zählt mit, das Maybeboard
+// wird nur als Hinweis gezeigt (gehört nicht zum Deck).
 async function renderCardDeckUsage(name,ownedQty,typeLine){
   const box=document.getElementById('cardDeckUsage');
   if(!box)return;
@@ -495,11 +496,13 @@ async function renderCardDeckUsage(name,ownedQty,typeLine){
 
   const front=s=>(s||'').toLowerCase().trim().split(' // ')[0];
   const key=front(name);
-  const perDeck=new Map();   // deck_id → {qty, cats:Set}
+  const perDeck=new Map();   // deck_id → {qty, maybeQty, cats:Set}
   for(const dc of rows||[]){
     if(front(dc.card_name)!==key)continue;
-    if(!perDeck.has(dc.deck_id))perDeck.set(dc.deck_id,{qty:0,cats:new Set()});
+    if(!perDeck.has(dc.deck_id))perDeck.set(dc.deck_id,{qty:0,maybeQty:0,cats:new Set()});
     const u=perDeck.get(dc.deck_id);
+    // Maybeboard zählt nicht zum Bedarf, wird aber angezeigt
+    if(isMaybeCat(dc.category)){u.maybeQty+=dc.quantity||1;continue;}
     u.qty+=dc.quantity||1;
     if(dc.category)u.cats.add(dc.category);
   }
@@ -512,8 +515,8 @@ async function renderCardDeckUsage(name,ownedQty,typeLine){
   const totalUsed=used.reduce((s,u)=>s+u.qty,0);
   const isBasic=/basic land/i.test(typeLine||'');
   const rowsHtml=used.map(u=>`<div class="deck-usage-row" onclick="openDeckFromCardModal('${u.deck.id}')" title="Deck öffnen">
-      <span><span class="deck-usage-name">${esc(u.deck.name)}</span>${u.cats.size?`<span class="deck-usage-cat">${esc([...u.cats].join(', '))}</span>`:''}</span>
-      <span class="deck-usage-qty">×${u.qty}</span>
+      <span><span class="deck-usage-name">${esc(u.deck.name)}</span>${u.cats.size?`<span class="deck-usage-cat">${esc([...u.cats].join(', '))}</span>`:''}${u.maybeQty?`<span class="deck-usage-cat">(Maybeboard${u.maybeQty>1?' ×'+u.maybeQty:''})</span>`:''}</span>
+      <span class="deck-usage-qty">${u.qty?'×'+u.qty:'–'}</span>
     </div>`).join('');
   const warn=(!isBasic&&totalUsed>ownedQty)
     ?`<div class="deck-usage-warn">⚠ Du besitzt ${ownedQty}×, die Decks brauchen zusammen ${totalUsed}×. Um alle gleichzeitig zu spielen, fehlen dir ${totalUsed-ownedQty}.</div>`

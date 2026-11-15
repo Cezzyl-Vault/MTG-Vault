@@ -184,7 +184,10 @@ function deckListText(deck,dcs,format,withSet){
   };
   const lines=cat=>cats[cat]?[...cats[cat].values()].sort((a,b)=>a.name.localeCompare(b.name)).map(line):[];
   const named=orderedDeckCategories(deck,Object.fromEntries(order.filter(Boolean).map(c=>[c,true]))).filter(c=>cats[c]);
-  const isSide=c=>/^(sideboard|maybeboard)$/i.test(c);
+  const isSide=c=>/^sideboard$/i.test(c);
+  // Maybeboard (orderedDeckCategories lässt es weg) → immer als letzter Block
+  const maybe=Object.keys(cats).filter(isMaybeCat);
+  const block=list=>list.flatMap(lines);
 
   if(format==='categories'){
     const out=[...lines('')];
@@ -192,22 +195,24 @@ function deckListText(deck,dcs,format,withSet){
       if(out.length)out.push('');
       out.push('// '+cat,...lines(cat));
     }
+    if(maybe.length){if(out.length)out.push('');out.push('// Maybeboard',...block(maybe));}
     return out.join('\n');
   }
   const cmd=named.filter(c=>c.toLowerCase()==='commander');
   const side=named.filter(isSide);
   const main=['',...named.filter(c=>!cmd.includes(c)&&!side.includes(c))];
-  const block=list=>list.flatMap(lines);
   if(format==='arena'){
+    // MTG Arena kennt kein Maybeboard → weglassen
     const out=[];
     if(cmd.length)out.push('Commander',...block(cmd),'');
     out.push('Deck',...block(main));
     if(side.length)out.push('','Sideboard',...block(side));
     return out.join('\n');
   }
-  // Einfach: Commander zuerst, dann der Rest, Sideboard abgesetzt
+  // Einfach: Commander zuerst, dann der Rest, Sideboard/Maybeboard abgesetzt
   const out=[...block(cmd),...block(main)];
   if(side.length)out.push('','Sideboard',...block(side));
+  if(maybe.length)out.push('','Maybeboard',...block(maybe));
   return out.join('\n');
 }
 

@@ -25,6 +25,7 @@ async function renderDecks(){
       const ownedIndex=buildOwnedIndex();
       for(const dc of deckCards){
         if(!stats[dc.deck_id])stats[dc.deck_id]={count:0,value:0,manaSum:0,nonLandCount:0,colors:new Set()};
+        if(isOutsideDeck(dc.category))continue;   // Maybeboard/Sideboard zählen nicht
         const qty=parseInt(dc.quantity,10)||1;
         stats[dc.deck_id].count+=qty;
         const card=resolveDeckCard(dc,ownedIndex);
@@ -159,10 +160,23 @@ async function openDeckDetail(deckId){
 // ohne Karten — so bleibt eine per „+ Kategorie" angelegte Kategorie sichtbar,
 // bis man sie füllt oder löscht. cats: Objekt mit Kategorie-Namen als Schlüssel.
 const DEFAULT_CAT_ORDER=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+
+// ── Maybeboard ──
+// Karten zum Ausprobieren, die NICHT zum Deck gehören: zählen nicht bei
+// Kartenzahl, Statistik, Prüfung, Probehand, „Fehlende" und Deck-Nutzung.
+// Steht immer als letzte Kategorie im Deck (auch leer, zum direkten Eintippen).
+const MAYBEBOARD='Maybeboard';
+function isMaybeCat(cat){return/^(maybe ?board|considering)$/i.test((cat||'').trim());}
+// Außerhalb des eigentlichen Decks: Maybeboard und (falls genutzt) Sideboard
+function isOutsideDeck(cat){return isMaybeCat(cat)||/^sideboard$/i.test((cat||'').trim());}
+// Nur die Karten, die wirklich im Deck spielen
+function mainDeckCards(dcs){return(dcs||[]).filter(dc=>!isOutsideDeck(dc.category));}
+
+// Reihenfolge ohne Maybeboard (das hängt der Aufrufer immer ans Ende)
 function orderedDeckCategories(deck,cats){
   const savedOrder=Array.isArray(deck&&deck.category_order)?deck.category_order:[];
   const baseOrder=savedOrder.length?savedOrder:DEFAULT_CAT_ORDER.filter(c=>cats[c]);
-  return[...new Set([...baseOrder,...Object.keys(cats)])];
+  return[...new Set([...baseOrder,...Object.keys(cats)])].filter(c=>!isMaybeCat(c));
 }
 
 function renderDeckDetail(deck){
@@ -179,7 +193,10 @@ function renderDeckDetail(deck){
       cats[cat].push(dc);
     }
   });
-  const totalCards=currentDeckCards.reduce((s,dc)=>s+dc.quantity,0);
+  const mainCards=mainDeckCards(currentDeckCards);
+  const totalCards=mainCards.reduce((s,dc)=>s+dc.quantity,0);
+  const maybeCards=currentDeckCards.filter(dc=>isMaybeCat(dc.category));
+  const maybeCount=maybeCards.reduce((s,dc)=>s+dc.quantity,0);
 
   const visibleCats=orderedDeckCategories(deck,cats);
 
@@ -197,7 +214,7 @@ function renderDeckDetail(deck){
         ${deck.format?`<span class="deck-tag" style="font-size:0.6rem">${esc(deck.format)}</span>`:''}
       </div>
       <div class="deck-detail-actions" style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-        <span style="color:var(--text2);font-size:0.85rem">${totalCards} Karten</span>
+        <span style="color:var(--text2);font-size:0.85rem">${totalCards} Karten${maybeCount?` <span style="color:var(--text3)">· ${maybeCount} Maybe</span>`:''}</span>
         <div class="deck-view-toggle">
           <button class="${cardsActive}" onclick="setDeckViewMode('cards')" title="Karten-Ansicht">⊞</button>
           <button class="${listActive}" onclick="setDeckViewMode('list')" title="Listen-Ansicht">☰</button>
@@ -214,13 +231,15 @@ function renderDeckDetail(deck){
     <div class="deck-stats-panel" id="deck-stats-panel"></div>
     ${uncategorizedSection(uncategorized,deck.id)}
     ${visibleCats.map((cat,idx)=>catSection(cat,cats[cat]||[],deck.id,idx,visibleCats.length,deck.format)).join('')}
+    ${catSection(MAYBEBOARD,maybeCards,deck.id,0,1,deck.format)}
     ${!currentDeckCards.length?`<div class="empty-state" style="padding:2rem 1rem"><div class="empty-icon">🃏</div><p style="color:var(--text2)">Tippe oben ins Feld einen Kartennamen, um loszulegen — auch Karten, die du noch nicht besitzt.</p></div>`:''}
     ${deckEditMode?renderEditActionBar():''}
   `;
   // Statistik-Panel mit Daten füllen (eigene Funktion in deck-stats.js)
-  if(typeof renderDeckStats==='function')renderDeckStats(deck,currentDeckCards);
+  // Beide ohne Maybeboard/Sideboard — die gehören nicht zum Deck
+  if(typeof renderDeckStats==='function')renderDeckStats(deck,mainCards);
   // Validierungs-Panel füllen — im Bearbeiten-Modus ausgeblendet (User-Wunsch)
-  if(!deckEditMode && typeof renderDeckValidation==='function')renderDeckValidation(deck,currentDeckCards);
+  if(!deckEditMode && typeof renderDeckValidation==='function')renderDeckValidation(deck,mainCards);
   // Tippfelder pro Kategorie nach erneutem Rendern wieder fokussieren
   if(typeof dcaPostRender==='function')dcaPostRender();
 }
@@ -377,13 +396,15 @@ function catSection(cat,dcCards,deckId,index,total,deckFormat){
 
   // Sonderbehandlung: In Commander-Decks ist die "Commander"-Kategorie geschützt.
   const isLockedCommanderCat=(deckFormat==='Commander'&&cat==='Commander');
+  // Maybeboard: fest am Ende, nicht verschieb- oder löschbar
+  const isMaybe=isMaybeCat(cat);
 
   // ▲/▼ deaktivieren am Anfang/Ende ODER für die geschützte Commander-Kategorie
   const upDisabled=(index===0||isLockedCommanderCat)?'disabled':'';
   const downDisabled=(index===total-1||isLockedCommanderCat)?'disabled':'';
 
   // Sortier-Pfeile NUR im Edit-Mode sichtbar (User-Wunsch)
-  const moveBtns=deckEditMode?`
+  const moveBtns=(deckEditMode&&!isMaybe)?`
         <button class="cat-move-btn" onclick="event.stopPropagation();moveCategoryUp('${escJs(cat)}')" ${upDisabled} title="Nach oben">▲</button>
         <button class="cat-move-btn" onclick="event.stopPropagation();moveCategoryDown('${escJs(cat)}')" ${downDisabled} title="Nach unten">▼</button>`:'';
 
@@ -394,14 +415,18 @@ function catSection(cat,dcCards,deckId,index,total,deckFormat){
     :'';
 
   // Lösch-Button bei der geschützten Commander-Kategorie ganz weglassen
-  const deleteBtn=isLockedCommanderCat
+  const deleteBtn=(isLockedCommanderCat||isMaybe)
     ?''
     :`<button class="del-cat-btn" onclick="event.stopPropagation();removeCategory('${deckId}','${escJs(cat)}')" title="Kategorie entfernen">🗑 Kategorie</button>`;
+  // „Alle markieren" im leeren Maybeboard ist sinnlos
+  const selectBtn=(isMaybe&&!dcCards.length)?'':selectAllBtn;
 
   // Visuelle Markierung für die Commander-Kategorie (kleines Krönchen)
-  const catLabel=isLockedCommanderCat?`👑 ${esc(cat)}`:`◈ ${esc(cat)}`;
+  const catLabel=isLockedCommanderCat?`👑 ${esc(cat)}`
+    :isMaybe?`💭 ${esc(cat)} <span class="maybe-note">zählt nicht zum Deck</span>`
+    :`◈ ${esc(cat)}`;
 
-  return`<div class="category-section${isLockedCommanderCat?' commander-section':''}">
+  return`<div class="category-section${isLockedCommanderCat?' commander-section':''}${isMaybe?' maybe-section':''}">
     <div class="category-header" onclick="toggleDeckCategoryCollapse('${escJs(cat)}')">
       <div class="category-name">
         <span class="cat-collapse-arrow">${arrowIcon}</span>
@@ -409,7 +434,7 @@ function catSection(cat,dcCards,deckId,index,total,deckFormat){
         ${catLabel} <span class="category-count">${total_qty} Karten</span>
       </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap" onclick="event.stopPropagation()">
-        ${selectAllBtn}
+        ${selectBtn}
         ${deleteBtn}
       </div>
     </div>
@@ -563,6 +588,7 @@ async function addCategory(){
   if(!name){toastError('Name erforderlich.');return;}
   const deck=allDecks.find(d=>d.id===activeDeckId);
   if(!deck)return;
+  if(isMaybeCat(name)){toastInfo('Das Maybeboard steht schon ganz unten im Deck.');return;}
   const cats={};
   currentDeckCards.forEach(dc=>{const c=(dc.category||'').trim();if(c)cats[c]=true;});
   const order=orderedDeckCategories(deck,cats);
@@ -658,12 +684,15 @@ function openMovePicker(dcIdsCsv){
     <span class="mp-name"><em>⋯ Ohne Kategorie</em></span>
     ${uncatCount>0?`<span class="mp-count">${uncatCount}</span>`:''}
   </button>`;
-  for(const cat of orderedCats){
+  // Maybeboard steht immer zur Wahl, als letzter Eintrag
+  const maybeCount=Object.keys(cats).filter(isMaybeCat).reduce((s,c)=>s+cats[c],0);
+  for(const cat of [...orderedCats,MAYBEBOARD]){
     const isCurrent=currentCats.has(cat);
+    const isMaybe=cat===MAYBEBOARD;
     html+=`<button class="move-picker-row${isCurrent?' current':''}" onclick="moveToCategory('${escJs(cat)}')" ${isCurrent?'disabled':''}>
       <span class="mp-arrow">→</span>
-      <span class="mp-name">${esc(cat)}</span>
-      <span class="mp-count">${cats[cat]||0}</span>
+      <span class="mp-name">${isMaybe?'💭 Maybeboard <em>(zählt nicht)</em>':esc(cat)}</span>
+      <span class="mp-count">${isMaybe?maybeCount:(cats[cat]||0)}</span>
     </button>`;
   }
   document.getElementById('movePickerList').innerHTML=html;
@@ -736,8 +765,9 @@ async function moveCategoryByOffset(category,offset){
   const deck=allDecks.find(d=>d.id===activeDeckId);
   if(!deck)return;
 
-  // Schutz: Commander-Kategorie in Commander-Decks ist fixiert
+  // Schutz: Commander-Kategorie in Commander-Decks ist fixiert, Maybeboard steht immer unten
   if(deck.format==='Commander'&&category==='Commander')return;
+  if(isMaybeCat(category))return;
 
   // Aktuelle Reihenfolge berechnen — wie in renderDeckDetail
   const cats={};
@@ -1033,28 +1063,40 @@ async function openMissingModal(deckId){
   }
 
   const ownedMap=buildOwnedNameMap();
-  const miss={};
+  // Maybeboard-Karten getrennt sammeln: Sie gehören nicht zum Deck und
+  // landen deshalb nicht in Text, Download und Wunschliste.
+  const miss={},maybeMiss={};
   for(const dc of dcs){
     const name=resolveDeckCard(dc).name;
     if(!name||name==='Unbekannt')continue;
     if((ownedMap.get(name.toLowerCase().trim())||0)>0)continue; // besitzt du → nicht fehlend
     const key=name.toLowerCase().trim();
-    if(!miss[key])miss[key]={name:name,qty:0};
-    miss[key].qty+=(dc.quantity||1);
+    const target=isMaybeCat(dc.category)?maybeMiss:miss;
+    if(!target[key])target[key]={name:name,qty:0};
+    target[key].qty+=(dc.quantity||1);
   }
-  const list=Object.values(miss).sort((a,b)=>a.name.localeCompare(b.name));
+  const byName=(a,b)=>a.name.localeCompare(b.name);
+  const list=Object.values(miss).sort(byName);
+  // Steht eine Karte schon im Deck selbst, braucht sie im Maybeboard-Abschnitt nicht nochmal auf
+  const maybeList=Object.values(maybeMiss).filter(m=>!miss[m.name.toLowerCase().trim()]).sort(byName);
+  const rowHtml=m=>`<div class="dxm-row"><span>${esc(m.name)}</span><span class="dxm-qty">×${m.qty}</span></div>`;
+  const maybeHtml=maybeList.length
+    ?`<div style="color:var(--text3);font-size:0.85rem;margin-top:0.8rem">💭 Aus dem Maybeboard (zählt nicht zum Deck):</div>
+      <div class="dxm-list dxm-maybe">${maybeList.map(rowHtml).join('')}</div>`
+    :'';
 
   if(!list.length){
-    body.innerHTML='<div class="dxm-empty">🎉 Dir fehlt keine Karte — alles ist in deiner Sammlung.</div>';
+    body.innerHTML='<div class="dxm-empty">🎉 Dir fehlt keine Karte — alles ist in deiner Sammlung.</div>'+maybeHtml;
     return;
   }
 
-  const rowsHtml=list.map(m=>`<div class="dxm-row"><span>${esc(m.name)}</span><span class="dxm-qty">×${m.qty}</span></div>`).join('');
+  const rowsHtml=list.map(rowHtml).join('');
   const textValue=list.map(m=>m.qty+' '+m.name).join('\n');
 
   body.innerHTML=`
     <div style="color:var(--text2);font-size:0.9rem;margin-bottom:0.2rem">${list.length} Karte${list.length===1?'':'n'}, die du nicht besitzt:</div>
     <div class="dxm-list">${rowsHtml}</div>
+    ${maybeHtml}
     <label style="font-size:0.65rem;color:var(--text3);font-family:'Cinzel',serif;letter-spacing:0.1em">ALS TEXT (KOPIERBAR)</label>
     <textarea class="dxm-text" id="missingText" readonly>${esc(textValue)}</textarea>
     <div class="btn-row">
@@ -1203,7 +1245,7 @@ function openDeckCardModal(dcIdsCsv){
   const owned=ownedQtyByName(card.name)>0;
   const img=iUrl(card);
   const cats=[...new Set(currentDeckCards.map(dc=>dc.category).filter(Boolean))];
-  const defs=['Commander','Lands','Ramp','Creatures','Removal','Card Draw','Enchantments','Artifacts','Instants','Sorceries','Planeswalkers','Sideboard','Sonstige'];
+  const defs=[...DEFAULT_CAT_ORDER,MAYBEBOARD];
   const allCats=[...new Set([...cats,...defs])];
   const scry=card.scryfall_id?('https://scryfall.com/card/'+(card.set_code||'').toLowerCase()+'/'+(card.collector_number||'')):null;
   document.getElementById('deckCardModalBody').innerHTML=`

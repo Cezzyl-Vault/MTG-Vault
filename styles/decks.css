@@ -324,6 +324,21 @@
 /* Pfeile sind in der Commander-Sektion zwar disabled, aber visuell noch vorhanden —
    das ist OK, signalisiert "nicht verschiebbar". Der Lösch-Button fehlt komplett. */
 
+/* ── MAYBEBOARD (zählt nicht zum Deck, immer ganz unten) ── */
+.maybe-section{
+  border:1px dashed var(--border);
+  border-radius:10px;
+  padding:0.6rem 0.8rem;
+  margin-top:2rem;
+  opacity:0.92;
+}
+.maybe-section .category-name{color:var(--text2);}
+.maybe-note{
+  font-family:inherit;font-size:0.65rem;letter-spacing:0.04em;
+  color:var(--text3);text-transform:none;
+}
+.dxm-maybe{opacity:0.75;}
+
 /* ── DV-HEADER klickbar machen ── */
 .dv-header{
   cursor:pointer;

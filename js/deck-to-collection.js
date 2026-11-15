@@ -32,7 +32,7 @@ function d2cIsBasicLand(name,typeLine){
 }
 
 // Deck-Zeilen → Liste der abzufragenden Karten (Commander zuerst, dann
-// Kategorien in Deck-Reihenfolge, Karten ohne Kategorie am Ende)
+// Kategorien in Deck-Reihenfolge, Karten ohne Kategorie am Ende; ohne Maybeboard)
 function d2cBuildItems(deck,dcs){
   const cats={};
   for(const dc of dcs){const c=(dc.category||'').trim();if(c)cats[c]=true;}
@@ -45,6 +45,7 @@ function d2cBuildItems(deck,dcs){
   const sorted=[...dcs].sort((a,b)=>rank((a.category||'').trim())-rank((b.category||'').trim()));
   const byName=new Map();
   for(const dc of sorted){
+    if(isMaybeCat(dc.category))continue;   // Maybeboard gehört nicht zum Deck
     const name=dc.card_name||resolveDeckCard(dc).name;
     if(!name||name==='Unbekannt')continue;
     if(d2cIsBasicLand(name,dc.type_line))continue;
