@@ -339,6 +339,73 @@
 }
 .dxm-maybe{opacity:0.75;}
 
+/* ── MENÜ „⋯ MEHR" IM DECK-KOPF ── */
+.deck-more{position:relative;}
+.deck-more-menu{
+  display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:60;
+  min-width:250px;background:var(--surface);border:1px solid var(--border2);
+  border-radius:10px;box-shadow:0 14px 36px rgba(0,0,0,0.6);padding:0.35rem;
+}
+.deck-more-menu.open{display:flex;flex-direction:column;}
+.deck-more-menu button{
+  background:transparent;border:none;color:var(--text);text-align:left;
+  font-family:'EB Garamond',serif;font-size:0.98rem;padding:0.55rem 0.75rem;
+  border-radius:7px;cursor:pointer;
+}
+.deck-more-menu button:hover{background:var(--surface2);color:var(--gold);}
+
+/* ── KARTENSUCHE IM DECK (js/deck-search.js) ── */
+.ds-modal{max-width:960px;}
+.ds-form{display:flex;flex-direction:column;gap:0.55rem;margin-bottom:0.8rem;}
+.ds-row{display:flex;gap:0.6rem;align-items:center;}
+.ds-row-wrap{flex-wrap:wrap;}
+.ds-form input[type=text],.ds-form input[type=number],.ds-form select{
+  background:var(--surface2);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:0.45rem 0.6rem;font-family:'EB Garamond',serif;font-size:0.95rem;
+}
+.ds-form input[type=text]{flex:1;min-width:0;}
+.ds-form input[type=number]{width:4.2rem;}
+#dsPrice{width:4.5rem;flex:0 0 auto;}
+.ds-inline{display:flex;align-items:center;gap:0.35rem;color:var(--text2);font-size:0.9rem;}
+.ds-label{color:var(--text2);font-size:0.9rem;}
+.ds-check{display:flex;align-items:center;gap:0.4rem;color:var(--text2);font-size:0.9rem;cursor:pointer;}
+.ds-go{margin-left:auto;}
+.ds-colors{display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;}
+.ds-pill{
+  width:32px;height:32px;border-radius:50%;font-family:'Cinzel',serif;font-weight:700;font-size:0.9rem;
+  border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.4;
+}
+.ds-pill.active{opacity:1;border-color:var(--gold);box-shadow:0 0 10px rgba(201,168,76,0.4);}
+.ds-colors-hint{color:var(--text3);font-size:0.8rem;}
+.ds-status{color:var(--text2);font-size:0.9rem;margin-bottom:0.6rem;}
+.ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.7rem;}
+.ds-tile{display:flex;flex-direction:column;gap:0.3rem;}
+.ds-tile-in .ds-img img{opacity:0.55;}
+.ds-img{position:relative;cursor:zoom-in;}
+/* Feste Kartenform schon vor dem Laden → loading="lazy" lädt nur sichtbare Bilder */
+.ds-img img{width:100%;aspect-ratio:63/88;border-radius:6px;display:block;background:var(--surface2);}
+.ds-badge{
+  position:absolute;left:4px;bottom:4px;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:4px;
+  background:rgba(0,0,0,0.78);
+}
+.ds-in{color:var(--gold);}
+.ds-maybe{color:var(--text2);}
+.ds-own{color:#7fd39a;}
+.ds-foot{display:flex;align-items:center;justify-content:space-between;gap:0.4rem;}
+.ds-price{color:var(--text2);font-size:0.85rem;}
+.ds-add{
+  background:var(--surface2);border:1px solid var(--gold-dim);color:var(--gold);
+  border-radius:7px;width:36px;height:30px;font-size:1.1rem;cursor:pointer;
+}
+.ds-add:hover{background:var(--gold);color:#0a0800;}
+.ds-add:disabled{opacity:0.4;cursor:wait;}
+.ds-more{display:flex;justify-content:center;margin-top:1rem;}
+@media(max-width:600px){
+  .ds-grid{grid-template-columns:repeat(3,1fr);gap:0.45rem;}
+  .ds-add{width:32px;height:28px;}
+  .ds-go{margin-left:0;width:100%;}
+}
+
 /* ── PROBEHAND (js/playtest.js) ── */
 .pt-modal{max-width:960px;}
 .pt-title{font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;color:var(--text3);}

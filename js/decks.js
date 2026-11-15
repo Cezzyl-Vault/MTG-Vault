@@ -220,12 +220,18 @@ function renderDeckDetail(deck){
           <button class="${listActive}" onclick="setDeckViewMode('list')" title="Listen-Ansicht">☰</button>
         </div>
         <button class="${editClass}" onclick="toggleDeckEditMode()" title="Karten markieren und bearbeiten">${editLabel}</button>
+        <button class="back-btn" onclick="openDeckSearch()" title="Karten mit Filtern suchen (Kartentext, Typ, Manawert, Preis) und ins Deck legen">🔍 Suchen</button>
         <button class="back-btn" onclick="openPlaytest()" title="Starthand ziehen, Mulligan und Karten nachziehen ausprobieren">🎲 Probehand</button>
-        <button class="back-btn" onclick="openMissingModal(activeDeckId)" title="Liste der Karten in diesem Deck, die du nicht besitzt">✦ Fehlende</button>
-        <button class="back-btn" onclick="openDeckListModal(activeDeckId)" title="Deckliste als Text exportieren oder Karten aus einer Liste hinzufügen">⇅ Liste</button>
-        <button class="back-btn" onclick="openDeckToCollection(activeDeckId)" title="Karten dieses Decks mit Versionsauswahl in die Sammlung übernehmen">⇩ In Sammlung</button>
-        <button class="btn-gold" onclick="openCatModal()">+ Kategorie</button>
-        <button class="back-btn" onclick="openDeckModal('${deck.id}')">✎ Deck</button>
+        <div class="deck-more">
+          <button class="back-btn" onclick="toggleDeckMoreMenu(event)" title="Weitere Funktionen">⋯ Mehr</button>
+          <div class="deck-more-menu" id="deckMoreMenu" onclick="closeDeckMoreMenu()">
+            <button onclick="openMissingModal(activeDeckId)">✦ Fehlende Karten</button>
+            <button onclick="openDeckListModal(activeDeckId)">⇅ Liste importieren / exportieren</button>
+            <button onclick="openDeckToCollection(activeDeckId)">⇩ In Sammlung übernehmen</button>
+            <button onclick="openCatModal()">＋ Kategorie anlegen</button>
+            <button onclick="openDeckModal('${deck.id}')">✎ Deck umbenennen / Format</button>
+          </div>
+        </div>
       </div>
     </div>
     ${deckEditMode?'':'<div class="deck-validation-panel" id="deck-validation-panel"></div>'}
@@ -244,6 +250,22 @@ function renderDeckDetail(deck){
   // Tippfelder pro Kategorie nach erneutem Rendern wieder fokussieren
   if(typeof dcaPostRender==='function')dcaPostRender();
 }
+
+// ── Menü „⋯ Mehr" im Deck-Kopf ──
+// Seltener genutzte Funktionen, damit der Kopf am Handy nicht vier Zeilen hoch wird.
+function toggleDeckMoreMenu(ev){
+  if(ev)ev.stopPropagation();
+  const m=document.getElementById('deckMoreMenu');
+  if(m)m.classList.toggle('open');
+}
+function closeDeckMoreMenu(){
+  const m=document.getElementById('deckMoreMenu');
+  if(m)m.classList.remove('open');
+}
+// Klick irgendwo anders schließt das Menü
+document.addEventListener('click',ev=>{
+  if(!(ev.target.closest&&ev.target.closest('.deck-more')))closeDeckMoreMenu();
+});
 
 // Bottom-Aktions-Leiste, die im Edit-Modus erscheint
 function renderEditActionBar(){
