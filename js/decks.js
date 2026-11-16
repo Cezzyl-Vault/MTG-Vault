@@ -150,6 +150,8 @@ async function openDeckDetail(deckId){
   detailView.innerHTML=`<div style="text-align:center;padding:3rem;color:var(--text2)">Lädt…</div>`;
 
   currentDeckCards=await loadDeckCards(deckId);
+  // Verlauf: letzten Stand frisch laden (könnte auf einem anderen Gerät geändert sein)
+  if(typeof dhLast!=='undefined')delete dhLast[deckId];
   renderDeckDetail(deck);
 }
 
@@ -229,6 +231,7 @@ function renderDeckDetail(deck){
             <button onclick="openDeckListModal(activeDeckId)">⇅ Liste importieren / exportieren</button>
             <button onclick="openDeckToCollection(activeDeckId)">⇩ In Sammlung übernehmen</button>
             <button onclick="openCatModal()">＋ Kategorie anlegen</button>
+            <button onclick="openDeckHistory()">🕘 Verlauf</button>
             <button onclick="openDeckModal('${deck.id}')">✎ Deck umbenennen / Format</button>
           </div>
         </div>
@@ -249,6 +252,8 @@ function renderDeckDetail(deck){
   if(!deckEditMode && typeof renderDeckValidation==='function')renderDeckValidation(deck,mainCards);
   // Tippfelder pro Kategorie nach erneutem Rendern wieder fokussieren
   if(typeof dcaPostRender==='function')dcaPostRender();
+  // Versionshistorie: Stand 3 s nach der letzten Änderung speichern (deck-history.js)
+  if(typeof scheduleDeckVersion==='function')scheduleDeckVersion(deck.id);
 }
 
 // ── Menü „⋯ Mehr" im Deck-Kopf ──

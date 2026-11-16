@@ -37,7 +37,8 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **Karten hinzufügen wie bei deckstats.net**: In jeder Kategorie (und in „Ohne Kategorie") gibt es ein Tippfeld. Kartennamen tippen → Vorschläge (Scryfall-Autocomplete) → anklicken oder Enter → die Karte landet sofort in genau dieser Kategorie. Das Feld bleibt fokussiert, sodass man mehrere Karten zügig hintereinander eintippen kann; daneben ein Anzahl-Feld. Es lassen sich beliebige Karten hinzufügen — **auch solche, die man (noch) nicht besitzt**
 - **Maybeboard**: Ganz unten in jedem Deck steht immer das „💭 Maybeboard" (gestrichelt, mit eigenem Tippfeld) für Karten, die man sich überlegt. Es **zählt nicht zum Deck**: nicht bei Kartenzahl (Kopf zeigt „100 Karten · 5 Maybe"), Deck-Übersicht, Statistik, Commander-Prüfung, „In Sammlung" und Deck-Nutzung in der Sammlung (dort nur als Hinweis „(Maybeboard)"). „✦ Fehlende" listet Maybeboard-Karten getrennt und lässt sie aus Text, Download und Wunschliste weg. Karten wandern über „Verschieben" bzw. das Kategorie-Feld zwischen Deck und Maybeboard. Der Export schreibt einen eigenen Block „Maybeboard" (nicht im Arena-Format), der Import erkennt ihn wieder (`isMaybeCat`, `isOutsideDeck`, `mainDeckCards` in `js/decks.js`)
 - **Kartensuche mit Filtern**: „🔍 Suchen" im Deck sucht Karten nach Kartentext, Typ, Manawert von/bis, Höchstpreis (€) und Farbidentität (vorbelegt mit der des Commanders), optional mit eigener Scryfall-Syntax (z.B. `kw:flying pow>=4`). Online über Scryfall: nur Commander-legale Karten, sortiert nach Beliebtheit (EDHREC-Rang), je Karte eine legal spielbare Druckung (Druckungs-Filter im Suchtext, siehe CLAUDE.md), 175 pro Seite mit „Weitere laden". Mit „nur Karten aus meiner Sammlung" laufen dieselben Filter lokal (Preis = aktueller Marktpreis). Treffer zeigen Preis und „im Deck" / „Maybe" / „✓ Sammlung"; Bild antippen = groß, „＋" legt die Karte in die gewählte Kategorie (Standard: Maybeboard, Auswahl wird gemerkt) (`js/deck-search.js`)
-- **Deck-Kopf**: Ansicht, Bearbeiten, Suchen und Probehand stehen direkt im Kopf; Fehlende, Liste, In Sammlung, Kategorie anlegen und Deck bearbeiten liegen im Menü „⋯ Mehr"
+- **Deck-Kopf**: Ansicht, Bearbeiten, Suchen und Probehand stehen direkt im Kopf; Fehlende, Liste, In Sammlung, Kategorie anlegen, Verlauf und Deck bearbeiten liegen im Menü „⋯ Mehr"
+- **Versionshistorie**: Jede Änderung an einem Deck landet automatisch im Verlauf (3 Sekunden nach der letzten Änderung). Beim ersten Öffnen entsteht ein „Ausgangsstand", Änderungen innerhalb von 30 Minuten ergeben einen gemeinsamen Eintrag, höchstens 60 Einträge pro Deck. „⋯ Mehr → 🕘 Verlauf" zeigt pro Eintrag, was sich geändert hat (+2 Sol Ring · −1 Counterspell · Brainstorm → Maybeboard), und „↺ Wiederherstellen" setzt das Deck auf diesen Stand zurück – der jetzige Stand wird vorher gesichert, also lässt sich auch das rückgängig machen (`js/deck-history.js`, Tabelle: `supabase/deck_history.sql` einmalig ausführen)
 - **Probehand**: „🎲 Probehand" im Deck mischt die Bibliothek (ohne Commander und Maybeboard) und zieht 7 Karten. „↻ Mulligan" nach London-Regel – der erste Mulligan ist im Commander frei, danach tippt man die Karten an, die unter die Bibliothek kommen. „＋ Karte ziehen" spielt Zug für Zug weiter (neue Karten gold umrandet, mit Zug-Nummer), Antippen zeigt die Karte groß. Darunter die Starthand-Statistik: Wahrscheinlichkeit für 2–4 / 0–1 / 5+ Länder, Ø Länder in 7 Karten und „bis Zug 3 mindestens 3 Länder" (hypergeometrische Verteilung, `js/playtest.js`). Am Handy wird die Hand quer gescrollt
 - **„Fehlt"-Markierung**: Karten, die in keinem Sammlungs-Eintrag vorkommen, werden abgedunkelt mit rotem „fehlt"-Badge angezeigt (Listen-Ansicht: „fehlt"-Tag). Der Abgleich läuft live über den Kartennamen — wer die Karte später kauft und importiert, sieht die Markierung automatisch verschwinden
 - **In welchen Decks steckt eine Karte?** Das Karten-Fenster der Sammlung zeigt unter „In Decks" alle Decks mit dieser Karte (Kategorie + Anzahl, Klick öffnet das Deck). Brauchen die Decks zusammen mehr Exemplare, als du besitzt, erscheint eine Warnung (Basic Lands ausgenommen)
@@ -111,6 +112,7 @@ MTG-Vault/
 ├── sw.js                         Service Worker: Netz zuerst, offline aus dem Cache
 ├── supabase/wishlist.sql         SQL für die Tabelle der Wunschliste (einmalig ausführen)
 ├── supabase/oracle_text.sql      SQL für die Spalte Kartentext (Volltextsuche, einmalig ausführen)
+├── supabase/deck_history.sql     SQL für die Tabelle der Deck-Versionen (einmalig ausführen)
 ├── icons/                        App-Icons (192/512, maskable, Apple, Favicon)
 ├── README.md                     diese Datei
 ├── .github/workflows/
@@ -153,6 +155,7 @@ MTG-Vault/
     │                             (selbstständig: injiziert Modal + CSS, nutzt .acs-* aus add-card.js)
     ├── playtest.js               Probehand: mischen, Mulligan, ziehen, Starthand-Statistik
     ├── deck-search.js            Kartensuche im Deck: Filter, Scryfall-Suche, Treffer ins Deck
+    ├── deck-history.js           Versionshistorie: automatische Stände, Unterschiede, Wiederherstellen
     ├── offline-cache.js          Offline-Lesemodus: Schnappschuss in IndexedDB, Offline-Client
     ├── price-tracking.js         Wöchentliche Snapshots, aktuelle Preise pro Karte (24-h-Cache)
     ├── stats.js                  Globale Statistik, Marktwert + Top-Listen, Wertverlaufs-Chart
@@ -191,6 +194,7 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Deckliste importieren/exportieren (Formate, Parser) | `js/deck-list.js` |
 | Wunschliste, Wunschpreis, Preisalarm | `js/wishlist.js`, Tabelle: `supabase/wishlist.sql` |
 | Deck-Karten in die Sammlung übernehmen (Versionsauswahl) | `js/deck-to-collection.js` |
+| Versionshistorie der Decks | `js/deck-history.js`, Tabelle: `supabase/deck_history.sql` |
 | Pro-Deck-Statistik | `js/deck-stats.js` |
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |
@@ -297,6 +301,9 @@ price_snapshots user_id, snapshot_date, total_value, card_count
                 (unique pro user_id+snapshot_date)
 wishlist       user_id, card_name, max_price, note
                 (unique pro user_id+card_name; anlegen: supabase/wishlist.sql)
+deck_history   user_id, deck_id (on delete cascade), note, cards (jsonb:
+                alle Deck-Zeilen eines Stands), created_at, updated_at
+                (anlegen: supabase/deck_history.sql)
 ```
 
 Zum `deck_cards`-Design: Jede Zeile trägt ihre Karten-Identität selbst

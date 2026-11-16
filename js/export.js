@@ -219,7 +219,7 @@ function exportFilteredToPDF(){
 //  Aufruf aus dem Einstellungen-Fenster und vor der Deck-Umstellung
 //  (migrateLegacyDeckCards in decks.js). Gibt true zurück, wenn die Datei
 //  heruntergeladen wurde.
-const BACKUP_TABLES=['cards','decks','deck_cards','price_snapshots','wishlist'];
+const BACKUP_TABLES=['cards','decks','deck_cards','price_snapshots','wishlist','deck_history'];
 
 async function downloadFullBackup(btn){
   setBusy(btn,true,'Sichere…');

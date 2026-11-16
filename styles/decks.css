@@ -663,3 +663,24 @@
 @media(max-width:768px){
   body:has(.edit-action-bar){padding-bottom:130px;}
 }
+
+/* ── DECK-VERLAUF (js/deck-history.js) ── */
+.dh-modal{max-width:720px;}
+.dh-intro{color:var(--text2);font-size:0.9rem;margin:0 0 0.8rem;}
+.dh-list{display:flex;flex-direction:column;gap:0.6rem;}
+.dh-entry{border:1px solid var(--border);border-radius:10px;padding:0.6rem 0.75rem;background:var(--surface2);}
+.dh-entry.dh-current{border-color:var(--gold-dim);}
+.dh-head{display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;}
+.dh-when{font-family:'Cinzel',serif;font-size:0.78rem;color:var(--gold2);letter-spacing:0.04em;}
+.dh-note{font-size:0.75rem;color:var(--text2);border:1px solid var(--border);border-radius:999px;padding:0.05rem 0.5rem;}
+.dh-count{font-size:0.8rem;color:var(--text3);}
+.dh-badge{margin-left:auto;font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.08em;color:var(--gold);}
+.dh-restore{margin-left:auto;font-size:0.65rem;padding:0.3rem 0.6rem;}
+.dh-chips{display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.45rem;}
+.dh-chip{font-size:0.82rem;border-radius:6px;padding:0.1rem 0.45rem;border:1px solid var(--border);color:var(--text);}
+.dh-add{border-color:rgba(72,187,120,0.5);color:var(--green);}
+.dh-del{border-color:rgba(224,82,82,0.5);color:var(--red);}
+.dh-move{color:var(--text2);}
+.dh-none{font-size:0.8rem;color:var(--text3);margin-top:0.3rem;font-style:italic;}
+.dh-more summary{cursor:pointer;font-size:0.8rem;color:var(--text2);margin-top:0.35rem;}
+body.offline .dh-restore{display:none !important;}

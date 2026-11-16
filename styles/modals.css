@@ -7,6 +7,8 @@
   z-index:200;align-items:center;justify-content:center;padding:1rem;
 }
 .modal-overlay.open{display:flex;}
+/* Rückfragen liegen immer über anderen offenen Fenstern (z.B. Deck-Verlauf) */
+#confirmModal{z-index:260;}
 .modal{
   background:linear-gradient(145deg,var(--surface),var(--bg2));
   border:1px solid var(--border2);border-radius:16px;
