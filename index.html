@@ -39,6 +39,7 @@
       <p class="db-status-text" id="dbStatusText"></p>
       <a class="auth-btn db-status-btn" id="dbActivateBtn" href="https://supabase.com/dashboard" target="_blank" rel="noopener">Datenbank aktivieren</a>
       <button class="db-status-retry" id="dbRetryBtn" onclick="retryDbCheck()">Jetzt erneut prüfen</button>
+      <button class="db-status-retry" id="dbOfflineBtn" style="display:none" onclick="openOfflineFromStatus()">📖 Letzten Stand ansehen (nur lesen)</button>
       <div class="db-status-hint" id="dbStatusHint"></div>
     </div>
   </div>
@@ -479,6 +480,7 @@
 <script src="js/settings.js?v=179" defer></script>
 <script src="js/sets.js?v=179" defer></script>
 <script src="js/db.js?v=179" defer></script>
+<script src="js/offline-cache.js?v=179" defer></script>
 <script src="js/scryfall.js?v=179" defer></script>
 <script src="js/config.js?v=179" defer></script>
 <script src="js/auth.js?v=179" defer></script>

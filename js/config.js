@@ -52,8 +52,17 @@ let dbRetryTimer=null,dbRetryCfg=null;
 
 // Prüft die Verbindung und geht dann zu Login bzw. App weiter
 async function connectAndStart(cfg){
-  if(!await checkDbReachable(cfg)){showDbPaused(cfg);return;}
+  if(!await checkDbReachable(cfg)){
+    // Schon im Offline-Lesemodus → still weiter prüfen, App bleibt sichtbar
+    if(typeof offlineMode!=='undefined'&&offlineMode){scheduleSilentRetry(cfg);return;}
+    // Gerät ohne Netz und ein gespeicherter Stand da → direkt nur lesen
+    if(navigator.onLine===false&&typeof startOfflineMode==='function'&&await startOfflineMode()){
+      scheduleSilentRetry(cfg);return;
+    }
+    showDbPaused(cfg);return;
+  }
   stopDbRetry();
+  if(typeof exitOfflineMode==='function')exitOfflineMode();
   let session=null;
   try{({data:{session}}=await _sb.auth.getSession());}
   catch(e){showDbPaused(cfg);return;}
@@ -86,9 +95,25 @@ function showDbPaused(cfg){
   document.getElementById('dbStatusHint').textContent=
     'Automatische Prüfung alle 15 Sekunden · zuletzt '+new Date().toLocaleTimeString('de-DE');
   // Nächste Prüfung planen (setTimeout statt setInterval → keine überlappenden Prüfungen)
+  scheduleSilentRetry(cfg);
+  // Gibt es einen gespeicherten Stand? → Knopf zum Ansehen (nur lesen)
+  const offBtn=document.getElementById('dbOfflineBtn');
+  if(offBtn&&typeof hasOfflineSnapshot==='function'){
+    offBtn.style.display='none';
+    hasOfflineSnapshot().then(has=>{offBtn.style.display=has?'':'none';});
+  }
+}
+
+// Nächste Prüfung planen (setTimeout statt setInterval → keine überlappenden Prüfungen)
+function scheduleSilentRetry(cfg){
   dbRetryCfg=cfg;
   clearTimeout(dbRetryTimer);
   dbRetryTimer=setTimeout(()=>connectAndStart(cfg),DB_RETRY_MS);
+}
+
+// Knopf auf dem Status-Bildschirm: letzten Stand ohne Datenbank ansehen
+async function openOfflineFromStatus(){
+  if(!await startOfflineMode())toastError('Kein gespeicherter Stand auf diesem Gerät.');
 }
 
 async function retryDbCheck(){

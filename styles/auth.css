@@ -98,3 +98,25 @@
 .db-status-retry:disabled{opacity:0.5;cursor:default;}
 .db-status-hint{font-size:0.8rem;color:var(--text3);margin-top:0.5rem;}
 
+/* ── OFFLINE-LESEMODUS (js/offline-cache.js) ── */
+.offline-banner{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));
+  z-index:150;display:flex;align-items:center;gap:0.6rem;white-space:nowrap;
+  background:rgba(20,18,30,0.96);border:1px solid var(--gold-dim);border-radius:999px;
+  color:var(--text2);font-size:0.85rem;padding:0.4rem 0.5rem 0.4rem 0.9rem;
+  box-shadow:0 8px 24px rgba(0,0,0,0.5);max-width:calc(100vw - 24px);
+}
+.offline-banner button{
+  background:transparent;border:1px solid var(--border);border-radius:999px;color:var(--gold);
+  font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.08em;padding:0.3rem 0.7rem;cursor:pointer;
+}
+/* Alles zum Hinzufügen/Bearbeiten ausblenden – lesen geht weiter */
+body.offline .import-btn,body.offline #fileInput,body.offline .mobile-import-btn,
+body.offline #acsCollBar,body.offline #acsEmptyBtn,body.offline .empty-cta,
+body.offline .dca-add,body.offline .deck-actions,body.offline .del-cat-btn,
+body.offline .dc-remove,body.offline .dc-tile-remove,body.offline .ds-add,
+body.offline button[onclick^="openDeckModal"],body.offline button[onclick^="openDeckListModal"],
+body.offline button[onclick^="toggleDeckEditMode"],body.offline button[onclick^="openDeckToCollection"],
+body.offline button[onclick^="openCatModal"],body.offline button[onclick^="openDeckSearch"],
+body.offline #migrationBanner{display:none !important;}
+

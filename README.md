@@ -153,6 +153,7 @@ MTG-Vault/
     │                             (selbstständig: injiziert Modal + CSS, nutzt .acs-* aus add-card.js)
     ├── playtest.js               Probehand: mischen, Mulligan, ziehen, Starthand-Statistik
     ├── deck-search.js            Kartensuche im Deck: Filter, Scryfall-Suche, Treffer ins Deck
+    ├── offline-cache.js          Offline-Lesemodus: Schnappschuss in IndexedDB, Offline-Client
     ├── price-tracking.js         Wöchentliche Snapshots, aktuelle Preise pro Karte (24-h-Cache)
     ├── stats.js                  Globale Statistik, Marktwert + Top-Listen, Wertverlaufs-Chart
     └── app.js                    Orchestrierung: View-Wechsel, Mobile-Nav, Startup
@@ -237,9 +238,21 @@ Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
 Die App startet dann mit eigenem Icon und ohne Browserleiste. Der Service Worker
 (`sw.js`) lädt jede Datei zuerst frisch aus dem Netz — Updates kommen also wie gewohnt
 sofort an. Nur ohne Internet nimmt er die zuletzt geladene Kopie, damit die App trotzdem
-startet und „Keine Internetverbindung" anzeigt. Datenbank- und Scryfall-Anfragen werden
-nicht zwischengespeichert. Icons neu erzeugen: Bilder in `icons/` ersetzen (gleiche Namen
-und Größen).
+startet. Kartenbilder von `cards.scryfall.io` speichert er zusätzlich „Cache zuerst" in
+einem eigenen Cache (höchstens 800 Bilder, die ältesten fliegen raus). Datenbank- und
+Scryfall-API-Anfragen werden nicht zwischengespeichert. Icons neu erzeugen: Bilder in
+`icons/` ersetzen (gleiche Namen und Größen).
+
+**Offline-Lesemodus** (`js/offline-cache.js`): Nach jedem Laden legt die App gedrosselt
+(höchstens 1× pro Minute) einen Schnappschuss aller Tabellen in IndexedDB ab. Startet die
+App ohne Internet, öffnet sie direkt diesen Stand – Banner „📡 Offline · Stand …", Status
+„Offline". Sammlung, Suche, Filter, Decks, Statistik, Probehand und „Fehlende" funktionieren,
+Knöpfe zum Hinzufügen/Bearbeiten sind ausgeblendet. Technisch ersetzt ein Offline-Client
+`_sb`: Lese-Abfragen beantwortet er aus dem Schnappschuss, Schreibversuche enden mit
+„Offline – nur Lesen möglich". Ist die Datenbank pausiert, bietet der Status-Bildschirm
+„📖 Letzten Stand ansehen" an. Kommt das Netz zurück (oder „↻ Verbinden"), verbindet sich
+die App wieder normal. Kartenbilder erscheinen offline nur, wenn sie vorher schon einmal
+angezeigt wurden.
 
 Hinweis iPhone: Eine vom Home-Bildschirm gestartete App hat eigenen Speicher, getrennt
 von Safari — dort muss man sich einmal separat anmelden.

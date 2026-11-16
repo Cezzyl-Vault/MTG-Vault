@@ -7,6 +7,8 @@ function setSyncing(state){
   if(!dot)return;
   dot.className='sync-dot'+(state==='syncing'?' syncing':state==='error'?' error':'');
   lbl.textContent=state==='syncing'?'Synchronisiert…':state==='error'?'Fehler':'Verbunden';
+  // Offline-Lesemodus: immer „Offline" statt „Fehler" (offline-cache.js)
+  if(typeof offlineMode!=='undefined'&&offlineMode){dot.className='sync-dot error';lbl.textContent='Offline';}
 }
 
 // ── Erreichbarkeit prüfen (z.B. kostenloses Projekt pausiert) ──
@@ -63,6 +65,14 @@ async function loadAll(){
   }
   allCards=cards||[];allDecks=decks||[];
   setSyncing('ok');renderAll();
+  // Offline-Lesemodus (offline-cache.js): nur Preise aus dem Cache, nichts schreiben
+  if(typeof offlineMode!=='undefined'&&offlineMode){
+    setSyncing('ok');
+    if(typeof refreshLivePricesInBackground==='function')refreshLivePricesInBackground();
+    return;
+  }
+  // Stand für den Offline-Modus sichern (gedrosselt, im Hintergrund)
+  if(typeof scheduleOfflineSnapshot==='function')scheduleOfflineSnapshot();
   // Nach jedem vollständigen Laden prüfen, ob die Anreicherungs-Aufforderung sichtbar sein soll
   if(typeof checkAndShowMigrationBanner==='function')checkAndShowMigrationBanner();
   // Im Hintergrund den wöchentlichen Preis-Snapshot prüfen — blockiert das Rendern nicht
