@@ -333,7 +333,7 @@ function renderDeckStats(deck,deckCards){
     +(cs.rows.some(r=>r.low)?`<div class="cs-hint">⚠ = deutlich weniger Quellen als der Anteil der Farbe an den Manakosten</div>`:'')
     :`<div class="deck-stats-empty">${cs.missingData?'Lade Manakosten von Scryfall…':'—'}</div>`;
 
-  const eur=v=>v.toFixed(2).replace('.',',')+' €';
+  const eur=v=>v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
   const priceNote=s.noPrice?` · ${s.noPrice} ohne Preis`:'';
 
   target.innerHTML=`
@@ -345,9 +345,9 @@ function renderDeckStats(deck,deckCards){
       ${unenrichedHint}
       <div class="deck-kpi-row">
         <div class="kpi"><div class="kpi-val">${s.totalCards}</div><div class="kpi-label">Karten · ${s.landCount} Länder</div></div>
-        <div class="kpi"><div class="kpi-val">${s.avgMv.toFixed(2).replace('.',',')}</div><div class="kpi-label">Ø Manawert · mit Ländern ${s.avgMvAll.toFixed(2).replace('.',',')}</div></div>
-        <div class="kpi"><div class="kpi-val" style="font-size:1.2rem">${eur(s.marketValue)}</div><div class="kpi-label">Marktwert · Kaufpreis ${eur(s.totalValue)}${priceNote}</div></div>
-        <div class="kpi"><div class="kpi-val" style="font-size:1.2rem">${eur(s.missingValue)}</div><div class="kpi-label">Fehlende Karten kosten</div></div>
+        <div class="kpi"><div class="kpi-val">${kpiNum(s.avgMv,2)}</div><div class="kpi-label">Ø Manawert · mit Ländern ${s.avgMvAll.toFixed(2).replace('.',',')}</div></div>
+        <div class="kpi"><div class="kpi-val kpi-money">${kpiNum(s.marketValue,2,' €')}</div><div class="kpi-label">Marktwert · Kaufpreis ${eur(s.totalValue)}${priceNote}</div></div>
+        <div class="kpi"><div class="kpi-val kpi-money">${kpiNum(s.missingValue,2,' €')}</div><div class="kpi-label">Fehlende Karten kosten</div></div>
       </div>
       <div class="deck-stats-grid">
         <div class="deck-stats-section">

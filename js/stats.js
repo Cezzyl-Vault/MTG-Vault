@@ -47,7 +47,7 @@ async function renderStats(){
     <div class="kpi"><div class="kpi-val">${sets}</div><div class="kpi-label">Sets</div></div>
     <div class="kpi"><div class="kpi-val">${foilC.toLocaleString('de')}</div><div class="kpi-label">Foil-Karten</div></div>
     <div class="kpi"><div class="kpi-val">${allDecks.length}</div><div class="kpi-label">Decks</div></div>
-    <div class="kpi"><div class="kpi-val" style="font-size:1.2rem">${totalVal.toFixed(2)} €</div><div class="kpi-label">Kaufwert</div></div>
+    <div class="kpi"><div class="kpi-val kpi-money">${kpiNum(totalVal,2,' €')}</div><div class="kpi-label">Kaufwert</div></div>
     ${market.kpi}
   </div>
   ${market.html}
@@ -97,7 +97,7 @@ function renderMarketSection(){
     </div>`;
 
   return{
-    kpi:`<div class="kpi"><div class="kpi-val" style="font-size:1.2rem">${marketTotal.toFixed(2)} €</div><div class="kpi-label">Marktwert</div></div>`,
+    kpi:`<div class="kpi"><div class="kpi-val kpi-money">${kpiNum(marketTotal,2,' €')}</div><div class="kpi-label">Marktwert</div></div>`,
     html:`<div class="stats-section">${head}${summary}
       <div class="mv-grid">
         ${list('WERTVOLLSTE KARTEN',top,'')}

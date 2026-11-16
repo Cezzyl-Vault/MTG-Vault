@@ -32,6 +32,17 @@ function localDateStr(d){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
+// Kennzahl im deutschen Format mit kleineren Nachkommastellen (visuelle
+// Trennung in den KPI-Kacheln): kpiNum(1234.5,2,' €') →
+// "1.234<span class="kpi-dec">,50 €</span>"
+function kpiNum(value,decimals,suffix){
+  const s=(Number(value)||0).toLocaleString('de-DE',{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
+  const i=s.lastIndexOf(',');
+  const whole=decimals>0&&i>=0?s.slice(0,i):s;
+  const rest=(decimals>0&&i>=0?s.slice(i):'')+(suffix||'');
+  return whole+(rest?`<span class="kpi-dec">${rest}</span>`:'');
+}
+
 // HTML-Escape, um XSS bei Karten-Namen etc. zu verhindern
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
