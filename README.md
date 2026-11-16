@@ -61,11 +61,13 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **Entkoppelt von der Sammlung**: Ein Deck ist eine reine Kartenliste (Name + Anzahl + Kategorie). Ob du eine Karte besitzt, ist nur eine Anzeige-Info (die „fehlt"-Markierung), kein Fundament — Karten verschwinden nicht aus Decks, wenn sich die Sammlung ändert. In der Sammlung gibt es zusätzlich pro Karte einen „+ Deck"-Knopf als Schnellweg
 
 **Statistik pro Deck** (einklappbar)
-- KPIs: Karten / Ø Manawert / Deckwert
+- KPIs: Karten + Anzahl Länder / Ø Manawert ohne und mit Ländern / **Marktwert** (aktueller Preis aller Deck-Karten, daneben der Kaufpreis) / **Fehlende Karten kosten** (Marktwert der Karten, die du nicht besitzt)
 - Mana-Kurve (ohne Länder)
 - Farbverteilung (ohne Länder)
 - Typenverteilung
-- Zählt auch nicht besessene Karten mit (Deckwert nur für besessene, da Kaufpreis nur dort bekannt)
+- **Farbquellen**: pro Farbe die farbigen Symbole in den Manakosten (Bedarf, gold) gegen die Quellen (türkis: Länder + Mana-Steine/-Kreaturen bis Manawert 3, laut Scryfall „produced_mana"). ⚠ markiert Farben, deren Anteil an den Quellen deutlich (< 70 %) unter ihrem Anteil am Bedarf liegt. Hybrid zählt für beide Farben, bei Abenteuer-/Split-Karten nur die Vorderseite
+- Preise und Manakosten der Deck-Karten lädt die App beim Öffnen gebündelt von Scryfall und merkt sie sich 24 Stunden (`ensureDeckSfData`, localStorage `mtgvault_deck_sf_v1`); besessene Karten nehmen den Live-Preis der Sammlung (inkl. Foil). Standardländer ohne Preis zählen als 0 €
+- Zählt auch nicht besessene Karten mit, das Maybeboard nicht. Auf-/Zugeklappt bleibt beim Bearbeiten erhalten
 
 **Commander-Validierung** (nur bei Format = Commander)
 - Karten-Anzahl: 100 Hauptdeck + Sideboard separat

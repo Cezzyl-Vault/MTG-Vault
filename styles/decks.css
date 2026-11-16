@@ -129,15 +129,28 @@
 }
 
 .deck-kpi-row{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;
   margin-bottom:1.2rem;
 }
-@media(max-width:520px){.deck-kpi-row{grid-template-columns:1fr;}}
+@media(max-width:760px){.deck-kpi-row{grid-template-columns:repeat(2,1fr);}}
 
 .deck-stats-grid{
-  display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:1.2rem;
+  display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 1.6rem;
 }
 @media(max-width:900px){.deck-stats-grid{grid-template-columns:1fr;}}
+
+/* Farbquellen: Bedarf (gold) gegen Quellen (türkis) */
+.color-sources{display:flex;flex-direction:column;gap:0.45rem;}
+.cs-row{display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:0.55rem;}
+.cs-bars{display:flex;flex-direction:column;gap:3px;}
+.cs-bar{height:7px;border-radius:4px;min-width:2px;}
+.cs-need{background:var(--gold);}
+.cs-src{background:var(--teal);}
+.cs-num{font-size:0.8rem;color:var(--text2);min-width:4.2em;text-align:right;}
+.cs-low .cs-num{color:var(--red);}
+.cs-legend{display:flex;flex-wrap:wrap;align-items:center;gap:0.3rem 0.5rem;font-size:0.75rem;color:var(--text3);margin-top:0.3rem;}
+.cs-dot{display:inline-block;width:10px;height:6px;border-radius:3px;}
+.cs-hint{font-size:0.75rem;color:var(--text3);}
 
 .deck-stats-section h4{
   font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.12em;
