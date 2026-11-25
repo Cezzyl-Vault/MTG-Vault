@@ -74,5 +74,8 @@ document.querySelectorAll('.modal-overlay').forEach(overlay=>{
   const cfg=loadCfg();
   if(!cfg){showConfigMissing();return;}
   _sb=window.supabase.createClient(cfg.url,cfg.key);
+  // Geteiltes Deck (?deck=<token>) → nur ansehen, ohne Login (share.js)
+  const shareToken=typeof sharedDeckTokenFromUrl==='function'?sharedDeckTokenFromUrl():null;
+  if(shareToken){await renderSharedDeck(shareToken);return;}
   await connectAndStart(cfg);
 })();

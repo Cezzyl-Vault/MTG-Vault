@@ -227,10 +227,12 @@ function renderDeckDetail(deck){
         <div class="deck-more">
           <button class="back-btn" onclick="toggleDeckMoreMenu(event)" title="Weitere Funktionen">⋯ Mehr</button>
           <div class="deck-more-menu" id="deckMoreMenu" onclick="closeDeckMoreMenu()">
+            <button onclick="openEdhrec()">💡 Vorschläge (EDHREC)</button>
             <button onclick="openMissingModal(activeDeckId)">✦ Fehlende Karten</button>
             <button onclick="openDeckListModal(activeDeckId)">⇅ Liste importieren / exportieren</button>
             <button onclick="openDeckToCollection(activeDeckId)">⇩ In Sammlung übernehmen</button>
             <button onclick="openCatModal()">＋ Kategorie anlegen</button>
+            <button onclick="openShareModal()">🔗 Teilen</button>
             <button onclick="openDeckHistory()">🕘 Verlauf</button>
             <button onclick="openDeckModal('${deck.id}')">✎ Deck umbenennen / Format</button>
           </div>

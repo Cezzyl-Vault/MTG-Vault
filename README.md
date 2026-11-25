@@ -37,7 +37,9 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **Karten hinzufügen wie bei deckstats.net**: In jeder Kategorie (und in „Ohne Kategorie") gibt es ein Tippfeld. Kartennamen tippen → Vorschläge (Scryfall-Autocomplete) → anklicken oder Enter → die Karte landet sofort in genau dieser Kategorie. Das Feld bleibt fokussiert, sodass man mehrere Karten zügig hintereinander eintippen kann; daneben ein Anzahl-Feld. Es lassen sich beliebige Karten hinzufügen — **auch solche, die man (noch) nicht besitzt**
 - **Maybeboard**: Ganz unten in jedem Deck steht immer das „💭 Maybeboard" (gestrichelt, mit eigenem Tippfeld) für Karten, die man sich überlegt. Es **zählt nicht zum Deck**: nicht bei Kartenzahl (Kopf zeigt „100 Karten · 5 Maybe"), Deck-Übersicht, Statistik, Commander-Prüfung, „In Sammlung" und Deck-Nutzung in der Sammlung (dort nur als Hinweis „(Maybeboard)"). „✦ Fehlende" listet Maybeboard-Karten getrennt und lässt sie aus Text, Download und Wunschliste weg. Karten wandern über „Verschieben" bzw. das Kategorie-Feld zwischen Deck und Maybeboard. Der Export schreibt einen eigenen Block „Maybeboard" (nicht im Arena-Format), der Import erkennt ihn wieder (`isMaybeCat`, `isOutsideDeck`, `mainDeckCards` in `js/decks.js`)
 - **Kartensuche mit Filtern**: „🔍 Suchen" im Deck sucht Karten nach Kartentext, Typ, Manawert von/bis, Höchstpreis (€) und Farbidentität (vorbelegt mit der des Commanders), optional mit eigener Scryfall-Syntax (z.B. `kw:flying pow>=4`). Online über Scryfall: nur Commander-legale Karten, sortiert nach Beliebtheit (EDHREC-Rang), je Karte eine legal spielbare Druckung (Druckungs-Filter im Suchtext, siehe CLAUDE.md), 175 pro Seite mit „Weitere laden". Mit „nur Karten aus meiner Sammlung" laufen dieselben Filter lokal (Preis = aktueller Marktpreis). Treffer zeigen Preis und „im Deck" / „Maybe" / „✓ Sammlung"; Bild antippen = groß, „＋" legt die Karte in die gewählte Kategorie (Standard: Maybeboard, Auswahl wird gemerkt) (`js/deck-search.js`)
-- **Deck-Kopf**: Ansicht, Bearbeiten, Suchen und Probehand stehen direkt im Kopf; Fehlende, Liste, In Sammlung, Kategorie anlegen, Verlauf und Deck bearbeiten liegen im Menü „⋯ Mehr"
+- **Deck-Kopf**: Ansicht, Bearbeiten, Suchen und Probehand stehen direkt im Kopf; Vorschläge, Fehlende, Liste, In Sammlung, Kategorie anlegen, Teilen, Verlauf und Deck bearbeiten liegen im Menü „⋯ Mehr"
+- **EDHREC-Vorschläge**: „⋯ Mehr → 💡 Vorschläge" lädt die Listen von EDHREC für den Commander des Decks (Hohe Synergie, Top-Karten, Kreaturen, Länder …; bei Partnern das Paar). Karten, die schon im Deck sind, werden ausgeblendet, besessene als „✓ Sammlung" markiert, optional „nur aus meiner Sammlung". Pro Karte: Anteil der Decks, die sie spielen, und Synergie. „＋ Deck" legt sie nach Kartentyp in die passende Kategorie, „💭 Maybe" ins Maybeboard – immer in einer legal spielbaren Druckung (`isPlayablePrint`). Antworten werden 24 Stunden gemerkt (`js/edhrec.js`)
+- **Deck teilen**: „⋯ Mehr → 🔗 Teilen" erstellt einen Link (`…/?deck=<Schlüssel>`), mit dem jeder das Deck ansehen kann – ohne Konto, immer im aktuellen Stand, nur lesen: Commander, Kategorien mit Bildern, Maybeboard, Manakurve, Marktwert und „Deckliste kopieren". Kaufpreise und Sammlung sind nicht sichtbar. „Link deaktivieren" macht den Link sofort ungültig (`js/share.js`, Datenbank-Funktion `get_shared_deck` in `supabase/deck_share.sql` einmalig ausführen)
 - **Versionshistorie**: Jede Änderung an einem Deck landet automatisch im Verlauf (3 Sekunden nach der letzten Änderung). Beim ersten Öffnen entsteht ein „Ausgangsstand", Änderungen innerhalb von 30 Minuten ergeben einen gemeinsamen Eintrag, höchstens 60 Einträge pro Deck. „⋯ Mehr → 🕘 Verlauf" zeigt pro Eintrag, was sich geändert hat (+2 Sol Ring · −1 Counterspell · Brainstorm → Maybeboard), und „↺ Wiederherstellen" setzt das Deck auf diesen Stand zurück – der jetzige Stand wird vorher gesichert, also lässt sich auch das rückgängig machen (`js/deck-history.js`, Tabelle: `supabase/deck_history.sql` einmalig ausführen)
 - **Probehand**: „🎲 Probehand" im Deck mischt die Bibliothek (ohne Commander und Maybeboard) und zieht 7 Karten. „↻ Mulligan" nach London-Regel – der erste Mulligan ist im Commander frei, danach tippt man die Karten an, die unter die Bibliothek kommen. „＋ Karte ziehen" spielt Zug für Zug weiter (neue Karten gold umrandet, mit Zug-Nummer), Antippen zeigt die Karte groß. Darunter die Starthand-Statistik: Wahrscheinlichkeit für 2–4 / 0–1 / 5+ Länder, Ø Länder in 7 Karten und „bis Zug 3 mindestens 3 Länder" (hypergeometrische Verteilung, `js/playtest.js`). Am Handy wird die Hand quer gescrollt
 - **„Fehlt"-Markierung**: Karten, die in keinem Sammlungs-Eintrag vorkommen, werden abgedunkelt mit rotem „fehlt"-Badge angezeigt (Listen-Ansicht: „fehlt"-Tag). Der Abgleich läuft live über den Kartennamen — wer die Karte später kauft und importiert, sieht die Markierung automatisch verschwinden
@@ -114,6 +116,7 @@ MTG-Vault/
 ├── supabase/oracle_text.sql      SQL für die Spalte Kartentext (Volltextsuche, einmalig ausführen)
 ├── supabase/deck_history.sql     SQL für die Tabelle der Deck-Versionen (einmalig ausführen)
 ├── supabase/keepalive.sql        SQL für den Wachhalte-Ping der Action (einmalig ausführen)
+├── supabase/deck_share.sql       SQL für Teilen-Links (Spalte share_token + get_shared_deck)
 ├── icons/                        App-Icons (192/512, maskable, Apple, Favicon)
 ├── README.md                     diese Datei
 ├── .github/workflows/
@@ -157,6 +160,8 @@ MTG-Vault/
     ├── playtest.js               Probehand: mischen, Mulligan, ziehen, Starthand-Statistik
     ├── deck-search.js            Kartensuche im Deck: Filter, Scryfall-Suche, Treffer ins Deck
     ├── deck-history.js           Versionshistorie: automatische Stände, Unterschiede, Wiederherstellen
+    ├── share.js                  Deck teilen: Link erstellen/deaktivieren, Ansicht ohne Login
+    ├── edhrec.js                 EDHREC-Vorschläge für den Commander, Karten ins Deck/Maybeboard
     ├── offline-cache.js          Offline-Lesemodus: Schnappschuss in IndexedDB, Offline-Client
     ├── price-tracking.js         Wöchentliche Snapshots, aktuelle Preise pro Karte (24-h-Cache)
     ├── stats.js                  Globale Statistik, Marktwert + Top-Listen, Wertverlaufs-Chart
@@ -196,6 +201,8 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Wunschliste, Wunschpreis, Preisalarm | `js/wishlist.js`, Tabelle: `supabase/wishlist.sql` |
 | Deck-Karten in die Sammlung übernehmen (Versionsauswahl) | `js/deck-to-collection.js` |
 | Versionshistorie der Decks | `js/deck-history.js`, Tabelle: `supabase/deck_history.sql` |
+| Deck teilen, Ansicht für Empfänger | `js/share.js`, SQL: `supabase/deck_share.sql` |
+| EDHREC-Vorschläge | `js/edhrec.js` |
 | Pro-Deck-Statistik | `js/deck-stats.js` |
 | Commander-Validierung | `js/deck-validation.js` |
 | Globale Statistik + Wertverlauf | `js/stats.js` |
@@ -303,7 +310,8 @@ Sammlung an, sie von Scryfall nachzuladen. Aktuelle Tabellen:
 cards          standardfelder + mana_value, colors[], type_line,
                 color_identity[], legal_commander,
                 oracle_text (anlegen: supabase/oracle_text.sql)
-decks          standardfelder + category_order[]
+decks          standardfelder + category_order[],
+                share_token (uuid, nur bei geteilten Decks; anlegen: supabase/deck_share.sql)
 deck_cards     deck_id, card_id (nullable!), category, quantity
                 + eigene Karten-Identität für nicht besessene Karten:
                 card_name, scryfall_id, set_code, set_name,
