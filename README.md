@@ -46,6 +46,7 @@ Hostet auf GitHub Pages, alle App-Logik im Browser, Daten in Supabase.
 - **In welchen Decks steckt eine Karte?** Das Karten-Fenster der Sammlung zeigt unter „In Decks" alle Decks mit dieser Karte (Kategorie + Anzahl, Klick öffnet das Deck). Brauchen die Decks zusammen mehr Exemplare, als du besitzt, erscheint eine Warnung (Basic Lands ausgenommen)
 - **Deckliste als Text**: „⇩ Liste importieren" in der Decks-Übersicht legt aus einer eingefügten Liste ein neues Deck an; „⇅ Liste" im Deck exportiert es als Text (mit Kategorien, einfach für Moxfield/Archidekt oder im MTG-Arena-Format, optional mit Set + Nummer) und fügt Karten aus einer Liste hinzu. Versteht „1 Sol Ring", „1x Sol Ring (C21) 263", Archidekt-Kategorien „[Ramp]", Überschriften wie „// Ramp" oder „Commander" sowie MTGO-„SB:"-Zeilen. Nicht gefundene Karten bleiben zum Korrigieren im Feld stehen
 - **Deck-Karten in die Sammlung übernehmen**: „⇩ In Sammlung" im Deck (und als Angebot direkt nach einem Listen-Import) geht das Deck Karte für Karte durch. Pro Karte wählt man die genaue Version (Set, Nummer, Normal/Foil) — vorausgewählt ist die Druckung aus dem Deck bzw. die neueste normale Druckung, nur legal spielbare Versionen. Anzahl = Deck-Menge, Kaufpreis = aktueller Preis der Version (änderbar), Zustand und Sprache wählbar. Jede Karte wird sofort gespeichert; vorhandene gleiche Karten bekommen mehr Menge. Standardländer werden übersprungen, gleichnamige Deck-Zeilen zusammengefasst
+- **Deck-Karten wieder aus der Sammlung nehmen** (vorübergehend): „⋯ Mehr → ⇧ Aus Sammlung entfernen" listet die Karten des Decks (ohne Maybeboard), die in der Sammlung sind – aus dem aktuellen Stand oder einem älteren Stand aus dem Verlauf. Pro Karte wählbar, wie viele Stück entfernt werden (vorbelegt: Menge im Deck; Standardländer nicht vorausgewählt). Verringert wird zuerst dieselbe Druckung wie im Deck, dann die zuletzt angelegten Einträge; Menge 0 löscht den Eintrag. Vorher Rückfrage und (abwählbar) ein Komplett-Backup, das Deck bleibt unverändert (`js/deck-from-collection.js`)
 - **Fehlt-Liste**: „✦ Fehlende" im Deck (pro Deck) bzw. „✦ Fehlende Karten" in der Decks-Übersicht (über alle Decks) zeigt alle nicht besessenen Karten mit Mengen — kopierbar und als .txt herunterladbar (z.B. als Einkaufsliste)
 - **Wunschliste mit Preisalarm**: „★ Wunschliste" in der Decks-Übersicht. Karten per Tippfeld hinzufügen oder aus der Fehlt-Liste übernehmen („★ Auf die Wunschliste"), pro Karte einen Wunschpreis setzen. Angezeigt wird die günstigste spielbare Druckung mit Euro-Preis (ohne Goldrand, Silberrand, Sammler-Sets wie Collectors' Edition/30th Anniversary, Token, Übergroße) (Scryfall/Cardmarket) samt Cardmarket-Link (ohne Scryfalls Tracking-Zusätze, die Cloudflare bei Cardmarket blockiert). Liegt der Preis auf oder unter dem Wunschpreis, wird die Zeile grün, der Button zeigt einen Zähler und beim App-Start erscheint einmal am Tag ein Hinweis. Braucht die Tabelle `wishlist` (siehe [Datenbank-Schema](#datenbank-schema))
 - Karten-Detail mit zwei Ansichten:
@@ -156,6 +157,7 @@ MTG-Vault/
     ├── wishlist.js               Wunschliste mit Wunschpreis + Preisalarm
     │                             (selbstständig: injiziert Button, Modal + CSS)
     ├── deck-to-collection.js     Deck-Karten mit Versionsauswahl in die Sammlung übernehmen
+    ├── deck-from-collection.js   Vorübergehend: Karten eines Decks wieder aus der Sammlung nehmen
     │                             (selbstständig: injiziert Modal + CSS, nutzt .acs-* aus add-card.js)
     ├── playtest.js               Probehand: mischen, Mulligan, ziehen, Starthand-Statistik
     ├── deck-search.js            Kartensuche im Deck: Filter, Scryfall-Suche, Treffer ins Deck
@@ -200,6 +202,7 @@ die Ladereihenfolge zwischen diesen drei Dateien egal.
 | Deckliste importieren/exportieren (Formate, Parser) | `js/deck-list.js` |
 | Wunschliste, Wunschpreis, Preisalarm | `js/wishlist.js`, Tabelle: `supabase/wishlist.sql` |
 | Deck-Karten in die Sammlung übernehmen (Versionsauswahl) | `js/deck-to-collection.js` |
+| Deck-Karten wieder aus der Sammlung nehmen (vorübergehend) | `js/deck-from-collection.js` |
 | Versionshistorie der Decks | `js/deck-history.js`, Tabelle: `supabase/deck_history.sql` |
 | Deck teilen, Ansicht für Empfänger | `js/share.js`, SQL: `supabase/deck_share.sql` |
 | EDHREC-Vorschläge | `js/edhrec.js` |

@@ -231,6 +231,7 @@ function renderDeckDetail(deck){
             <button onclick="openMissingModal(activeDeckId)">✦ Fehlende Karten</button>
             <button onclick="openDeckListModal(activeDeckId)">⇅ Liste importieren / exportieren</button>
             <button onclick="openDeckToCollection(activeDeckId)">⇩ In Sammlung übernehmen</button>
+            <button onclick="openRemoveFromCollection()">⇧ Aus Sammlung entfernen</button>
             <button onclick="openCatModal()">＋ Kategorie anlegen</button>
             <button onclick="openShareModal()">🔗 Teilen</button>
             <button onclick="openDeckHistory()">🕘 Verlauf</button>

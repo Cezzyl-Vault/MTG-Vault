@@ -116,7 +116,7 @@ body.offline #acsCollBar,body.offline #acsEmptyBtn,body.offline .empty-cta,
 body.offline .dca-add,body.offline .deck-actions,body.offline .del-cat-btn,
 body.offline .dc-remove,body.offline .dc-tile-remove,body.offline .ds-add,
 body.offline button[onclick^="openDeckModal"],body.offline button[onclick^="openDeckListModal"],
-body.offline button[onclick^="toggleDeckEditMode"],body.offline button[onclick^="openDeckToCollection"],
+body.offline button[onclick^="toggleDeckEditMode"],body.offline button[onclick^="openDeckToCollection"],body.offline button[onclick^="openRemoveFromCollection"],
 body.offline button[onclick^="openCatModal"],body.offline button[onclick^="openDeckSearch"],
 body.offline #migrationBanner{display:none !important;}
 
