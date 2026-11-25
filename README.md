@@ -113,11 +113,12 @@ MTG-Vault/
 ├── supabase/wishlist.sql         SQL für die Tabelle der Wunschliste (einmalig ausführen)
 ├── supabase/oracle_text.sql      SQL für die Spalte Kartentext (Volltextsuche, einmalig ausführen)
 ├── supabase/deck_history.sql     SQL für die Tabelle der Deck-Versionen (einmalig ausführen)
+├── supabase/keepalive.sql        SQL für den Wachhalte-Ping der Action (einmalig ausführen)
 ├── icons/                        App-Icons (192/512, maskable, Apple, Favicon)
 ├── README.md                     diese Datei
 ├── .github/workflows/
 │   ├── version-bump.yml          Auto-Versionierung + Cache-Busting
-│   └── supabase-keepalive.yml    Hält das Supabase-Projekt wach (alle 3 Tage)
+│   └── supabase-keepalive.yml    Hält das Supabase-Projekt wach (täglicher Schreib-Ping)
 ├── styles/
 │   ├── base.css                  Variablen, Body, Hintergrund, Scrollbar
 │   ├── auth.css                  Logo, Login/Registrierung, DB-Status-Bildschirm
@@ -219,13 +220,24 @@ Die Action ignoriert ihre eigenen Commits (markiert mit `[skip ci]`), damit sie 
 
 ## Supabase wachhalten
 
-Kostenlose Supabase-Projekte werden nach 7 Tagen ohne Aktivität pausiert. Die Action
-`supabase-keepalive.yml` schickt deshalb alle 3 Tage eine kleine Abfrage an die
-Tabelle `cards`. URL und Anon-Key liest sie aus `js/defaults.js` — es sind keine
-Secrets nötig, und ohne Login liefert die Abfrage dank RLS keine Daten.
+Kostenlose Supabase-Projekte werden pausiert, wenn eine Woche lang zu wenig
+Datenbank-Aktivität da ist. Die Action `supabase-keepalive.yml` ruft deshalb jeden Tag
+die Funktion `keepalive_ping()` auf, die eine Zeile in die Tabelle `keepalive` schreibt
+(einmalig `supabase/keepalive.sql` ausführen). URL und Anon-Key liest sie aus
+`js/defaults.js` — es sind keine Secrets nötig. Die Tabelle enthält nur Zeitpunkt und
+Zähler; ohne Login darf man nur diese eine Funktion aufrufen.
+
+Früher schickte die Action nur alle 3 Tage eine Leseabfrage, die wegen RLS `[]` lieferte.
+Das hat im November 2026 nicht gereicht: Supabase pausierte das Projekt trotz
+erfolgreicher Läufe etwa eine Woche nach der letzten echten Nutzung.
 
 - **Manuell starten**: GitHub → Actions → „Supabase Keep-Alive" → „Run workflow"
-- **Lauf ist rot**: Projekt ist vermutlich pausiert → im Supabase-Dashboard „Restore" klicken
+- **Lauf ist rot**: Projekt ist pausiert → im Supabase-Dashboard „Restore project" klicken
+- **Gelbe Warnung im Lauf**: `supabase/keepalive.sql` ist noch nicht ausgeführt
+- **Optional automatisch aufwecken**: Repo-Secret `SUPABASE_ACCESS_TOKEN` anlegen
+  (Supabase-Dashboard → Account → Access Tokens). Dann startet die Action ein pausiertes
+  Projekt selbst wieder (Management-API `restore`). Der Token gilt für das ganze
+  Supabase-Konto – nur als GitHub-Secret ablegen, nie in den Code
 - **In der App**: Ist die Datenbank beim Start (oder beim Laden/Login) nicht erreichbar, zeigt
   die App statt Fehlern einen eigenen Bildschirm mit Button zum Dashboard und prüft alle
   15 Sekunden automatisch, ob sie wieder läuft (`checkDbReachable` in `js/db.js`,

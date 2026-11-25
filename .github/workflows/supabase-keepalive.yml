@@ -2,20 +2,29 @@
 #  Supabase Keep-Alive  ·  verhindert das Pausieren des Projekts
 # ══════════════════════════════════════════════════════════
 #
-#  Kostenlose Supabase-Projekte werden nach 7 Tagen ohne Aktivität
-#  pausiert. Diese Action schickt alle 3 Tage eine kleine Abfrage an
-#  die Tabelle "cards" — das ist eine echte Datenbank-Abfrage und
-#  zählt als Aktivität.
+#  Kostenlose Supabase-Projekte werden pausiert, wenn eine Woche lang zu
+#  wenig Datenbank-Aktivität da ist. Diese Action ruft jeden Tag die
+#  Funktion keepalive_ping() auf (supabase/keepalive.sql). Die SCHREIBT
+#  eine Zeile – echte Datenbank-Arbeit.
+#
+#  Hintergrund: Bis November 2026 schickte die Action nur alle 3 Tage eine
+#  Leseabfrage ohne Login. Wegen Row Level Security kam immer [] zurück,
+#  und Supabase hat das Projekt trotzdem pausiert.
 #
 #  Keine Secrets nötig:
 #    URL und Anon-Key werden aus js/defaults.js gelesen. Der Anon-Key
-#    ist ohnehin öffentlich (steht im Browser-Code). Row Level Security
-#    sorgt dafür, dass die Abfrage ohne Login keine Daten zurückgibt —
-#    die Antwort ist einfach [].
+#    ist ohnehin öffentlich (steht im Browser-Code).
+#
+#  Optional – automatisch wieder aufwecken:
+#    Ist das Repo-Secret SUPABASE_ACCESS_TOKEN gesetzt (persönlicher
+#    Zugangstoken aus dem Supabase-Dashboard → Account → Access Tokens),
+#    startet die Action ein pausiertes Projekt selbst wieder
+#    (Management-API „restore"). Ohne Secret wird dieser Schritt übersprungen.
 #
 #  Wenn der Lauf rot wird:
-#    Das Projekt ist vermutlich doch pausiert → im Supabase-Dashboard
-#    "Restore" klicken. GitHub schickt bei Fehlschlägen eine Mail.
+#    Das Projekt ist pausiert → im Supabase-Dashboard „Restore project"
+#    klicken (bzw. passiert mit Token von selbst). GitHub schickt bei
+#    Fehlschlägen eine Mail.
 #
 #  Achtung 60-Tage-Regel:
 #    GitHub deaktiviert Zeitplan-Actions, wenn 60 Tage lang kein Commit
@@ -26,9 +35,9 @@ name: Supabase Keep-Alive
 
 on:
   schedule:
-    # Alle 3 Tage um 06:17 UTC — krumme Minute, weil GitHub Zeitpläne
+    # Jeden Tag um 06:17 UTC – krumme Minute, weil GitHub Zeitpläne
     # zur vollen Stunde oft stark verzögert ausführt
-    - cron: '17 6 */3 * *'
+    - cron: '17 6 * * *'
   # Manuell startbar: Actions → "Supabase Keep-Alive" → "Run workflow"
   workflow_dispatch:
 
@@ -38,6 +47,8 @@ permissions:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
 
     steps:
       - name: Code auschecken (für js/defaults.js)
@@ -52,18 +63,60 @@ jobs:
             echo "URL oder Key in js/defaults.js nicht gefunden."
             exit 1
           fi
+          REF=$(echo "$URL" | sed -E 's#https://([^.]+)\.supabase\.co.*#\1#')
           echo "Supabase-Projekt: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "key=$KEY" >> $GITHUB_OUTPUT
+          echo "ref=$REF" >> $GITHUB_OUTPUT
 
-      - name: Datenbank anpingen
+      - name: Datenbank anpingen (schreibend)
         run: |
-          # --fail: bei HTTP-Fehler (z.B. pausiertes Projekt) wird der Lauf rot
-          # --retry: kurze Netzwerk-Aussetzer abfangen
-          STATUS=$(curl --silent --show-error --fail \
-            --retry 3 --retry-delay 20 --retry-all-errors \
-            --output /dev/null --write-out "%{http_code}" \
-            -H "apikey: ${{ steps.cfg.outputs.key }}" \
-            -H "Authorization: Bearer ${{ steps.cfg.outputs.key }}" \
-            "${{ steps.cfg.outputs.url }}/rest/v1/cards?select=id&limit=1")
+          URL="${{ steps.cfg.outputs.url }}"
+          KEY="${{ steps.cfg.outputs.key }}"
+          ping_rpc() {
+            curl --silent --show-error \
+              --retry 3 --retry-delay 20 --retry-all-errors \
+              --output body.txt --write-out "%{http_code}" \
+              -X POST -H "Content-Type: application/json" -d '{}' \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              "$URL/rest/v1/rpc/keepalive_ping"
+          }
+          # Bei Netzwerkfehler (z.B. Adresse unbekannt = pausiert) liefert curl 000
+          STATUS=$(ping_rpc) || true
           echo "Antwort von Supabase: HTTP $STATUS"
+          cat body.txt 2>/dev/null; echo
+
+          if [ "$STATUS" = "200" ]; then
+            echo "✓ Datenbank wach, Ping gespeichert."
+            exit 0
+          fi
+
+          if [ "$STATUS" = "404" ]; then
+            # Funktion noch nicht angelegt → wenigstens lesen, aber deutlich warnen
+            echo "::warning::keepalive_ping() fehlt – bitte supabase/keepalive.sql im Supabase-SQL-Editor ausführen. Bis dahin nur Leseabfrage (reicht evtl. nicht gegen das Pausieren)."
+            curl --silent --show-error --fail --output /dev/null \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              "$URL/rest/v1/cards?select=id&limit=1"
+            exit 0
+          fi
+
+          echo "::error::Supabase nicht erreichbar (HTTP $STATUS) – Projekt vermutlich pausiert."
+          exit 1
+
+      - name: Pausiertes Projekt wieder starten (nur mit SUPABASE_ACCESS_TOKEN)
+        if: failure() && env.HAS_TOKEN == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          REF="${{ steps.cfg.outputs.ref }}"
+          STATUS=$(curl --silent --show-error --output body.txt --write-out "%{http_code}" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$REF")
+          echo "Projektstatus abfragen: HTTP $STATUS"
+          grep -o '"status":"[A-Z_]*"' body.txt || true
+          STATUS=$(curl --silent --show-error --output body.txt --write-out "%{http_code}" \
+            -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$REF/restore")
+          echo "Wiederherstellen angestoßen: HTTP $STATUS"
+          cat body.txt; echo
+          # Lauf bleibt trotzdem rot, damit die Mail von GitHub kommt
